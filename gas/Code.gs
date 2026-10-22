@@ -12,6 +12,10 @@ const SHEET_MIN = "المحاضر";
 const SHEET_SIG = "التواقيع";
 const SHEET_MYSIG = "توقيعات المعلمين";
 const SHEET_VIS = "الزيارات";
+const SHEET_SUBS = "الاحتياط";
+const SHEET_PLAN = "خطة الزيارات";
+// نائب رئيس القسم: له صلاحية ركن الاحتياط مع رئيس القسم
+const DEPUTY = "حمد عماد حمد العون";
 
 const ST_PENDING = "بانتظار الصياغة";
 
@@ -55,7 +59,7 @@ function doGet() {
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
-  saveVisit, listVisits, getVisit, signVisit, deleteVisit };
+  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan };
 
 function doPost(e) {
   let out;
@@ -93,6 +97,8 @@ function setup() {
   sheet_(SHEET_MYSIG, ["المعلم", "التوقيع", "آخر تحديث"], true);
   sheet_(SHEET_VIS, ["المعرف", "المعلم", "الفصل", "البطاقة", "التاريخ", "الحصة", "رقم الوحدة", "المجال", "رقم الدرس", "عنوان الدرس / السورة والآيات",
     "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس القسم", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم", "نوع الزيارة", "الملاحظات"], true);
+  sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل"], true);
+  sheet_(SHEET_PLAN, ["الأسبوع", "التاريخ", "اليوم", "الحصة", "المعلم", "الفصل", "ملاحظة"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
   codes.getRange("B:B").setNumberFormat("@");
@@ -202,7 +208,7 @@ function login(code) {
   const all = readEntries_(demoPrefix_(me));
   const mine = {};
   me.classes.forEach(c => ["ie", "qr"].forEach(s => { const k = c + "__" + s; if (all[k]) mine[k] = all[k]; }));
-  return { name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, entries: mine, all: me.isHead ? all : null };
+  return { name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, canSubs: !me.isDemo && (me.isHead || me.name === DEPUTY), entries: mine, all: me.isHead ? all : null };
 }
 
 function saveEntry(code, classId, subject, done, note, label) {
@@ -602,4 +608,67 @@ function deleteVisit(code, id) {
     if (row > 0) sh.deleteRow(row);
     return true;
   });
+}
+
+
+// ======================= الاحتياط (رئيس القسم ونائبه) =======================
+function staff_(code) {
+  const me = who_(code);
+  if (me.isDemo || !(me.isHead || me.name === DEPUTY)) throw new Error("هذه الصلاحية لرئيس القسم ونائبه فقط.");
+  return me;
+}
+function subsRows_() { const sh = sh_(SHEET_SUBS); return sh ? rows_(SHEET_SUBS).slice(1).filter(r => r[0]) : []; }
+function subObj_(r) { return { absence: r[0], date: r[1], teacher: r[2], period: Number(r[3]), classId: r[4], sub: r[5], by: r[6], at: r[7] }; }
+
+/** كل سجلات الاحتياط */
+function subsList(code) { staff_(code); return subsRows_().map(subObj_); }
+
+/** تسجيل غياب معلم في يوم: يستبدل سجل اليوم نفسه لهذا المعلم إن وُجد */
+function saveAbsence(code, a) {
+  const me = staff_(code);
+  a = a || {};
+  const date = String(a.date || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("التاريخ غير صحيح.");
+  const names = TEACHERS.map(t => t[0]);
+  if (names.indexOf(a.teacher) === -1) throw new Error("اختر المعلم الغائب.");
+  const items = (Array.isArray(a.items) ? a.items : []).slice(0, 7).map(x => ({ period: Number(x && x.period), classId: String((x && x.classId) || "").slice(0, 20), sub: String((x && x.sub) || "") }));
+  if (!items.length) throw new Error("لا توجد حصص لهذا المعلم في هذا اليوم.");
+  items.forEach(x => {
+    if (!(x.period >= 1 && x.period <= 7)) throw new Error("رقم الحصة غير صحيح.");
+    if (x.sub && (names.indexOf(x.sub) === -1 || x.sub === a.teacher)) throw new Error("المعلم البديل غير صحيح.");
+  });
+  const id = date + "|" + a.teacher;
+  return withLock_(() => {
+    const sh = sh_(SHEET_SUBS);
+    const all = sh.getDataRange().getDisplayValues();
+    // لا يُكلَّف معلم بحصتين في الوقت نفسه
+    items.forEach(x => {
+      if (!x.sub) return;
+      const clash = all.slice(1).find(r => r[1] === date && r[0] !== id && Number(r[3]) === x.period && r[5] === x.sub);
+      if (clash) throw new Error("أ. " + x.sub + " مكلّف بالحصة " + x.period + " بدل أ. " + clash[2] + ".");
+    });
+    for (let i = all.length - 1; i >= 1; i--) if (all[i][0] === id) sh.deleteRow(i + 1);
+    const now = nowText_();
+    items.forEach(x => appendText_(sh, [id, date, a.teacher, x.period, x.classId, x.sub, me.name, now]));
+    return subsRows_().map(subObj_);
+  });
+}
+
+function deleteAbsence(code, date, teacher) {
+  staff_(code);
+  const id = String(date) + "|" + String(teacher);
+  return withLock_(() => {
+    const sh = sh_(SHEET_SUBS);
+    const all = sh.getDataRange().getDisplayValues();
+    for (let i = all.length - 1; i >= 1; i--) if (all[i][0] === id) sh.deleteRow(i + 1);
+    return subsRows_().map(subObj_);
+  });
+}
+
+// ======================= خطة الزيارات (رئيس القسم) =======================
+function visitPlan(code) {
+  head_(code);
+  const sh = sh_(SHEET_PLAN);
+  if (!sh) return [];
+  return rows_(SHEET_PLAN).slice(1).filter(r => r[1]).map(r => ({ week: Number(r[0]), date: r[1], day: r[2], period: Number(r[3]), teacher: r[4], classId: r[5], note: r[6] }));
 }
