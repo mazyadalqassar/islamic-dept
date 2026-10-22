@@ -60,7 +60,7 @@ function doGet() {
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
-  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable };
+  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool };
 
 function doPost(e) {
   let out;
@@ -684,5 +684,21 @@ function schoolTable(code) {
   return rows_(SHEET_SCHOOL).slice(1).filter(r => r[0]).map(r => {
     let slots = {}; try { slots = JSON.parse(r[2] || "{}"); } catch (e) {}
     return { name: r[0], dept: r[1], slots };
+  });
+}
+
+/** لرئيس القسم: استيراد جدول المدرسة (JSON مضغوط gzip بترميز base64: [[المعلم، القسم، الجدول]]) */
+function importSchool(code, b64) {
+  head_(code);
+  const json = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), "application/x-gzip")).getDataAsString("UTF-8");
+  const rows = JSON.parse(json);
+  if (!Array.isArray(rows) || !rows.length) throw new Error("بيانات الجدول غير صالحة.");
+  return withLock_(() => {
+    const sh = sheet_(SHEET_SCHOOL, ["المعلم", "القسم", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
+    if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 3).clearContent();
+    const rg = sh.getRange(2, 1, rows.length, 3);
+    rg.setNumberFormat("@");
+    rg.setValues(rows.map(r => [String(r[0]), String(r[1]), String(r[2])]));
+    return rows.length;
   });
 }
