@@ -11,6 +11,7 @@ const SHEET_ACH = "الإنجازات";
 const SHEET_MIN = "المحاضر";
 const SHEET_SIG = "التواقيع";
 const SHEET_MYSIG = "توقيعات المعلمين";
+const SHEET_VIS = "الزيارات";
 
 const ST_PENDING = "بانتظار الصياغة";
 
@@ -53,7 +54,8 @@ function doGet() {
 // ======================= واجهة الموقع الخارجي (GitHub Pages) =======================
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
-  getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction };
+  getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
+  saveVisit, listVisits, getVisit, signVisit, deleteVisit };
 
 function doPost(e) {
   let out;
@@ -89,6 +91,8 @@ function setup() {
   sheet_(SHEET_MIN, ["المعرف", "العنوان", "التاريخ", "الوقت", "المكان", "الحضور", "جدول الأعمال", "ما دار في الاجتماع", "التوصيات", "تاريخ الإنشاء"], true);
   sheet_(SHEET_SIG, ["المحضر", "المعلم", "وقت التوقيع", "التوقيع"], true);
   sheet_(SHEET_MYSIG, ["المعلم", "التوقيع", "آخر تحديث"], true);
+  sheet_(SHEET_VIS, ["المعرف", "المعلم", "الفصل", "البطاقة", "التاريخ", "الحصة", "رقم الوحدة", "المجال", "رقم الدرس", "عنوان الدرس / السورة والآيات",
+    "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس القسم", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
   codes.getRange("B:B").setNumberFormat("@");
@@ -465,6 +469,8 @@ function demoAction(code, name, action) {
         (av[i][7] || "").split(",").filter(Boolean).forEach(fid => { try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {} });
         ach.deleteRow(i + 1);
       }
+      const vis = sh_(SHEET_VIS), vv = vis.getDataRange().getDisplayValues();
+      for (let i = vv.length - 1; i >= 1; i--) if (vv[i][1] === name) vis.deleteRow(i + 1);
       [SHEET_SIG, SHEET_MYSIG].forEach((sn, j) => {
         const sh = sh_(sn), v = sh.getDataRange().getDisplayValues();
         for (let i = v.length - 1; i >= 1; i--) if (v[i][j === 0 ? 1 : 0] === name) sh.deleteRow(i + 1);
@@ -497,3 +503,99 @@ function notify_(me, subject, html, attachments) {
 
 /** لتجربة الإيميل من المحرر */
 function testEmail() { notify_(null, "تجربة تنبيهات موقع القسم", "<p>وصلتك هذه الرسالة، يعني التنبيهات تعمل.</p>"); }
+
+// ======================= الزيارات الصفية =======================
+// أعمدة الزيارات: 0 المعرف | 1 المعلم | 2 الفصل | 3 البطاقة (ie | qr | tl) | 4 التاريخ | 5 الحصة | 6 رقم الوحدة | 7 المجال
+// 8 رقم الدرس | 9 عنوان الدرس أو السورة والآيات | 10 رقم الزيارة | 11 التقييمات (JSON: [[المستوى، الملاحظة], ...])
+// 12 التوصيات | 13 توقيع رئيس القسم | 14 تاريخ الإنشاء | 15 توقيع المعلم | 16 وقت توقيع المعلم
+const VISIT_CARDS = { ie: "التربية الإسلامية", qr: "القرآن الكريم", tl: "حصة تلاوة" };
+
+function visObj_(r, withImages) {
+  let ratings = [];
+  try { ratings = JSON.parse(r[11] || "[]"); } catch (e) {}
+  const o = { id: r[0], teacher: r[1], classId: r[2], card: r[3], date: r[4], period: r[5], unit: r[6], domain: r[7], lessonNo: r[8], lesson: r[9],
+    number: r[10], ratings, recommendations: r[12], createdAt: r[14], teacherSignedAt: r[16], demo: isDemo_(r[1]) };
+  if (withImages) { o.headSig = r[13]; o.teacherSig = r[15]; }
+  return o;
+}
+function visRows_() { return rows_(SHEET_VIS).slice(1).filter(r => r[0]); }
+function validSig_(img) { return /^data:image\/png;base64,/.test(img) && img.length <= 48000; }
+
+/** لرئيس القسم: إنشاء زيارة أو تعديلها (قبل توقيع المعلم) */
+function saveVisit(code, v) {
+  const me = head_(code);
+  const teacher = String(v.teacher || "");
+  const t = TEACHERS.find(x => x[0] === teacher);
+  const classes = t ? t[1] : (isDemo_(teacher) ? DEMOS[teacher] : null);
+  if (!classes) throw new Error("اختر المعلم.");
+  if (classes.indexOf(v.classId) === -1) throw new Error("هذا الفصل ليس من فصول المعلم.");
+  if (!VISIT_CARDS[v.card]) throw new Error("اختر نوع البطاقة.");
+  const ratings = (Array.isArray(v.ratings) ? v.ratings : []).slice(0, 40).map(x => [String((x && x[0]) || "").slice(0, 30), String((x && x[1]) || "").slice(0, 300)]);
+  const headSig = String(v.headSig || "");
+  if (headSig && !validSig_(headSig)) throw new Error("توقيعك غير صالح، ارسمه مرة أخرى.");
+  return withLock_(() => {
+    const sh = sh_(SHEET_VIS);
+    const row = v.id ? findRow_(sh, 1, v.id) : -1;
+    let old = null;
+    if (v.id) {
+      if (row < 0) throw new Error("الزيارة غير موجودة.");
+      old = sh.getRange(row, 1, 1, 17).getDisplayValues()[0];
+      if (old[16]) throw new Error("وقّع المعلم على هذه الزيارة، فلا يمكن تعديلها.");
+    }
+    const number = old ? old[10] : String(visRows_().filter(r => r[1] === teacher).length + 1);
+    const values = [old ? old[0] : newId_(), teacher, v.classId, v.card, String(v.date || "").slice(0, 10), String(v.period || "").slice(0, 10),
+      String(v.unit || "").slice(0, 40), String(v.domain || "").slice(0, 60), String(v.lessonNo || "").slice(0, 20), String(v.lesson || "").slice(0, 200),
+      number, JSON.stringify(ratings), String(v.recommendations || "").slice(0, 3000), headSig || (old ? old[13] : ""), old ? old[14] : nowText_(), "", ""];
+    if (row > 0) writeRow_(sh, row, values); else appendText_(sh, values);
+    if (headSig) {
+      const my = sh_(SHEET_MYSIG), r2 = findRow_(my, 1, me.name);
+      if (r2 > 0) writeRow_(my, r2, [me.name, headSig, nowText_()]); else appendText_(my, [me.name, headSig, nowText_()]);
+    }
+    return { id: values[0], number };
+  });
+}
+
+/** رئيس القسم يرى كل الزيارات، والمعلم يرى زياراته فقط */
+function listVisits(code) {
+  const me = who_(code);
+  return visRows_().filter(r => me.isHead || r[1] === me.name).map(r => visObj_(r, false)).reverse();
+}
+
+function getVisit(code, id) {
+  const me = who_(code);
+  const r = visRows_().find(x => x[0] === id);
+  if (!r || (!me.isHead && r[1] !== me.name)) throw new Error("الزيارة غير موجودة.");
+  return visObj_(r, true);
+}
+
+/** توقيع المعلم على أنه اطّلع على زيارته */
+function signVisit(code, id, image) {
+  const me = who_(code);
+  image = String(image || "");
+  if (!validSig_(image)) throw new Error("التوقيع غير صالح، ارسمه مرة أخرى.");
+  return withLock_(() => {
+    const sh = sh_(SHEET_VIS), row = findRow_(sh, 1, id);
+    if (row < 0) throw new Error("الزيارة غير موجودة.");
+    const r = sh.getRange(row, 1, 1, 17).getDisplayValues()[0];
+    if (r[1] !== me.name) throw new Error("هذه الزيارة ليست لك.");
+    if (r[16]) throw new Error("وقّعت على هذه الزيارة من قبل.");
+    const at = nowText_();
+    r[15] = image; r[16] = at;
+    writeRow_(sh, row, r);
+    const my = sh_(SHEET_MYSIG), r2 = findRow_(my, 1, me.name);
+    if (r2 > 0) writeRow_(my, r2, [me.name, image, at]); else appendText_(my, [me.name, image, at]);
+    notify_(me, `وقّع أ. ${me.name} على الزيارة الصفية رقم ${r[10]}`, `
+      <p>اطّلع <b>أ. ${esc_(me.name)}</b> على الزيارة الصفية رقم ${esc_(r[10])} (${esc_(VISIT_CARDS[r[3]] || "")}) بتاريخ ${esc_(r[4])}، ووقّع عليها في ${esc_(at)}.</p>
+      <p>يمكنك تنزيل بطاقة الزيارة موقّعة من ركن «الزيارات الصفية».</p>`);
+    return { signedAt: at };
+  });
+}
+
+function deleteVisit(code, id) {
+  head_(code);
+  return withLock_(() => {
+    const sh = sh_(SHEET_VIS), row = findRow_(sh, 1, id);
+    if (row > 0) sh.deleteRow(row);
+    return true;
+  });
+}
