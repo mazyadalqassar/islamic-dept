@@ -2004,7 +2004,7 @@ function buildPlanDoc(D) {
   return h.doc([h.letterhead(), h.para("", { after: 120 }),
     h.para("الخطة الأسبوعية لرئيس القسم", { size: 22, color: h.ORANGE, bold: true, align: h.C, after: 40 }),
     h.para("خطة الزيارات الصفية للفصل الدراسي الأول ٢٠٢٦/٢٠٢٧م", { size: 32, bold: true, align: h.C, after: 120 }),
-    h.para(`من ${fmtDate(VPLAN[0].date)} إلى ${fmtDate(VPLAN[VPLAN.length - 1].date)} · زيارة واحدة لكل معلم (${ar(VPLAN.length)} معلمًا)، في حصة يكون فيها المعلم داخل فصله ورئيس القسم متفرغًا.`, { size: 21, align: h.C, color: h.MUTED, after: 200 }),
+    h.para(`من ${fmtDate(VPLAN[0].date)} إلى ${fmtDate(VPLAN[VPLAN.length - 1].date)} · زيارة واحدة لكل معلم (${ar(VPLAN.length)} معلمًا)، في حصة يكون فيها المعلم داخل فصله ورئيس القسم متفرغًا، عدا الحصتين الأولى والسابعة.`, { size: 21, align: h.C, color: h.MUTED, after: 200 }),
     h.table(rows, [1100, 1100, 1400, 800, 3300, 1300, 900]),
     h.para("يُحدَّد نوع الزيارة (استطلاعية / توجيهية / تقويمية) عند تنفيذها، وقد تُعدَّل المواعيد عند تعارضها مع الأنشطة أو الاختبارات.", { size: 19, color: h.MUTED, before: 160, after: 300 }),
     h.signRow([["رئيس قسم التربية الإسلامية", "أ. " + HEAD_NAME], ["مدير المدرسة", "أ. " + PRINCIPAL]])]);
