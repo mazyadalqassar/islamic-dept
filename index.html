@@ -189,6 +189,73 @@ table.vis-sum tr[data-t]:hover td { background: var(--accent-soft); }
 .foot { margin-top: 22px; font-size: 12.5px; color: var(--muted); }
 @media (max-width: 560px) { .summary { grid-template-columns: repeat(2, 1fr); } .brand h1 { font-size: 18px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ===== الواجهة: رئيسية بحلقة الأسبوع وأركان ملوّنة ===== */
+:root { --c-curr: #2e8b7a; --c-curr-s: #e3f3ef; --c-ach: #c98a1e; --c-ach-s: #fcf1dc; --c-min: #4c5fd5; --c-min-s: #e8ebfb; --c-vis: #d2553a; --c-vis-s: #fbe7df; --ring-track: #f3d4bb; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-curr: #5cc2ae; --c-curr-s: #1c302b; --c-ach: #e5b155; --c-ach-s: #362b17; --c-min: #8d9bf0; --c-min-s: #232846; --c-vis: #ef8a6f; --c-vis-s: #3b231c; --ring-track: #5a3d26; } }
+:root[data-theme="dark"] { --c-curr: #5cc2ae; --c-curr-s: #1c302b; --c-ach: #e5b155; --c-ach-s: #362b17; --c-min: #8d9bf0; --c-min-s: #232846; --c-vis: #ef8a6f; --c-vis-s: #3b231c; --ring-track: #5a3d26; }
+body { font-size: 15.5px; }
+.wrap { max-width: 760px; }
+header.top { border-bottom: none; padding-bottom: 0; flex-wrap: nowrap; }
+.brand small { color: var(--muted); font-weight: 500; font-size: 13px; }
+.brand .logo { width: 48px; }
+
+.hero { margin-top: 14px; background: var(--accent-soft); border-radius: 22px; padding: 18px 18px; display: flex; align-items: center; gap: 14px; }
+.hero h2 { margin: 0; font-family: var(--f-display); font-size: 22px; line-height: 1.5; text-wrap: balance; }
+.hero p { margin: 2px 0 0; color: var(--accent); font-size: 14.5px; font-weight: 500; }
+.hero-txt { min-width: 0; }
+.ring { margin-right: auto; flex: 0 0 78px; width: 78px; height: 78px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--accent) calc(var(--p, 0) * 1%), var(--ring-track) 0); }
+.ring > div { width: 62px; height: 62px; border-radius: 50%; background: var(--accent-soft); display: grid; place-content: center; text-align: center; line-height: 1.35; }
+.ring span { font-size: 10.5px; color: var(--accent); font-weight: 700; }
+.ring b { font-family: var(--f-display); font-size: 14px; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+nav.sections, nav.sections { grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+nav.sections .tile { position: relative; overflow: hidden; display: block; text-align: right; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 20px 16px 14px; min-height: 92px; cursor: pointer; box-shadow: none; transition: transform .12s ease, box-shadow .12s ease; }
+nav.sections .tile::before { content: ""; position: absolute; inset-block: 0; right: 0; width: 7px; background: var(--tc); }
+nav.sections .tile:hover { box-shadow: 0 6px 18px rgba(0,0,0,.07); transform: translateY(-1px); }
+nav.sections .tile b { display: block; font-family: var(--f-display); font-size: 17px; line-height: 1.5; }
+nav.sections .tile span { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
+nav.sections .tile span.hot { color: var(--tc); font-weight: 700; }
+.t-curr { --tc: var(--c-curr); --ts: var(--c-curr-s); } .t-ach { --tc: var(--c-ach); --ts: var(--c-ach-s); }
+.t-min { --tc: var(--c-min); --ts: var(--c-min-s); } .t-vis { --tc: var(--c-vis); --ts: var(--c-vis-s); }
+
+nav.seg { display: inline-flex; gap: 6px; margin: 22px 0 10px; }
+nav.seg button { font: inherit; font-family: var(--f-display); font-weight: 700; font-size: 14px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+nav.seg button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.dlist { display: grid; gap: 8px; }
+.ditem { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 11px 14px; }
+.ditem .dic { flex: 0 0 38px; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--ts); color: var(--tc); }
+.ditem .dic svg { width: 20px; height: 20px; }
+.ditem .dtx { min-width: 0; line-height: 1.55; }
+.ditem .dtx small { display: block; color: var(--muted); font-size: 12.5px; }
+.ditem .btn { margin-right: auto; flex: 0 0 auto; }
+.ditem time { margin-right: auto; flex: 0 0 auto; color: var(--muted); font-size: 12px; }
+.dmore { text-align: center; font-size: 13px; color: var(--muted); padding: 4px; }
+
+.secbar { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; border-right: 7px solid var(--tc, var(--accent)); }
+.secbar h2 { margin: 0; font-family: var(--f-display); font-size: 20px; }
+.secbar .back { font: inherit; font-size: 20px; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+
+nav.tabs { gap: 6px; }
+nav.tabs button { border-radius: 999px; font-family: var(--f-display); font-size: 14px; }
+nav.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.card { border-radius: 18px; }
+.li { border-radius: 14px; }
+
+.vt-q { font-family: var(--f-display); font-size: 18px; margin: 16px 0 10px; }
+.vtypes { display: grid; gap: 10px; }
+.vtype { font: inherit; color: var(--ink); text-align: right; display: flex; align-items: center; gap: 14px; background: var(--surface); border: 2px solid var(--line); border-radius: 18px; padding: 14px 16px; cursor: pointer; }
+.vtype .vic { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--c-vis-s); color: var(--c-vis); }
+.vtype .vic svg { width: 24px; height: 24px; }
+.vtype b { display: block; font-family: var(--f-display); font-size: 17px; }
+.vtype small { display: block; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.vtype .rad { margin-right: auto; flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); }
+.vtype[aria-checked="true"] { border-color: var(--c-vis); background: var(--c-vis-s); }
+.vtype[aria-checked="true"] .rad { border: 7px solid var(--c-vis); }
+.secbar[hidden], #home[hidden], .ditem[hidden] { display: none; }
+#vf-rest { border-top: 1px dashed var(--line); margin-top: 16px; }
+@media (max-width: 640px) { nav.sections { grid-template-columns: 1fr 1fr; } nav.sections .tile b { font-size: 15.5px; } .hero h2 { font-size: 19px; } }
+@media (max-width: 360px) { nav.sections { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -201,7 +268,7 @@ table.vis-sum tr[data-t]:hover td { background: var(--accent-soft); }
         <h1>قسم التربية الإسلامية</h1>
       </div>
     </div>
-    <div class="weekbox" id="weekbox"><span>الفصل الدراسي الأول ٢٠٢٦/٢٠٢٧</span><b>…</b></div>
+    <button class="btn ghost sm" id="logout" type="button" hidden>خروج</button>
   </header>
 
   <section id="view-login" class="card login">
@@ -217,21 +284,45 @@ table.vis-sum tr[data-t]:hover td { background: var(--accent-soft); }
   </section>
 
   <div id="app" hidden>
-    <div class="who-bar"><b id="me-name"></b><button class="btn ghost sm" id="logout">خروج</button></div>
-    <div class="notice demo-note" id="demo-note" hidden>حساب تجريبي: جرّب كل الأركان بحرية، وبياناتك لا تظهر في تقارير القسم ولا متابعته.</div>
-    <details class="card demo-admin head-only" id="demo-admin" hidden>
-      <summary>الحسابات التجريبية</summary>
-      <div class="sub">لعرض الموقع على من تريد. بياناتهم معزولة ولا تظهر في أي تقرير أو متابعة.</div>
-      <div id="demo-list" class="list"></div>
-      <div class="saved" id="demo-msg"></div>
-    </details>
+    <!-- الصفحة الرئيسية -->
+    <div id="home">
+      <div class="hero">
+        <div class="hero-txt">
+          <h2 id="me-name"></h2>
+          <p id="today-line"></p>
+        </div>
+        <div class="ring" id="ring" role="img"><div><span>الأسبوع</span><b id="ring-n">…</b></div></div>
+      </div>
+      <div class="notice demo-note" id="demo-note" hidden>حساب تجريبي: جرّب كل الأركان بحرية، وبياناتك لا تظهر في تقارير القسم ولا متابعته.</div>
 
-    <nav class="sections" aria-label="أركان الموقع">
-      <button id="nav-curr" aria-selected="true"><b>ما قطع من المنهج</b><span>متابعة الخطة</span></button>
-      <button id="nav-ach" aria-selected="false"><b>الإنجازات</b><span>الأنشطة والفعاليات</span></button>
-      <button id="nav-min" aria-selected="false"><b>محاضر الاجتماعات</b><span>الاطلاع والتوقيع</span></button>
-      <button id="nav-vis" aria-selected="false"><b>الزيارات الصفية</b><span>بطاقات الزيارة</span></button>
-    </nav>
+      <nav class="sections" aria-label="أركان الموقع">
+        <button id="nav-curr" class="tile t-curr" type="button"><b>ما قطع من المنهج</b><span id="ts-curr">متابعة الخطة</span></button>
+        <button id="nav-ach" class="tile t-ach" type="button"><b>الإنجازات</b><span id="ts-ach">الأنشطة والفعاليات</span></button>
+        <button id="nav-min" class="tile t-min" type="button"><b>محاضر الاجتماعات</b><span id="ts-min">الاطلاع والتوقيع</span></button>
+        <button id="nav-vis" class="tile t-vis" type="button"><b>الزيارات الصفية</b><span id="ts-vis">بطاقات الزيارة</span></button>
+      </nav>
+
+      <section id="dash" class="head-only" hidden>
+        <nav class="seg" role="tablist">
+          <button id="dt-tasks" role="tab" aria-selected="true" type="button">مهامك اليوم</button>
+          <button id="dt-feed" role="tab" aria-selected="false" type="button">آخر التحديثات</button>
+        </nav>
+        <div id="dash-list" class="dlist"></div>
+      </section>
+
+      <details class="card demo-admin head-only" id="demo-admin" hidden>
+        <summary>الحسابات التجريبية</summary>
+        <div class="sub">لعرض الموقع على من تريد. بياناتهم معزولة ولا تظهر في أي تقرير أو متابعة.</div>
+        <div id="demo-list" class="list"></div>
+        <div class="saved" id="demo-msg"></div>
+      </details>
+    </div>
+
+    <!-- شريط عنوان الركن -->
+    <div class="secbar" id="secbar" hidden>
+      <button class="back" id="back-home" type="button" aria-label="الرجوع للرئيسية">→</button>
+      <h2 id="secbar-title"></h2>
+    </div>
 
     <!-- ركن ما قطع من المنهج -->
     <section id="sec-curr">
@@ -342,15 +433,16 @@ table.vis-sum tr[data-t]:hover td { background: var(--accent-soft); }
         <form id="vis-form" class="card">
           <h2 id="vf-heading">زيارة جديدة</h2>
           <input type="hidden" id="vf-id">
+          <input type="hidden" id="vf-type">
+          <h3 class="vt-q">ما نوع الزيارة؟</h3>
+          <div class="vtypes" id="vf-types" role="radiogroup" aria-label="نوع الزيارة"></div>
+          <div id="vf-rest" hidden>
           <div class="grid2">
             <div><label class="f" for="vf-teacher">المعلم</label><select id="vf-teacher"></select></div>
             <div><label class="f" for="vf-class">الفصل</label><select id="vf-class"></select></div>
           </div>
-          <div class="grid2">
-            <div><label class="f" for="vf-type">نوع الزيارة</label><select id="vf-type"></select></div>
+          <div class="grid3">
             <div><label class="f" for="vf-card">البطاقة</label><select id="vf-card"><option value="ie">التربية الإسلامية</option><option value="qr">القرآن الكريم</option><option value="tl">حصة تلاوة</option></select></div>
-          </div>
-          <div class="grid2">
             <div><label class="f" for="vf-date">التاريخ</label><input type="date" id="vf-date" required></div>
             <div><label class="f" for="vf-period">الحصة</label><select id="vf-period"></select></div>
           </div>
@@ -373,6 +465,7 @@ table.vis-sum tr[data-t]:hover td { background: var(--accent-soft); }
           <div id="vf-sig"></div>
           <div class="row-actions" style="margin-top:14px"><button class="btn" id="vf-save" type="submit">حفظ الزيارة</button></div>
           <div class="saved" id="vf-msg"></div>
+          </div>
         </form>
       </section>
       <section id="vis-log" hidden>
@@ -717,10 +810,12 @@ function imgSize(src) { return new Promise(res => { const i = new Image(); i.onl
 function lines(t) { return String(t || "").split(/\n+/).map(s => s.replace(/^\s*[-•*\d٠-٩]+[.)\-–]?\s+/, "").trim()).filter(Boolean); }
 
 (function header() {
-  const b = $("weekbox").querySelector("b");
-  if (WEEK < 1) b.textContent = "لم يبدأ الفصل";
-  else if (WEEK > WEEKS) b.textContent = "انتهت أسابيع الخطة";
-  else { b.textContent = `الأسبوع ${WEEK_NAMES[WEEK]}`; const r = document.createElement("span"); r.textContent = weekRange(WEEK); b.after(r); }
+  const w = Math.max(0, Math.min(WEEK, WEEKS));
+  $("ring").style.setProperty("--p", Math.round(w / WEEKS * 100));
+  $("ring-n").textContent = WEEK < 1 ? "—" : WEEK > WEEKS ? "انتهت" : `${ar(WEEK)} / ${ar(WEEKS)}`;
+  $("ring").setAttribute("aria-label", WEEK < 1 ? "لم يبدأ الفصل" : WEEK > WEEKS ? "انتهت أسابيع الخطة" : `الأسبوع ${WEEK_NAMES[WEEK]} من ${ar(WEEKS)}`);
+  const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+  $("today-line").textContent = `${DAYS[NOW.getDay()]} ${ar(NOW.getDate())} ${MONTHS[NOW.getMonth()]} ${ar(NOW.getFullYear())}`;
 })();
 
 // تنزيل ملف وورد، مع خيار حفظه في Drive لرئيس القسم
@@ -748,13 +843,13 @@ async function doLogin(code, silent) {
     CODE = code.trim().toUpperCase(); ME = r; MINE = r.entries || {}; ALL = r.all || {};
     try { if ($("remember").checked) localStorage.setItem("code", CODE); } catch (e) {}
     $("view-login").hidden = true; $("app").hidden = false;
-    $("me-name").textContent = "أ. " + r.name;
+    $("me-name").textContent = `${NOW.getHours() < 12 ? "صباح الخير" : "مساء الخير"}، أ. ${r.name.split(" ")[0]}`;
+    $("logout").hidden = false;
     document.querySelectorAll(".head-only").forEach(el => el.hidden = !r.isHead);
     document.querySelectorAll(".teacher-only").forEach(el => el.hidden = r.isHead);
     $("demo-note").hidden = !r.isDemo;
     if (r.isHead) $("demo-admin").ontoggle = () => { if ($("demo-admin").open) loadDemos(); };
-    let last = "curr"; try { last = localStorage.getItem("section") || "curr"; } catch (e) {}
-    go(last);
+    go("home", true);
     msg.textContent = "";
   } catch (e) {
     msg.textContent = cleanErr(e);
@@ -767,20 +862,31 @@ $("logout").onclick = () => {
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
+  DASH = null; dashTab = "tasks"; $("logout").hidden = true;
   $("app").hidden = true; $("view-login").hidden = false; $("code").value = "";
 };
 
 const SECTIONS = ["curr", "ach", "min", "vis"];
-function go(sec) {
-  if (SECTIONS.indexOf(sec) === -1) sec = "curr";
-  SECTIONS.forEach(s => { $("nav-" + s).setAttribute("aria-selected", s === sec); $("sec-" + s).hidden = s !== sec; });
-  try { localStorage.setItem("section", sec); } catch (e) {}
+const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية" };
+// noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
+function go(sec, noHist) {
+  if (sec !== "home" && SECTIONS.indexOf(sec) === -1) sec = "home";
+  const home = sec === "home";
+  $("home").hidden = !home; $("secbar").hidden = home;
+  SECTIONS.forEach(s => $("sec-" + s).hidden = s !== sec);
+  if (!noHist) { try { history.pushState({ sec }, ""); } catch (e) {} }
+  else { try { history.replaceState({ sec }, ""); } catch (e) {} }
+  window.scrollTo(0, 0);
+  if (home) { loadDash(); return; }
+  $("secbar").className = "secbar t-" + sec; $("secbar-title").textContent = SEC_TITLES[sec];
   if (sec === "curr") setTab(ME.isHead && !$("view-head").hidden ? "head" : "teacher");
   if (sec === "ach") achTab(ME.isHead && achSub === "all" ? "all" : "mine");
   if (sec === "min") loadMinutes();
   if (sec === "vis") visTab(ME.isHead ? (visSub === "mine" ? "new" : visSub) : "mine");
 }
 SECTIONS.forEach(s => $("nav-" + s).onclick = () => go(s));
+$("back-home").onclick = () => { if (history.state && history.state.sec && history.state.sec !== "home" && history.length > 1) history.back(); else go("home", true); };
+window.addEventListener("popstate", e => { if (ME) go((e.state && e.state.sec) || "home", true); });
 
 // ================= ركن ما قطع من المنهج =================
 function setTab(which) {
@@ -1273,8 +1379,7 @@ function initVisForm(v) {
   $("vf-lessonno").value = v ? v.lessonNo : ""; $("vf-lesson").value = v ? v.lesson : "";
   $("vf-rec").value = v ? v.recommendations : "";
   $("vf-notes").value = v ? (v.notes || v.ratings.filter(r => r[1]).map(r => r[1]).join("\n")) : "";
-  $("vf-type").innerHTML = '<option value="">— اختر —</option>' + VIS_TYPES.map(t => `<option>${t}</option>`).join("");
-  $("vf-type").value = v ? (v.type || "") : "";
+  setVisType(v ? (v.type || "") : "");
   $("vf-heading").textContent = v ? `تعديل الزيارة رقم ${ar(v.number)}` : "زيارة جديدة";
   $("vf-msg").textContent = "";
   onCardChange(v ? v.ratings : null);
@@ -1653,6 +1758,145 @@ function buildMinuteDoc(D, m, sigs) {
 }
 
 // دخول تلقائي إذا كان الرمز محفوظًا على هذا الجهاز
+// ================= الصفحة الرئيسية =================
+const SVG = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const ICONS = {
+  curr: SVG('<path d="M4 5.5C4 4.7 4.7 4 5.5 4H11v15H5.5C4.7 19 4 18.3 4 17.5zM13 4h5.5c.8 0 1.5.7 1.5 1.5v12c0 .8-.7 1.5-1.5 1.5H13zM15.5 8h2M15.5 11h2"/>'),
+  ach: SVG('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/>'),
+  min: SVG('<path d="M6 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 6 20zM9 12h5M9 15.5h3"/>'),
+  vis: SVG('<rect x="4" y="4" width="16" height="17" rx="2.5"/><path d="M9 3v3h6V3M8 11.5l2 2 4-4M8 17h8"/>'),
+  search: SVG('<circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/>'),
+  guide: SVG('<path d="M12 3a6 6 0 0 0-3.5 10.9V17h7v-3.1A6 6 0 0 0 12 3zM9.5 20h5"/>'),
+  check: SVG('<path d="M5 12.5l4.5 4.5L19 7.5M5 20h14"/>')
+};
+const TEACHER_SUBS = { curr: "سجّل آخر ما وصلت إليه", ach: "ارفع أنشطتك وفعالياتك", min: "اطّلع على المحاضر ووقّع", vis: "زياراتك الصفية" };
+const HEAD_SUBS = { curr: "متابعة الخطة", ach: "الأنشطة والفعاليات", min: "الاطلاع والتوقيع", vis: "بطاقات الزيارة" };
+let DASH = null, dashTab = "tasks";
+
+function parseStamp(s) {
+  if (!s) return null;
+  if (/T.*(Z|[+-]\d\d:?\d\d)$/.test(s)) { const d = new Date(s); return isNaN(d) ? null : d; }
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : null;
+}
+function relTime(d, dateOnly) {
+  if (!d) return "";
+  const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(new Date()) - day(d)) / 864e5);
+  const hm = dateOnly ? "" : " " + ar(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"));
+  if (diff === 0) return "اليوم" + hm;
+  if (diff === 1) return "أمس" + hm;
+  return `${ar(d.getDate())}/${ar(d.getMonth() + 1)}`;
+}
+function realTeachers() { return TEACHERS.filter(t => t[0] !== HEAD_NAME).map(t => t[0]); }
+function setSub(sec, text, hot) { const el = $("ts-" + sec); el.textContent = text; el.className = hot ? "hot" : ""; }
+
+async function loadDash(force) {
+  if (!ME) return;
+  if (!ME.isHead) { SECTIONS.forEach(s => setSub(s, TEACHER_SUBS[s])); return; }
+  SECTIONS.forEach(s => { if (!DASH) setSub(s, HEAD_SUBS[s]); });
+  const fresh = DASH && Date.now() - DASH.at < 60000 && ACH_ALL && MIN && VIS;
+  if (!fresh || force) {
+    if (!DASH) $("dash-list").innerHTML = '<div class="empty">جارٍ تجهيز ملخص القسم…</div>';
+    try {
+      const [ach, min, vis] = await Promise.all([run("allAchievements", CODE), run("listMinutes", CODE), run("listVisits", CODE)]);
+      ACH_ALL = ach; MIN = min; VIS = vis;
+      DASH = { at: Date.now() };
+    } catch (e) { if (!DASH) $("dash-list").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
+  }
+  renderDash();
+}
+
+function dashData() {
+  const late = [], none = [];
+  for (const c of ALL_CLASSES) for (const s of ["ie", "qr"]) {
+    const p = ALL[docId(c.id, s)], st = status(planKey(s, c.grade), p ? p.done : null, WEEK);
+    if (st.kind === "late") late.push(c); if (st.kind === "none") none.push(c);
+  }
+  const pendAch = (ACH_ALL || []).filter(a => a.status !== ST_READY);
+  const openMin = (MIN || []).filter(m => m.signedCount < m.attendees.length);
+  const visReal = (VIS || []).filter(v => !v.demo);
+  const unvisited = realTeachers().filter(n => !visReal.some(v => v.teacher === n));
+  const unsigned = visReal.filter(v => !v.teacherSignedAt);
+  return { late, none, pendAch, openMin, unvisited, unsigned, visReal };
+}
+
+function renderDash() {
+  const d = dashData();
+  setSub("curr", d.late.length ? `متأخر عن الخطة: ${ar(d.late.length)}` : d.none.length ? `لم يُحدَّث: ${ar(d.none.length)}` : "كل الفصول مطابقة أو متقدمة", d.late.length > 0);
+  setSub("ach", d.pendAch.length ? `بانتظار الصياغة: ${ar(d.pendAch.length)}` : "لا جديد", d.pendAch.length > 0);
+  setSub("min", d.openMin.length ? `توقيع ناقص في ${ar(d.openMin.length)} ${d.openMin.length === 1 ? "محضر" : "محاضر"}` : (MIN || []).length ? "التواقيع مكتملة" : "لا توجد محاضر بعد", d.openMin.length > 0);
+  setSub("vis", d.unvisited.length ? `لم يُزَر بعد: ${ar(d.unvisited.length)}` : "زرت جميع المعلمين", d.unvisited.length > 0);
+  $("dt-tasks").setAttribute("aria-selected", dashTab === "tasks");
+  $("dt-feed").setAttribute("aria-selected", dashTab === "feed");
+  const box = $("dash-list");
+  const item = (sec, icon, html, small, right, act) =>
+    `<div class="ditem t-${sec}"${act ? ` data-act="${esc(act)}"` : ""}><span class="dic">${ICONS[icon || sec]}</span><span class="dtx">${html}${small ? `<small>${small}</small>` : ""}</span>${right}</div>`;
+  if (dashTab === "tasks") {
+    const out = [];
+    d.pendAch.slice(0, 3).forEach(a => out.push(item("ach", "", `مراجعة إنجاز «${esc(a.title)}»`, `أ. ${esc(a.teacher)} · رُفع ${relTime(parseStamp(a.createdAt))}`, '<button class="btn sm" type="button">افتح</button>', "ach:" + a.id)));
+    if (d.pendAch.length > 3) out.push(`<div class="dmore">و${ar(d.pendAch.length - 3)} غيرها في ركن الإنجازات</div>`);
+    d.openMin.slice(0, 2).forEach(m => out.push(item("min", "", `متابعة توقيع «${esc(m.title)}»`, `وقّع ${ar(m.signedCount)} من ${ar(m.attendees.length)}`, '<button class="btn sm" type="button">عرض</button>', "min:" + m.id)));
+    if (d.unsigned.length) out.push(item("vis", "", d.unsigned.length === 1 ? "زيارة بانتظار توقيع المعلم" : `زيارات بانتظار توقيع المعلمين: ${ar(d.unsigned.length)}`, d.unsigned.slice(0, 3).map(v => "أ. " + esc(v.teacher)).join("، "), '<button class="btn sm" type="button">عرض</button>', "vislog"));
+    d.unvisited.slice(0, 3).forEach(n => out.push(item("vis", "", `زيارة أ. ${esc(n)}`, "لم يُزَر بعد", '<button class="btn sm" type="button">ابدأ</button>', "visnew:" + n)));
+    if (d.unvisited.length > 3) out.push(`<div class="dmore">و${ar(d.unvisited.length - 3)} معلمين آخرين لم يُزاروا</div>`);
+    if (d.late.length) out.push(item("curr", "", `فصول متأخرة عن الخطة: ${ar(d.late.length)}`, [...new Set(d.late.map(c => "أ. " + c.teacher))].slice(0, 3).join("، "), '<button class="btn sm" type="button">عرض</button>', "late"));
+    box.innerHTML = out.length ? out.join("") : '<div class="empty">لا توجد مهام معلّقة. كل شيء على ما يرام.</div>';
+  } else {
+    const ev = [];
+    (ACH_ALL || []).forEach(a => {
+      ev.push({ t: parseStamp(a.createdAt), sec: "ach", html: `رفع أ. ${esc(a.teacher)} إنجازًا: «${esc(a.title)}»`, act: "ach:" + a.id });
+      if (a.reportedAt) ev.push({ t: parseStamp(a.reportedAt), sec: "ach", html: `صيغ تقرير «${esc(a.title)}»`, act: "ach:" + a.id });
+    });
+    d.visReal.forEach(v => {
+      ev.push({ t: parseStamp(v.createdAt), sec: "vis", html: `سُجّلت الزيارة رقم ${ar(v.number)} للأستاذ ${esc(v.teacher)}${v.type ? " (" + esc(v.type) + ")" : ""}`, act: "vis:" + v.id });
+      if (v.teacherSignedAt) ev.push({ t: parseStamp(v.teacherSignedAt), sec: "vis", html: `وقّع أ. ${esc(v.teacher)} على الزيارة رقم ${ar(v.number)}`, act: "vis:" + v.id });
+    });
+    (MIN || []).forEach(m => ev.push({ t: parseStamp(m.date), sec: "min", html: `محضر: «${esc(m.title)}» · وقّع ${ar(m.signedCount)} من ${ar(m.attendees.length)}`, act: "min:" + m.id, dateOnly: true }));
+    Object.keys(ALL || {}).forEach(k => {
+      const p = ALL[k], [cid, s] = k.split("__");
+      if (p && p.updatedAt) ev.push({ t: parseStamp(p.updatedAt), sec: "curr", html: `حدّث أ. ${esc(p.teacher)} ما قطع في ${esc(classLabel(cid))} (${esc(SUBJECTS[s] || "")})`, act: "curr" });
+    });
+    const list = ev.filter(e => e.t).sort((a, b) => b.t - a.t).slice(0, 10);
+    box.innerHTML = list.length ? list.map(e => item(e.sec, "", e.html, "", `<time>${relTime(e.t, e.dateOnly)}</time>`, e.act)).join("") : '<div class="empty">لا توجد تحديثات بعد.</div>';
+  }
+  box.querySelectorAll("[data-act]").forEach(el => { el.style.cursor = "pointer"; el.onclick = () => dashAct(el.dataset.act); });
+}
+$("dt-tasks").onclick = () => { dashTab = "tasks"; renderDash(); };
+$("dt-feed").onclick = () => { dashTab = "feed"; renderDash(); };
+
+async function dashAct(act) {
+  const [k, ...rest] = act.split(":"), id = rest.join(":");
+  if (k === "ach") { go("ach"); achTab("all"); await loadAllAch(); openAch(id); }
+  else if (k === "min") { go("min"); await loadMinutes(); openMinute(id); }
+  else if (k === "vis") { go("vis"); visTab("log"); openVisit(id); }
+  else if (k === "vislog") { visTeacherFilter = ""; visSub = "log"; go("vis"); }
+  else if (k === "visnew") { visSub = "new"; go("vis"); initVisForm(); $("vf-teacher").value = id; fillVisClasses(""); }
+  else if (k === "late") { filterStatus = "late"; go("curr"); setTab("head"); }
+  else if (k === "curr") { go("curr"); setTab("head"); }
+}
+
+// ---------- نوع الزيارة: الخطوة الأولى ----------
+const VT_INFO = {
+  "استطلاعية": ["search", "للتعرّف على أداء المعلم وواقع الفصل."],
+  "توجيهية": ["guide", "لتقديم ملاحظات وتوجيهات تُعين المعلم على تطوير أدائه."],
+  "تقويمية": ["check", "لتقويم أداء المعلم وفق بنود البطاقة المعتمدة."]
+};
+function setVisType(t) {
+  const box = $("vf-types");
+  if (!box.children.length) {
+    box.innerHTML = VIS_TYPES.map(x => `<button type="button" class="vtype" role="radio" aria-checked="false" data-t="${esc(x)}"><span class="vic">${ICONS[(VT_INFO[x] || [])[0] || "check"]}</span><span><b>${esc(x)}</b><small>${esc((VT_INFO[x] || [])[1] || "")}</small></span><span class="rad"></span></button>`).join("");
+    box.querySelectorAll(".vtype").forEach(b => b.onclick = () => {
+      const first = $("vf-rest").hidden;
+      setVisType(b.dataset.t);
+      if (first) setTimeout(() => $("vf-rest").scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    });
+  }
+  $("vf-type").value = t;
+  box.querySelectorAll(".vtype").forEach(b => b.setAttribute("aria-checked", b.dataset.t === t));
+  $("vf-rest").hidden = !t;
+}
+
 (function () { let c = ""; try { c = localStorage.getItem("code") || ""; } catch (e) {} if (c) { $("code").value = c; doLogin(c, true); } })();
 
 </script>
