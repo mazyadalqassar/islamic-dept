@@ -346,8 +346,11 @@ table.vis-sum tr[data-t]:hover td { background: var(--accent-soft); }
             <div><label class="f" for="vf-teacher">المعلم</label><select id="vf-teacher"></select></div>
             <div><label class="f" for="vf-class">الفصل</label><select id="vf-class"></select></div>
           </div>
-          <div class="grid3">
+          <div class="grid2">
+            <div><label class="f" for="vf-type">نوع الزيارة</label><select id="vf-type"></select></div>
             <div><label class="f" for="vf-card">البطاقة</label><select id="vf-card"><option value="ie">التربية الإسلامية</option><option value="qr">القرآن الكريم</option><option value="tl">حصة تلاوة</option></select></div>
+          </div>
+          <div class="grid2">
             <div><label class="f" for="vf-date">التاريخ</label><input type="date" id="vf-date" required></div>
             <div><label class="f" for="vf-period">الحصة</label><select id="vf-period"></select></div>
           </div>
@@ -362,6 +365,8 @@ table.vis-sum tr[data-t]:hover td { background: var(--accent-soft); }
           <div class="vis-head-row"><h3>بنود التقويم</h3>
             <div class="row-actions"><select id="vf-all-level" aria-label="المستوى"><option>ممتاز</option><option>جيد جدًا</option><option>جيد</option><option>متابع</option><option>متدني</option></select><button class="btn ghost sm" type="button" id="vf-allgood">تعبئة الفارغ بهذا المستوى</button></div></div>
           <div id="vf-items"></div>
+          <label class="f" for="vf-notes">الملاحظات</label>
+          <textarea id="vf-notes" rows="5" maxlength="3000" placeholder="ملاحظاتك على الحصة (تظهر في عمود الملاحظات في البطاقة)"></textarea>
           <label class="f" for="vf-rec">التوصيات</label>
           <textarea id="vf-rec" rows="4" maxlength="3000" placeholder="توصيات عامة للمعلم"></textarea>
           <label class="f">توقيع رئيس القسم</label>
@@ -1228,6 +1233,7 @@ const VIS_CARDS = {
   ] }
 };
 const VIS_LEVELS = ["ممتاز", "جيد جدًا", "جيد", "متابع", "متدني"];
+const VIS_TYPES = ["استطلاعية", "توجيهية", "تقويمية"];
 const DEMO_CLASSES = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"] };
 function visItems(card) { const out = []; VIS_CARDS[card].groups.forEach(([g, items]) => items.forEach(t => out.push({ group: g, text: t }))); return out; }
 function hijri(iso) {
@@ -1266,6 +1272,9 @@ function initVisForm(v) {
   $("vf-unit").value = v ? v.unit : ""; $("vf-domain").value = v ? v.domain : "";
   $("vf-lessonno").value = v ? v.lessonNo : ""; $("vf-lesson").value = v ? v.lesson : "";
   $("vf-rec").value = v ? v.recommendations : "";
+  $("vf-notes").value = v ? (v.notes || v.ratings.filter(r => r[1]).map(r => r[1]).join("\n")) : "";
+  $("vf-type").innerHTML = '<option value="">— اختر —</option>' + VIS_TYPES.map(t => `<option>${t}</option>`).join("");
+  $("vf-type").value = v ? (v.type || "") : "";
   $("vf-heading").textContent = v ? `تعديل الزيارة رقم ${ar(v.number)}` : "زيارة جديدة";
   $("vf-msg").textContent = "";
   onCardChange(v ? v.ratings : null);
@@ -1310,7 +1319,6 @@ function onCardChange(ratings) {
     html += `<div class="vis-item" data-i="${i}">
       <div class="vis-text">${it.group ? "" : `<span class="n">${ar(i + 1)}</span>`}${esc(it.text)}</div>
       <div class="chips" role="radiogroup" aria-label="${esc(it.text)}">${VIS_LEVELS.map((l, k) => `<label class="chip"><input type="radio" name="lv${i}" id="lv${i}_${k}" value="${l}"${r[0] === l ? " checked" : ""}><span>${l}</span></label>`).join("")}</div>
-      <input type="text" class="vis-note" id="nt${i}" maxlength="300" placeholder="ملاحظة (اختياري)" value="${esc(r[1] || "")}">
     </div>`;
     i++;
   });
@@ -1352,8 +1360,9 @@ $("vis-form").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("vf-msg"), btn = $("vf-save");
   if (!$("vf-teacher").value || !$("vf-class").value) { msg.textContent = "اختر المعلم والفصل."; return; }
+  if (!$("vf-type").value) { msg.textContent = "اختر نوع الزيارة."; return; }
   const n = visItems($("vf-card").value).length, ratings = [];
-  for (let i = 0; i < n; i++) { const r = document.querySelector(`input[name="lv${i}"]:checked`); ratings.push([r ? r.value : "", $("nt" + i).value.trim()]); }
+  for (let i = 0; i < n; i++) { const r = document.querySelector(`input[name="lv${i}"]:checked`); ratings.push([r ? r.value : "", ""]); }
   const missing = ratings.filter(r => !r[0]).length;
   const sig = padImage("vf-sig");
   if (!sig) { msg.textContent = "وقّع على البطاقة قبل الحفظ."; return; }
@@ -1361,7 +1370,8 @@ $("vis-form").addEventListener("submit", async e => {
   try {
     const r = await run("saveVisit", CODE, { id: $("vf-id").value, teacher: $("vf-teacher").value, classId: $("vf-class").value, card: $("vf-card").value,
       date: $("vf-date").value, period: $("vf-period").value, unit: $("vf-unit").value, domain: $("vf-domain").value,
-      lessonNo: $("vf-lessonno").value, lesson: $("vf-lesson").value, ratings, recommendations: $("vf-rec").value, headSig: sig });
+      lessonNo: $("vf-lessonno").value, lesson: $("vf-lesson").value, ratings, recommendations: $("vf-rec").value, headSig: sig,
+      type: $("vf-type").value, notes: $("vf-notes").value });
     VIS = null; msg.textContent = "";
     openVisit(r.id);
   } catch (x) { msg.textContent = cleanErr(x); } finally { btn.disabled = false; }
@@ -1393,31 +1403,34 @@ async function loadVisits(which, force) {
 }
 function visLi(v) {
   const pill = v.teacherSignedAt ? '<span class="pill ok">وقّع المعلم</span>' : (ME.isHead ? '<span class="pill late">بانتظار توقيع المعلم</span>' : '<span class="pill late">بانتظار توقيعك</span>');
-  return `<button class="li li-btn" data-open="${v.id}"><div class="li-main"><b>الزيارة رقم ${ar(v.number)} · ${esc(VIS_CARDS[v.card] ? VIS_CARDS[v.card].name : "")}</b>
+  return `<button class="li li-btn" data-open="${v.id}"><div class="li-main"><b>الزيارة رقم ${ar(v.number)}${v.type ? " · " + esc(v.type) : ""} · ${esc(VIS_CARDS[v.card] ? VIS_CARDS[v.card].name : "")}</b>
     <span class="sub">${ME.isHead ? "أ. " + esc(v.teacher) + " · " : ""}${classLabel(v.classId)} · ${fmtDate(v.date, true)}</span></div>${pill}</button>`;
 }
 $("vis-reload").onclick = () => loadVisits("log", true);
 $("vis-mine-reload").onclick = () => loadVisits("mine", true);
 
+function visNotes(v) { return v.notes || (v.ratings || []).filter(r => r[1]).map(r => r[1]).join("\n"); }
 function visCardHtml(v) {
   const items = visItems(v.card), ie = v.card === "ie";
   let rows = "", last;
   items.forEach((it, i) => {
     const r = v.ratings[i] || ["", ""];
-    if (it.group && it.group !== last) rows += `<tr class="grp"><td colspan="3">${esc(it.group)}</td></tr>`;
+    if (it.group && it.group !== last) rows += `<tr class="grp"><td colspan="2">${esc(it.group)}</td></tr>`;
     last = it.group;
-    rows += `<tr><td>${it.group ? "" : ar(i + 1) + ". "}${esc(it.text)}</td><td class="lv">${esc(r[0] || "—")}</td><td>${esc(r[1] || "")}</td></tr>`;
+    rows += `<tr><td>${it.group ? "" : ar(i + 1) + ". "}${esc(it.text)}</td><td class="lv">${esc(r[0] || "—")}</td></tr>`;
   });
   return `<h2>بطاقة زيارة معلم · ${esc(VIS_CARDS[v.card].sub)}</h2>
     <dl class="meta-grid">
       <div><dt>المعلم</dt><dd>أ. ${esc(v.teacher)}</dd></div><div><dt>الصف</dt><dd>${classLabel(v.classId)}</dd></div>
-      <div><dt>التاريخ</dt><dd>${fmtDate(v.date, true)}</dd></div><div><dt>رقم الزيارة</dt><dd>${ar(v.number)}</dd></div>
+      <div><dt>نوع الزيارة</dt><dd>${esc(v.type || "—")}</dd></div><div><dt>رقم الزيارة</dt><dd>${ar(v.number)}</dd></div>
+      <div><dt>التاريخ</dt><dd>${fmtDate(v.date, true)}</dd></div>
       <div><dt>الحصة</dt><dd>${v.period ? ar(v.period) : "—"}</dd></div><div><dt>رقم الوحدة</dt><dd>${esc(v.unit || "—")}</dd></div>
       ${ie ? `<div><dt>المجال</dt><dd>${esc(v.domain || "—")}</dd></div>` : ""}
       <div><dt>رقم الدرس</dt><dd>${esc(ar(v.lessonNo || "—"))}</dd></div>
       <div class="wide"><dt>${ie ? "عنوان الدرس" : "اسم السورة والآيات"}</dt><dd>${esc(v.lesson || "—")}</dd></div>
     </dl>
-    <div class="tablebox"><table class="vis-table"><thead><tr><th>البند</th><th>مستوى الأداء</th><th>الملاحظات</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tablebox"><table class="vis-table"><thead><tr><th>البند</th><th>مستوى الأداء</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${visNotes(v) ? `<h3>الملاحظات</h3><p class="teacher-desc">${esc(visNotes(v))}</p>` : ""}
     ${v.recommendations ? `<h3>التوصيات</h3><p class="teacher-desc">${esc(v.recommendations)}</p>` : ""}`;
 }
 
@@ -1463,56 +1476,80 @@ async function openVisit(id) {
   }
 }
 
-// ---------- بطاقة الزيارة وورد بشكل البطاقة الرسمية ----------
+// ---------- بطاقة الزيارة وورد (تصميم حديث) ----------
 function buildVisitDoc(D, v, headSig, teacherSig) {
   const h = H(D), C = h.C, card = VIS_CARDS[v.card], ie = v.card === "ie";
-  const F = "EFEBE3";
-  const M = { top: 25, bottom: 25, left: 80, right: 80 };
-  const lc = (t, o = {}) => h.cell(t, { size: o.size || 18, bold: o.bold, align: o.align, fill: o.fill, w: o.w, color: o.color, m: M });
-  const header = h.table([[
-    h.cell([new D.Paragraph({ alignment: C, children: [h.img(b64ToBytes(MOE_B64), 52, 45, "png")] }),
-      h.para("وزارة التربية", { size: 18, bold: true, after: 0 }), h.para("إدارة التوجيه الفني للتربية الإسلامية", { size: 18, bold: true, after: 0 }),
-      h.para("الإدارة العامة لمنطقة حولي التعليمية", { size: 17, after: 0 })], { w: 3300 }),
-    h.cell([h.para("بطاقة زيارة معلم", { size: 30, bold: true, align: C, after: 40 }), h.para(card.sub, { size: 22, bold: true, align: C, after: 0 })], { w: 3400 }),
-    h.cell([new D.Paragraph({ alignment: C, children: [h.img(b64ToBytes(GUID_B64), 50, 44, "png")] }),
-      h.para("العام الدراسي: ١٤٤٨هـ / ٢٠٢٦-٢٠٢٧م", { size: 17, align: C, after: 0 }), h.para("مدرسة: ثانوية أحمد الربعي للبنين", { size: 17, align: C, after: 0 })], { w: 3300 })
-  ]], [3300, 3400, 3300], h.noBorders);
-  const greg = fmtDate(v.date).replace(/\//g, "/") + "م", hij = hijri(v.date);
-  const info = h.table([
-    [lc("اسم المعلم/ـة", { bold: true, fill: F }), lc("أ. " + v.teacher), lc("اليوم", { bold: true, fill: F }), lc(dayName(v.date), { align: C })],
-    [lc("الصف", { bold: true, fill: F }), lc(classLabel(v.classId)), lc("التاريخ", { bold: true, fill: F }), lc((hij ? hij + "  ·  " : "") + greg, { align: C })],
-    [lc("رقم الوحدة", { bold: true, fill: F }), lc(v.unit || ""), lc("الحصة", { bold: true, fill: F }), lc(v.period ? ar(v.period) : "", { align: C })],
-    ie ? [lc("المجال", { bold: true, fill: F }), lc(v.domain || ""), lc("رقم الزيارة", { bold: true, fill: F }), lc("( " + ar(v.number) + " )", { align: C })]
-       : [lc("رقم الدرس", { bold: true, fill: F }), lc(ar(v.lessonNo || "")), lc("رقم الزيارة", { bold: true, fill: F }), lc("( " + ar(v.number) + " )", { align: C })],
-    [lc(ie ? "رقم وعنوان الدرس" : "اسم السورة والآيات", { bold: true, fill: F }),
-      new D.TableCell({ columnSpan: 3, margins: { top: 60, bottom: 60, left: 100, right: 100 }, children: [h.para(ie ? `درس ( ${ar(v.lessonNo || "  ")} )  ${v.lesson || ""}` : (v.lesson || ""), { size: 19, after: 0 })] })]
-  ], [2200, 3700, 1600, 2500]);
-  const items = visItems(v.card), rows = [];
+  const OR = "C8641C", SOFT = "FBEEE3", GRID = "E7DFD6", INK = "2B2B2B", MUT = "7A736C";
+  const line = { style: D.BorderStyle.SINGLE, size: 4, color: GRID }, nb = { style: D.BorderStyle.NONE, size: 0, color: "FFFFFF" };
+  const M = { top: 30, bottom: 30, left: 90, right: 90 };
+  const P = (t, o = {}) => new D.Paragraph({ bidirectional: true, alignment: o.align || D.AlignmentType.RIGHT, spacing: { before: o.before || 0, after: o.after ?? 0, line: o.line || 250 },
+    children: Array.isArray(t) ? t : [h.run(t, { size: o.size || 18, bold: o.bold, color: o.color || INK })] });
+  const TC = (children, o = {}) => new D.TableCell({ children: Array.isArray(children) ? children : (typeof children === "string" ? [P(children, o)] : [children]), rowSpan: o.rowSpan, columnSpan: o.span,
+    verticalAlign: o.va || D.VerticalAlign.CENTER, margins: o.m || M, width: o.w ? { size: o.w, type: D.WidthType.DXA } : undefined,
+    shading: o.fill ? { type: D.ShadingType.CLEAR, fill: o.fill, color: "auto" } : undefined,
+    borders: o.borders || { top: line, bottom: line, left: line, right: line } });
+  const T = (rows, widths, borders) => new D.Table({ visuallyRightToLeft: true, layout: D.TableLayoutType.FIXED, columnWidths: widths,
+    width: { size: widths.reduce((a, b) => a + b, 0), type: D.WidthType.DXA }, borders: borders || { top: line, bottom: line, left: line, right: line, insideHorizontal: line, insideVertical: line },
+    rows: rows.map(r => new D.TableRow({ children: r, cantSplit: true })) });
+  const NB = { top: nb, bottom: nb, left: nb, right: nb };
+  const NBT = { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb };
+  const logo = (b64, w, hh) => new D.Paragraph({ alignment: C, children: [h.img(b64ToBytes(b64), w, hh, "png")] });
+
+  // الرأس: الوزارة يمينًا · شعار الربعي فوق العنوان في الوسط · التوجيه يسارًا
+  const header = T([[
+    TC([logo(MOE_B64, 44, 38), P("وزارة التربية", { size: 16, bold: true, align: C }), P("إدارة التوجيه الفني للتربية الإسلامية", { size: 15, align: C, color: MUT }),
+      P("الإدارة العامة لمنطقة حولي التعليمية", { size: 15, align: C, color: MUT })], { w: 3000, borders: NB, va: D.VerticalAlign.TOP }),
+    TC([logo(LOGO_B64, 56, 60), P("ثانوية أحمد الربعي للبنين", { size: 17, bold: true, align: C, color: OR, after: 30 }),
+      P("بطاقة زيارة معلم", { size: 32, bold: true, align: C }), P(card.sub, { size: 19, align: C, color: MUT })], { w: 4200, borders: NB, va: D.VerticalAlign.TOP }),
+    TC([logo(GUID_B64, 42, 37), P("العام الدراسي", { size: 15, align: C, color: MUT }), P("١٤٤٨هـ / ٢٠٢٦-٢٠٢٧م", { size: 16, bold: true, align: C })],
+      { w: 3000, borders: NB, va: D.VerticalAlign.TOP })
+  ]], [3000, 4200, 3000], NBT);
+  const rule = new D.Paragraph({ border: { bottom: { style: D.BorderStyle.SINGLE, size: 12, color: OR, space: 2 } }, spacing: { after: 100 }, children: [] });
+
+  // البيانات: بطاقات صغيرة (عنوان باهت فوق القيمة)
+  const kv = (k, val, w, span) => TC([P(k, { size: 14, color: MUT }), P(val || "—", { size: 18, bold: true })], { w, span, fill: "FAF7F3", m: { top: 50, bottom: 50, left: 100, right: 100 } });
+  const greg = fmtDate(v.date) + "م", hij = hijri(v.date);
+  const info = T([
+    [kv("اسم المعلم", "أ. " + v.teacher, 3400), kv("الصف", classLabel(v.classId), 2200), kv("نوع الزيارة", v.type || "", 2300), kv("رقم الزيارة", "( " + ar(v.number) + " )", 2300)],
+    [kv("اليوم والتاريخ", dayName(v.date) + "  " + (hij ? hij + " · " : "") + greg, 3400), kv("الحصة", v.period ? ar(v.period) : "", 2200),
+      kv("رقم الوحدة", v.unit || "", 2300), ie ? kv("المجال", v.domain || "", 2300) : kv("رقم الدرس", ar(v.lessonNo || ""), 2300)],
+    [kv(ie ? "رقم وعنوان الدرس" : "اسم السورة والآيات", ie ? `درس ( ${ar(v.lessonNo || "  ")} )  ${v.lesson || ""}` : (v.lesson || ""), 10200, 4)]
+  ], [3400, 2200, 2300, 2300], { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: { style: D.BorderStyle.SINGLE, size: 12, color: "FFFFFF" }, insideVertical: { style: D.BorderStyle.SINGLE, size: 12, color: "FFFFFF" } });
+
+  // البنود + عمود ملاحظات واحد من أعلى الجدول إلى أسفله
+  const items = visItems(v.card), notes = visNotes(v), rows = [];
+  const th = t => TC(t, { bold: true, align: C, fill: OR, size: 17, color: "FFFFFF" });
+  const hdr = (t) => TC(P(t, { size: 17, bold: true, align: C, color: "FFFFFF" }), { fill: OR });
+  const notesCell = () => TC([P(notes || "", { size: 17, line: 300 })], { rowSpan: items.length, va: D.VerticalAlign.TOP, m: { top: 100, bottom: 100, left: 140, right: 140 } });
   if (v.card === "tl") {
-    rows.push([lc("م", { bold: true, fill: F, align: C }), lc("بنود التقويم", { bold: true, fill: F, align: C }), lc("مستوى الأداء", { bold: true, fill: F, align: C }), lc("الملاحظات", { bold: true, fill: F, align: C })]);
-    items.forEach((it, i) => { const r = v.ratings[i] || ["", ""]; rows.push([lc(ar(i + 1), { align: C }), lc(it.text), lc(r[0], { align: C, bold: true }), lc(r[1], { size: 17 })]); });
+    rows.push([hdr("م"), hdr("بنود التقويم"), hdr("مستوى الأداء"), hdr("الملاحظات")]);
+    items.forEach((it, i) => { const r = v.ratings[i] || [""];
+      const row = [TC(P(ar(i + 1), { align: C, color: MUT, size: 16 })), TC(P(it.text, { size: 17 })), TC(P(r[0] || "", { align: C, bold: true, color: OR, size: 17 }))];
+      if (i === 0) row.push(notesCell()); rows.push(row); });
   } else {
-    rows.push([lc("بنود التقويم", { bold: true, fill: F, align: C }), lc("الجانب الفني", { bold: true, fill: F, align: C }), lc("مستوى الأداء", { bold: true, fill: F, align: C }), lc("الملاحظات", { bold: true, fill: F, align: C })]);
+    rows.push([hdr("بنود التقويم"), hdr("الجانب الفني"), hdr("مستوى الأداء"), hdr("الملاحظات")]);
     let i = 0;
     card.groups.forEach(([g, list]) => list.forEach((t, j) => {
-      const r = v.ratings[i++] || ["", ""], row = [];
-      if (j === 0) row.push(new D.TableCell({ rowSpan: list.length, verticalAlign: D.VerticalAlign.CENTER, shading: { type: D.ShadingType.CLEAR, fill: F, color: "auto" },
-        margins: M, children: [h.para(g, { size: 19, bold: true, align: C, after: 0, line: 260 })] }));
-      row.push(lc(t, { size: 17 }), lc(r[0], { align: C, bold: true, size: 17 }), lc(r[1], { size: 16 }));
-      rows.push(row);
+      const r = v.ratings[i] || [""], row = [];
+      if (j === 0) row.push(TC(P(g, { size: 17, bold: true, align: C, color: OR }), { rowSpan: list.length, fill: SOFT }));
+      row.push(TC(P(t, { size: 16 })), TC(P(r[0] || "", { align: C, bold: true, color: OR, size: 16 })));
+      if (i === 0) row.push(notesCell());
+      rows.push(row); i++;
     }));
   }
-  const widths = v.card === "tl" ? [600, 4600, 1500, 3300] : [1700, 4100, 1400, 2800];
-  const body = new D.Table({ visuallyRightToLeft: true, layout: D.TableLayoutType.FIXED, columnWidths: widths, width: { size: 10000, type: D.WidthType.DXA },
-    rows: rows.map(r => new D.TableRow({ children: r, cantSplit: true })) });
-  const sigCell = (role, name, s, at) => h.cell([h.para(role, { size: 19, bold: true, align: C, after: 20 }),
-    s ? new D.Paragraph({ alignment: C, children: [h.img(s.data, Math.min(130, 42 * s.w / s.h), Math.min(42, 130 * s.h / s.w), "png")] }) : h.para("..................", { align: C, after: 0 }),
-    h.para(name, { size: 18, align: C, after: 0 }), ...(at ? [h.para(fmtStamp(at), { size: 15, align: C, color: h.MUTED, after: 0 })] : [])], { w: 5000 });
-  const children = [header, h.para("", { after: 80 }), info, h.para("", { after: 80 }), body];
-  if (v.recommendations) children.push(h.para([h.run("التوصيات: ", { bold: true, size: 20, color: h.ORANGE }), h.run(v.recommendations, { size: 19 })], { before: 120, after: 60, justify: true }));
-  children.push(h.para("", { after: 60, keepNext: true }), h.table([[sigCell("توقيع المعلم", "أ. " + v.teacher, teacherSig, v.teacherSignedAt), sigCell("توقيع رئيس الشعبة", "أ. " + HEAD_NAME, headSig)]], [5000, 5000], h.noBorders));
+  const widths = v.card === "tl" ? [600, 4700, 1500, 3400] : [1700, 4100, 1300, 3100];
+  const body = T(rows, widths);
+
+  const children = [header, rule, info, P("", { after: 90 }), body];
+  if (v.recommendations) children.push(T([[TC([P([h.run("التوصيات:  ", { bold: true, size: 18, color: OR }), h.run(v.recommendations, { size: 17 })], { line: 280 })],
+    { fill: SOFT, borders: { top: nb, bottom: nb, left: nb, right: { style: D.BorderStyle.SINGLE, size: 24, color: OR } }, m: { top: 80, bottom: 80, left: 140, right: 140 } })]], [10200], NBT));
+  const sig = (role, name, s, at) => TC([P(role, { size: 16, color: MUT, align: C }),
+    s ? new D.Paragraph({ alignment: C, spacing: { before: 40 }, children: [h.img(s.data, Math.min(130, 40 * s.w / s.h), Math.min(40, 130 * s.h / s.w), "png")] }) : P(" ", { after: 300 }),
+    new D.Paragraph({ alignment: C, border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: GRID, space: 2 } }, children: [h.run(name, { size: 17, bold: true })] }),
+    ...(at ? [P(fmtStamp(at), { size: 14, align: C, color: MUT })] : [])], { w: 5100, borders: NB, m: { top: 40, bottom: 0, left: 600, right: 600 } });
+  children.push(P("", { after: 100 }), T([[sig("توقيع المعلم", "أ. " + v.teacher, teacherSig, v.teacherSignedAt), sig("توقيع رئيس الشعبة", "أ. " + HEAD_NAME, headSig)]], [5100, 5100], NBT));
   return new D.Document({ styles: { default: { document: { run: { font: "Arial", rightToLeft: true } } } },
-    sections: [{ properties: { page: { margin: { top: 500, bottom: 400, left: 850, right: 850 } } }, children }] });
+    sections: [{ properties: { page: { margin: { top: 450, bottom: 400, left: 850, right: 850 } } }, children }] });
 }
 
 // ================= ملفات الوورد =================
