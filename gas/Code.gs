@@ -13,6 +13,10 @@ const SHEET_SIG = "التواقيع";
 const SHEET_MYSIG = "توقيعات المعلمين";
 
 const ST_PENDING = "بانتظار الصياغة";
+
+// التنبيهات بالإيميل (تصل لرئيس القسم فقط)
+const HEAD_EMAIL = "mazyadalqassar@gmail.com";
+const SITE_URL = "https://mazyadalqassar.github.io/islamic-dept/";
 const ST_READY = "جاهز";
 
 // المعلمون وفصولهم (الجدول العام للقسم). s = علمي، l = أدبي
@@ -243,12 +247,25 @@ function submitAchievement(code, a) {
   const photos = (a.photos || []).slice(0, 4);
   const folder = folder_();
   const id = newId_();
+  const blobs = [];
   const ids = photos.map((b64, i) => {
     const blob = Utilities.newBlob(Utilities.base64Decode(String(b64).replace(/^data:image\/\w+;base64,/, "")), "image/jpeg", `${id}-${i + 1}.jpg`);
+    blobs.push(blob);
     return folder.createFile(blob).getId();
   });
-  withLock_(() => appendText_(sh_(SHEET_ACH), [id, me.name, String(a.date || "").slice(0, 10), String(a.type || "").slice(0, 60), title,
-    String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, "", nowText_(), ""]));
+  const row = [id, me.name, String(a.date || "").slice(0, 10), String(a.type || "").slice(0, 60), title,
+    String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, "", nowText_(), ""];
+  withLock_(() => appendText_(sh_(SHEET_ACH), row));
+  notify_(me, `إنجاز جديد: ${title} — أ. ${me.name}`, `
+    <p>رفع <b>أ. ${esc_(me.name)}</b> إنجازًا جديدًا في موقع القسم، وهو بانتظار الصياغة.</p>
+    <table cellpadding="6" style="border-collapse:collapse;border:1px solid #e6e1db">
+      <tr><td style="background:#fbeee3"><b>العنوان</b></td><td>${esc_(title)}</td></tr>
+      <tr><td style="background:#fbeee3"><b>النوع</b></td><td>${esc_(row[3])}</td></tr>
+      <tr><td style="background:#fbeee3"><b>التاريخ</b></td><td>${esc_(row[2])}</td></tr>
+      <tr><td style="background:#fbeee3"><b>الفئة المستهدفة</b></td><td>${esc_(row[5] || "—")}</td></tr>
+    </table>
+    <p><b>وصف المعلم:</b><br>${esc_(desc).replace(/\n/g, "<br>")}</p>
+    <p>عدد الصور: ${ids.length} (مرفقة بهذه الرسالة).</p>`, blobs);
   return { id };
 }
 
@@ -375,6 +392,14 @@ function signMinute(code, id, image) {
     // يحفظ التوقيع ليستخدمه المعلم لاحقًا بضغطة زر
     const my = sh_(SHEET_MYSIG), row = findRow_(my, 1, me.name);
     if (row > 0) writeRow_(my, row, [me.name, image, at]); else appendText_(my, [me.name, image, at]);
+    // عند اكتمال توقيع جميع الحضور يصل إيميل لرئيس القسم
+    const m = minObj_(r), signed = vals.slice(1).filter(v => v[0] === id).map(v => [v[1], v[2]]).concat([[me.name, at]]);
+    if (m.attendees.every(n => signed.some(x => x[0] === n))) {
+      notify_(me, `اكتمل التوقيع على محضر: ${m.title}`, `
+        <p>وقّع جميع الحضور (${m.attendees.length}) على محضر <b>${esc_(m.title)}</b> بتاريخ ${esc_(m.date)}.</p>
+        <ul>${signed.map(x => `<li>${esc_(x[0])} — ${esc_(x[1])}</li>`).join("")}</ul>
+        <p>يمكنك الآن تنزيل المحضر وورد بالتواقيع من ركن «محاضر الاجتماعات».</p>`);
+    }
     return { signedAt: at };
   });
 }
@@ -448,3 +473,27 @@ function demoAction(code, name, action) {
     return true;
   });
 }
+
+// ======================= التنبيهات بالإيميل =======================
+
+function esc_(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+/** يرسل تنبيهًا لرئيس القسم. الحسابات التجريبية تصل بعلامة [تجريبي]. لا يوقف العملية إن فشل الإرسال */
+function notify_(me, subject, html, attachments) {
+  try {
+    const demo = me && me.isDemo;
+    MailApp.sendEmail({
+      to: HEAD_EMAIL,
+      subject: (demo ? "[تجريبي] " : "") + subject,
+      name: "موقع قسم التربية الإسلامية",
+      htmlBody: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:14px;line-height:1.8;color:#2b2b2b">
+        ${demo ? '<p style="background:#fff4d6;padding:6px 10px;border-radius:6px">هذا تنبيه من <b>حساب تجريبي</b>، ولا يظهر في التقارير الرسمية.</p>' : ""}
+        ${html}
+        <p><a href="${SITE_URL}" style="color:#c8641c">فتح موقع القسم</a></p></div>`,
+      attachments: attachments || []
+    });
+  } catch (e) { console.error("notify failed: " + e); }
+}
+
+/** لتجربة الإيميل من المحرر */
+function testEmail() { notify_(null, "تجربة تنبيهات موقع القسم", "<p>وصلتك هذه الرسالة، يعني التنبيهات تعمل.</p>"); }
