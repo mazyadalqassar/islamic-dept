@@ -257,9 +257,22 @@ nav.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg)
 #vf-rest { border-top: 1px dashed var(--line); margin-top: 16px; }
 @media (max-width: 640px) { nav.sections { grid-template-columns: 1fr 1fr; } nav.sections .tile b { font-size: 15.5px; } .hero h2 { font-size: 19px; } }
 @media (max-width: 360px) { nav.sections { grid-template-columns: 1fr; } }
-:root { --c-subs: #7a5ea8; --c-subs-s: #efe9f7; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-subs: #b49ae0; --c-subs-s: #2c2340; } }
-:root[data-theme="dark"] { --c-subs: #b49ae0; --c-subs-s: #2c2340; }
+:root { --c-subs: #7a5ea8; --c-subs-s: #efe9f7; --c-swap: #23809a; --c-swap-s: #e1f1f5; }
+.t-swap { --tc: var(--c-swap); --ts: var(--c-swap-s); }
+.sw-mine { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.sw-slot { font: inherit; text-align: right; background: var(--surface); color: var(--ink); border: 2px solid var(--line); border-radius: 14px; padding: 9px 12px; cursor: pointer; line-height: 1.5; }
+.sw-slot b { display: block; font-family: var(--f-display); font-size: 14px; }
+.sw-slot span { font-size: 12.5px; color: var(--muted); }
+.sw-slot[aria-pressed="true"] { border-color: var(--c-swap); background: var(--c-swap-s); }
+.sw-slot:disabled { opacity: .45; cursor: default; }
+.sw-t { margin-top: 12px; }
+.sw-t h3 { margin: 0; font-family: var(--f-display); font-size: 16px; }
+.sw-t .sub { font-size: 13px; }
+.sw-opt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 10px; }
+.sw-opt .o-main { flex: 1; min-width: 0; line-height: 1.6; font-size: 14px; }
+.sw-opt .o-main small { display: block; color: var(--muted); font-size: 12.5px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-subs: #b49ae0; --c-subs-s: #2c2340; --c-swap: #6cc3da; --c-swap-s: #17323a; } }
+:root[data-theme="dark"] { --c-subs: #b49ae0; --c-subs-s: #2c2340; --c-swap: #6cc3da; --c-swap-s: #17323a; }
 .t-subs { --tc: var(--c-subs); --ts: var(--c-subs-s); }
 nav.sections .wide-tile { grid-column: 1 / -1; min-height: 64px; }
 nav.sections .tile[hidden] { display: none; }
@@ -321,7 +334,8 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
         <button id="nav-ach" class="tile t-ach" type="button"><b>الإنجازات</b></button>
         <button id="nav-min" class="tile t-min" type="button"><b>محاضر الاجتماعات</b></button>
         <button id="nav-vis" class="tile t-vis" type="button"><b>الزيارات الصفية</b></button>
-        <button id="nav-subs" class="tile t-subs staff-only wide-tile" type="button" hidden><b>الاحتياط</b></button>
+        <button id="nav-swap" class="tile t-swap" type="button"><b>بدّل حصتي</b></button>
+        <button id="nav-subs" class="tile t-subs staff-only" type="button" hidden><b>الاحتياط</b></button>
       </nav>
 
       <section id="dash" class="head-only" hidden>
@@ -505,6 +519,22 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
         <div class="list" id="vis-mine-list"></div>
       </section>
       <div class="card detail" id="vis-detail" hidden></div>
+    </section>
+
+    <!-- ركن بدّل حصتي -->
+    <section id="sec-swap" hidden>
+      <div class="card">
+        <h2>تبديل حصة مع معلم من قسم آخر</h2>
+        <div class="sub">اختر الأسبوع ثم الحصة التي تريد تبديلها، فيظهر لك المعلمون الذين يدرّسون الفصل نفسه وليست لديهم حصة في ذلك الوقت، مع الحصة التي تأخذها منهم بدلًا عنها وأنت متفرغ فيها.</div>
+        <div class="grid2">
+          <div><label class="f" for="sw-date">الأسبوع (اختر أي يوم فيه)</label><input type="date" id="sw-date"></div>
+          <div id="sw-who-wrap" hidden><label class="f" for="sw-who">المعلم (للتجربة)</label><select id="sw-who"></select></div>
+        </div>
+        <label class="f">حصتي التي أريد تبديلها</label>
+        <div id="sw-mine" class="sw-mine"></div>
+      </div>
+      <div class="saved" id="sw-msg"></div>
+      <div id="sw-results"></div>
     </section>
 
     <!-- ركن الاحتياط (رئيس القسم ونائبه) -->
@@ -911,6 +941,7 @@ async function doLogin(code, silent) {
     document.querySelectorAll(".head-only").forEach(el => el.hidden = !r.isHead);
     document.querySelectorAll(".teacher-only").forEach(el => el.hidden = r.isHead);
     document.querySelectorAll(".staff-only").forEach(el => el.hidden = !r.canSubs);
+    $("nav-swap").classList.toggle("wide-tile", !r.canSubs);
     $("demo-note").hidden = !r.isDemo;
     if (r.isHead) $("demo-admin").ontoggle = () => { if ($("demo-admin").open) loadDemos(); };
     go("home", true);
@@ -926,12 +957,12 @@ $("logout").onclick = () => {
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
-  DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new";
+  DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new"; SCHOOL = null; swapPick = null;
   $("app").hidden = true; $("view-login").hidden = false; $("code").value = "";
 };
 
-const SECTIONS = ["curr", "ach", "min", "vis", "subs"];
-const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط" };
+const SECTIONS = ["curr", "ach", "min", "vis", "subs", "swap"];
+const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي" };
 // noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
 function go(sec, noHist) {
   if (sec !== "home" && SECTIONS.indexOf(sec) === -1) sec = "home";
@@ -949,6 +980,7 @@ function go(sec, noHist) {
   if (sec === "min") loadMinutes();
   if (sec === "vis") visTab(ME.isHead ? (visSub === "mine" ? "new" : visSub) : "mine");
   if (sec === "subs") subsTab(subsSub);
+  if (sec === "swap") initSwap();
 }
 SECTIONS.forEach(s => $("nav-" + s).onclick = () => go(s));
 $("back-home").onclick = () => { if (history.state && history.state.sec && history.state.sec !== "home" && history.length > 1) history.back(); else go("home", true); };
@@ -2009,6 +2041,120 @@ function buildPlanDoc(D) {
     h.para("يُحدَّد نوع الزيارة (استطلاعية / توجيهية / تقويمية) عند تنفيذها، وقد تُعدَّل المواعيد عند تعارضها مع الأنشطة أو الاختبارات.", { size: 19, color: h.MUTED, before: 160, after: 300 }),
     h.signRow([["رئيس قسم التربية الإسلامية", "أ. " + HEAD_NAME], ["مدير المدرسة", "أ. " + PRINCIPAL]])]);
 }
+
+// ================= بدّل حصتي =================
+// أسماء معلمي القسم كما وردت في جدول المدرسة
+const SCHOOL_NAME = { "مزيد حمد خليفة القصار": "مزيد حمد القصار", "عبدالله طارق محمد الخليفي": "عبد الله الخليفي", "عبدالمحسن عايض عبدالله المطيري": "عبد المحسن المطيري",
+  "خالد أحمد علي الخالدي": "خالد الخالدي", "سعد عبدالله سعد الحربي": "سعد الحربي", "عبدالرحمن خالد عبدالكريم الاصقه": "عبد الرحمن الأصقه",
+  "عبدالله جاسم محمد المجيبل": "عبد الله المجيبل", "سعد احمد سعد العازمي": "سعد أحمد", "عثمان حسين علي الاثري": "عثمان الأثري",
+  "أحمد ياسر إبراهيم الشطي": "أحمد ياسر الشطي", "مصطفى احمد ابراهيم على": "مصطفى أحمد", "محمد فهد محمد فيلكاوي": "محمد الفيلكاوي",
+  "حمد عماد حمد العون": "حمد العون", "ممدوح صديق ابوالحسن": "ممدوح صديق" };
+const PERIOD_TIME = ["", "07:55 – 08:40", "08:43 – 09:28", "09:31 – 10:16", "10:32 – 11:17", "11:20 – 12:05", "12:24 – 13:09", "13:10 – 13:55"];
+let SCHOOL = null, swapPick = null;
+
+function swapMe() { return ME.isDemo ? $("sw-who").value : ME.name; }
+function weekStart(iso) {
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], 12); let wd = d.getDay();
+  if (wd === 5) d.setDate(d.getDate() + 2); else if (wd === 6) d.setDate(d.getDate() + 1); else d.setDate(d.getDate() - wd);
+  return d;
+}
+function dayISO(start, d) { const x = new Date(start); x.setDate(x.getDate() + d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; }
+function schoolOf(name) { return (SCHOOL || []).find(t => t.name === SCHOOL_NAME[name]); }
+const isElective = s => /اختيار/.test(s[1] || "");
+
+async function initSwap() {
+  $("sw-who-wrap").hidden = !ME.isDemo;
+  if (ME.isDemo && !$("sw-who").options.length) $("sw-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
+  if (!$("sw-date").value) $("sw-date").value = todayISO();
+  if (!SCHOOL) {
+    $("sw-mine").innerHTML = '<div class="empty">جارٍ تحميل جدول المدرسة…</div>';
+    try { SCHOOL = await run("schoolTable", CODE); } catch (e) { $("sw-mine").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
+  }
+  renderSwapMine();
+}
+function renderSwapMine() {
+  swapPick = null; $("sw-results").innerHTML = ""; $("sw-msg").textContent = "";
+  const me = schoolOf(swapMe()), start = weekStart($("sw-date").value);
+  if (!me) { $("sw-mine").innerHTML = '<div class="empty">لم يُعثر على جدولك في جدول المدرسة.</div>'; return; }
+  if (!start) { $("sw-mine").innerHTML = ""; return; }
+  const today = todayISO();
+  const mine = Object.entries(me.slots).filter(([k, s]) => s[0] && !isElective(s)).sort();
+  $("sw-mine").innerHTML = mine.length ? mine.map(([k, s]) => {
+    const d = +k[0], p = +k[1], date = dayISO(start, d), past = date < today;
+    return `<button type="button" class="sw-slot" data-k="${k}" aria-pressed="false"${past ? " disabled" : ""}><b>${DAYS[d]} · الحصة ${ar(p)}</b><span>${fmtDate(date)} · ${esc(s[0].split(",").map(classLabel).join("، "))}${past ? " · مضت" : ""}</span></button>`;
+  }).join("") : '<div class="empty">لا توجد حصص في جدولك.</div>';
+  $("sw-mine").querySelectorAll(".sw-slot").forEach(b => b.onclick = () => {
+    $("sw-mine").querySelectorAll(".sw-slot").forEach(x => x.setAttribute("aria-pressed", x === b));
+    swapPick = b.dataset.k; renderSwapResults();
+  });
+}
+// المرشحون: يدرّسون الفصل نفسه، وليست لديهم حصة وقت حصتي، ولهم حصة مع الفصل في الأسبوع نفسه أكون فيها متفرغًا
+function swapCandidates(k) {
+  const me = schoolOf(swapMe()), start = weekStart($("sw-date").value), today = todayISO();
+  const mySlot = me.slots[k], classes = mySlot[0].split(",");
+  const out = [];
+  for (const t of SCHOOL) {
+    if (t.name === me.name || t.slots[k]) continue;
+    const opts = Object.entries(t.slots).filter(([k2, s]) => s[0] && !isElective(s) && s[0].split(",").some(c => classes.indexOf(c) !== -1)
+      && !me.slots[k2] && k2 !== k && dayISO(start, +k2[0]) >= today).sort();
+    if (opts.length) out.push({ t, opts });
+  }
+  return out.sort((a, b) => a.t.dept.localeCompare(b.t.dept, "ar") || a.t.name.localeCompare(b.t.name, "ar"));
+}
+function renderSwapResults() {
+  const box = $("sw-results"), k = swapPick, me = schoolOf(swapMe()), start = weekStart($("sw-date").value);
+  const mySlot = me.slots[k], d = +k[0], p = +k[1];
+  const list = swapCandidates(k);
+  const head = `<h3 class="list-title">من يستطيع أخذ حصتك: ${DAYS[d]} ${fmtDate(dayISO(start, d))} · الحصة ${ar(p)} · ${esc(mySlot[0].split(",").map(classLabel).join("، "))}</h3>`;
+  if (!list.length) { box.innerHTML = head + '<div class="empty">لا يوجد معلم يدرّس هذا الفصل ومتاح في هذا الوقت ضمن هذا الأسبوع.</div>'; return; }
+  box.innerHTML = head + `<div class="sub">${ar(list.length)} ${list.length > 10 ? "معلمًا" : list.length > 2 ? "معلمين" : list.length === 2 ? "معلمان" : "معلم"}</div>` + list.map((c, i) => `<div class="card sw-t"><h3>أ. ${esc(c.t.name)}</h3><div class="sub">${esc(c.t.dept)}</div>
+    ${c.opts.map(([k2, s]) => `<div class="sw-opt"><div class="o-main">تأخذ حصته: <b>${DAYS[+k2[0]]} ${fmtDate(dayISO(start, +k2[0]))} · الحصة ${ar(+k2[1])}</b>
+      <small>${esc(s[1] || "")} · ${esc(s[0].split(",").map(classLabel).join("، "))} · ${ar(PERIOD_TIME[+k2[1]])}</small></div>
+      <button class="btn sm" type="button" data-i="${i}" data-k2="${k2}">نموذج التبديل وورد</button></div>`).join("")}</div>`).join("");
+  box.querySelectorAll("[data-k2]").forEach(b => b.onclick = () => swapDoc(list[+b.dataset.i].t, b.dataset.k2));
+}
+async function swapDoc(other, k2) {
+  const msg = $("sw-msg");
+  if (!window.docx) { msg.textContent = "تعذّر تحميل أداة إنشاء ملفات وورد. أعد فتح الصفحة."; return; }
+  const me = schoolOf(swapMe()), start = weekStart($("sw-date").value), k = swapPick;
+  const info = { me: { name: swapMe(), dept: me.dept, subject: me.slots[k][1], d: +k[0], p: +k[1], date: dayISO(start, +k[0]), classes: me.slots[k][0] },
+    other: { name: other.name, dept: other.dept, subject: other.slots[k2][1], d: +k2[0], p: +k2[1], date: dayISO(start, +k2[0]), classes: other.slots[k2][0] } };
+  msg.textContent = "جارٍ إنشاء النموذج…";
+  try { await deliver(await window.docx.Packer.toBlob(buildSwapDoc(window.docx, info)), `نموذج تبديل حصة - ${info.me.name.split(" ")[0]} و${other.name.split(" ")[0]} - ${info.me.date}.docx`, msg); }
+  catch (e) { msg.textContent = "لم يتم إنشاء النموذج: " + cleanErr(e); }
+  msg.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function buildSwapDoc(D, x) {
+  const h = H(D), F = "FBEEE3", W = 9600;
+  const cls = c => c.split(",").map(classLabel).join("، ");
+  const slotCells = (s, label) => [h.cell(label, { bold: true, fill: F, size: 20, w: 1900 }),
+    h.cell(`${DAYS[s.d]} ${fmtDate(s.date)}`, { size: 20, w: 2600, align: h.C }), h.cell(`الحصة ${ar(s.p)}`, { size: 20, bold: true, w: 1300, align: h.C }),
+    h.cell(ar(PERIOD_TIME[s.p]), { size: 19, w: 1700, align: h.C }), h.cell(cls(s.classes), { size: 20, w: 2100, align: h.C })];
+  const person = (s, n) => h.table([
+    [h.cell(`المعلم ${n}`, { bold: true, fill: F, size: 20, w: 1900 }), h.cell("أ. " + s.name, { bold: true, size: 21, w: 4500 }), h.cell(s.dept, { size: 19, w: 3200, align: h.C })],
+    [h.cell("المادة", { bold: true, fill: F, size: 20 }), h.cell(s.subject || "—", { size: 20 }), h.cell("", {})]
+  ], [1900, 4500, 3200]);
+  const hdr = ["", "اليوم والتاريخ", "الحصة", "الوقت", "الفصل"].map((t, i) => h.cell(t, { bold: true, size: 19, fill: "F3EFEA", align: h.C, w: [1900, 2600, 1300, 1700, 2100][i] }));
+  const slots = h.table([hdr, slotCells(x.me, "حصة المعلم الأول"), slotCells(x.other, "حصة المعلم الثاني")], [1900, 2600, 1300, 1700, 2100]);
+  const stamp = (role, name) => h.cell([h.para(role, { align: h.C, bold: true, size: 20, after: 40 }), h.para(name ? "أ. " + name : "الاسم: ............................", { align: h.C, size: 19, after: 160 }),
+    h.para("التوقيع: ....................", { align: h.C, size: 19, after: 120 }), h.para("الختم", { align: h.C, size: 17, color: h.MUTED, after: 900 })], { w: W / 2 });
+  const sign = (n, s) => h.cell([h.para(`المعلم ${n}`, { align: h.C, bold: true, size: 20, after: 40 }), h.para("أ. " + s.name, { align: h.C, size: 19, after: 200 }),
+    h.para("التوقيع: ....................", { align: h.C, size: 19, after: 0 })], { w: W / 2 });
+  const same = x.me.dept === x.other.dept;
+  return h.doc([h.letterhead(), h.para("", { after: 120 }),
+    h.para("نموذج تبديل حصة", { size: 36, bold: true, align: h.C, after: 40 }),
+    h.para(`تاريخ الطلب: ${DAYS[new Date().getDay()] || ""} ${fmtDate(todayISO())}`, { size: 20, align: h.C, color: h.MUTED, after: 220 }),
+    h.heading("أولًا: بيانات المعلمين"), person(x.me, "الأول"), h.para("", { after: 80 }), person(x.other, "الثاني"),
+    h.heading("ثانيًا: الحصتان المتبادلتان"), slots,
+    h.para(`اتفق المعلمان المذكوران أعلاه على تبادل الحصتين المبيّنتين، فيدخل المعلم الثاني حصة المعلم الأول يوم ${DAYS[x.me.d]} ${fmtDate(x.me.date)} في الحصة ${ar(x.me.p)}، ويدخل المعلم الأول حصة المعلم الثاني يوم ${DAYS[x.other.d]} ${fmtDate(x.other.date)} في الحصة ${ar(x.other.p)}، مع الفصل ${cls(x.me.classes)}، على أن يعود الجدول إلى وضعه المعتاد بعد ذلك.`,
+      { size: 21, justify: true, before: 160, after: 120 }),
+    h.heading("ثالثًا: توقيع المعلمين"), h.table([[sign("الأول", x.me), sign("الثاني", x.other)]], [W / 2, W / 2], h.noBorders),
+    h.heading("رابعًا: اعتماد رئيسي القسمين"),
+    h.table([[stamp("رئيس قسم التربية الإسلامية", HEAD_NAME), stamp(same ? "رئيس القسم" : "رئيس " + x.other.dept, same ? HEAD_NAME : "")]], [W / 2, W / 2])]);
+}
+$("sw-date").onchange = renderSwapMine;
+$("sw-who").onchange = renderSwapMine;
 
 // ================= الصفحة الرئيسية =================
 const SVG = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;

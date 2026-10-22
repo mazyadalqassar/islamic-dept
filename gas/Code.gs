@@ -14,6 +14,7 @@ const SHEET_MYSIG = "توقيعات المعلمين";
 const SHEET_VIS = "الزيارات";
 const SHEET_SUBS = "الاحتياط";
 const SHEET_PLAN = "خطة الزيارات";
+const SHEET_SCHOOL = "جدول المدرسة";
 // نائب رئيس القسم: له صلاحية ركن الاحتياط مع رئيس القسم
 const DEPUTY = "حمد عماد حمد العون";
 
@@ -59,7 +60,7 @@ function doGet() {
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
-  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan };
+  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable };
 
 function doPost(e) {
   let out;
@@ -98,6 +99,7 @@ function setup() {
   sheet_(SHEET_VIS, ["المعرف", "المعلم", "الفصل", "البطاقة", "التاريخ", "الحصة", "رقم الوحدة", "المجال", "رقم الدرس", "عنوان الدرس / السورة والآيات",
     "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس القسم", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم", "نوع الزيارة", "الملاحظات"], true);
   sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل"], true);
+  sheet_(SHEET_SCHOOL, ["المعلم", "القسم", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
   sheet_(SHEET_PLAN, ["الأسبوع", "التاريخ", "اليوم", "الحصة", "المعلم", "الفصل", "ملاحظة"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
@@ -671,4 +673,16 @@ function visitPlan(code) {
   const sh = sh_(SHEET_PLAN);
   if (!sh) return [];
   return rows_(SHEET_PLAN).slice(1).filter(r => r[1]).map(r => ({ week: Number(r[0]), date: r[1], day: r[2], period: Number(r[3]), teacher: r[4], classId: r[5], note: r[6] }));
+}
+
+// ======================= جدول المدرسة (لتبديل الحصص) =======================
+/** جدول المدرسة كاملًا لأي مستخدم مسجّل: [{name, dept, slots: {"<يوم><حصة>": [الفصول, المادة]}}] */
+function schoolTable(code) {
+  who_(code);
+  const sh = sh_(SHEET_SCHOOL);
+  if (!sh) return [];
+  return rows_(SHEET_SCHOOL).slice(1).filter(r => r[0]).map(r => {
+    let slots = {}; try { slots = JSON.parse(r[2] || "{}"); } catch (e) {}
+    return { name: r[0], dept: r[1], slots };
+  });
 }
