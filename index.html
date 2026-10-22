@@ -523,6 +523,11 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
 
     <!-- ركن بدّل حصتي -->
     <section id="sec-swap" hidden>
+      <nav class="tabs" role="tablist">
+        <button id="swtab-new" role="tab" aria-selected="true">طلب تبديل</button>
+        <button id="swtab-log" role="tab" aria-selected="false"><span class="head-only" hidden>سجل التبديلات</span><span class="teacher-only">تبديلاتي</span></button>
+      </nav>
+      <section id="sw-new">
       <div class="card">
         <h2>تبديل حصة مع معلم من قسم آخر</h2>
         <div class="sub">اختر الأسبوع ثم الحصة التي تريد تبديلها، فيظهر لك المعلمون الذين يدرّسون الفصل نفسه وليست لديهم حصة في ذلك الوقت، مع الحصة التي تأخذها منهم بدلًا عنها وأنت متفرغ فيها.</div>
@@ -535,6 +540,12 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
       </div>
       <div class="saved" id="sw-msg"></div>
       <div id="sw-results"></div>
+      </section>
+      <section id="sw-log" hidden>
+        <div class="row-actions" style="margin-top:12px"><span class="sub" id="sw-log-head"></span><button class="btn ghost sm" id="sw-reload" type="button">تحديث</button></div>
+        <div class="saved" id="sw-log-msg"></div>
+        <div class="list" id="sw-log-list"></div>
+      </section>
     </section>
 
     <!-- ركن الاحتياط (رئيس القسم ونائبه) -->
@@ -957,7 +968,7 @@ $("logout").onclick = () => {
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
-  DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new"; SCHOOL = null; swapPick = null;
+  DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new"; SCHOOL = null; swapPick = null; SWAPS = null;
   $("app").hidden = true; $("view-login").hidden = false; $("code").value = "";
 };
 
@@ -980,7 +991,7 @@ function go(sec, noHist) {
   if (sec === "min") loadMinutes();
   if (sec === "vis") visTab(ME.isHead ? (visSub === "mine" ? "new" : visSub) : "mine");
   if (sec === "subs") subsTab(subsSub);
-  if (sec === "swap") initSwap();
+  if (sec === "swap") swapTab("new");
 }
 SECTIONS.forEach(s => $("nav-" + s).onclick = () => go(s));
 $("back-home").onclick = () => { if (history.state && history.state.sec && history.state.sec !== "home" && history.length > 1) history.back(); else go("home", true); };
@@ -2120,9 +2131,15 @@ async function swapDoc(other, k2) {
   const me = schoolOf(swapMe()), start = weekStart($("sw-date").value), k = swapPick;
   const info = { me: { name: swapMe(), dept: me.dept, subject: me.slots[k][1], d: +k[0], p: +k[1], date: dayISO(start, +k[0]), classes: me.slots[k][0] },
     other: { name: other.name, dept: other.dept, subject: other.slots[k2][1], d: +k2[0], p: +k2[1], date: dayISO(start, +k2[0]), classes: other.slots[k2][0] } };
-  msg.textContent = "جارٍ إنشاء النموذج…";
-  try { await deliver(await window.docx.Packer.toBlob(buildSwapDoc(window.docx, info)), `نموذج تبديل حصة - ${info.me.name.split(" ")[0]} و${other.name.split(" ")[0]} - ${info.me.date}.docx`, msg); }
-  catch (e) { msg.textContent = "لم يتم إنشاء النموذج: " + cleanErr(e); }
+  msg.textContent = "جارٍ تسجيل الطلب وإنشاء النموذج…";
+  try {
+    const blob = await window.docx.Packer.toBlob(buildSwapDoc(window.docx, info));
+    await run("saveSwap", CODE, { subject: info.me.subject, classes: info.me.classes, classLabel: cls_(info.me.classes), date: info.me.date, period: info.me.p, other: other.name, otherDept: other.dept,
+      otherSubject: info.other.subject, otherDate: info.other.date, otherPeriod: info.other.p, schoolName: me.name }, await blobToDataURL(blob));
+    SWAPS = null;
+    await deliver(blob, `نموذج طلب تبديل الحصة - ${info.me.name.split(" ")[0]} و${other.name.split(" ")[0]} - ${info.me.date}.docx`, msg);
+    msg.insertAdjacentHTML("afterbegin", "سُجّل طلب التبديل ووصل رئيس القسم إشعار به. ");
+  } catch (e) { msg.textContent = "لم يتم تسجيل الطلب: " + cleanErr(e); }
   msg.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 function buildSwapDoc(D, x) {
@@ -2167,10 +2184,45 @@ function buildSwapDoc(D, x) {
       footers: { default: new D.Footer({ children: [P("قسم التربية الإسلامية · ثانوية أحمد الربعي للبنين", { size: 16, color: h.MUTED, align: C })] }) },
       children: [head, line,
         P("نموذج طلب تبديل الحصة", { size: 36, bold: true, align: C, after: 60 }),
-        P(`تاريخ الطلب: ${DAYS[new Date().getDay()] || ""} ${fmtDate(todayISO())}`, { size: 19, color: h.MUTED, align: C, after: 300 }),
+        P(`تاريخ الطلب: ${DAYS[isoDayIdx(x.at || todayISO())] || ""} ${fmtDate(x.at || todayISO())}`, { size: 19, color: h.MUTED, align: C, after: 300 }),
         table,
         P("سبب التبديل:", { size: 23, bold: true, color: OR, before: 400, after: 160 }), dots, dots,
         P("", { after: 300 }), signs] }] });
+}
+const cls_ = c => String(c).split(",").map(classLabel).join("، ");
+let SWAPS = null;
+function swapTab(which) {
+  ["new", "log"].forEach(k => { $("swtab-" + k).setAttribute("aria-selected", k === which); $("sw-" + k).hidden = k !== which; });
+  if (which === "new") initSwap(); else loadSwaps();
+}
+$("swtab-new").onclick = () => swapTab("new");
+$("swtab-log").onclick = () => swapTab("log");
+$("sw-reload").onclick = () => loadSwaps(true);
+function isoDayIdx(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getDay() : 0; }
+// يعيد بناء بيانات النموذج من الطلب المحفوظ
+function swapInfo(s) {
+  return { at: String(s.at).slice(0, 10), me: { name: s.teacher, dept: "قسم التربية الإسلامية", subject: s.subject, d: isoDayIdx(s.date), p: s.period, date: s.date, classes: s.classes },
+    other: { name: s.other, dept: s.otherDept, subject: s.otherSubject, d: isoDayIdx(s.otherDate), p: s.otherPeriod, date: s.otherDate, classes: s.classes } };
+}
+async function loadSwaps(force) {
+  const box = $("sw-log-list");
+  if (!SWAPS || force) { box.innerHTML = '<div class="empty">جارٍ التحميل…</div>'; try { SWAPS = await run("listSwaps", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; } }
+  const ORD = ["", "الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة"];
+  $("sw-log-head").textContent = SWAPS.length ? `${ar(SWAPS.filter(s => !s.demo).length)} طلب تبديل` : "";
+  box.innerHTML = SWAPS.length ? SWAPS.map((s, i) => `<div class="card sw-t"><h3>أ. ${esc(s.teacher)} ↔ أ. ${esc(s.other)}${s.demo ? ' <span class="pill none">تجريبي</span>' : ""}</h3>
+    <div class="sub">${esc(s.otherDept)} · الفصل ${esc(cls_(s.classes))} · طُلب ${fmtStamp(s.at)}</div>
+    <div class="sw-opt"><div class="o-main">حصة أ. ${esc(s.teacher.split(" ")[0])}: <b>${DAYS[isoDayIdx(s.date)]} ${fmtDate(s.date)} · الحصة ${ORD[s.period]}</b><small>يدخلها أ. ${esc(s.other)} (${esc(s.otherSubject)})</small>
+      حصة أ. ${esc(s.other.split(" ")[0])}: <b>${DAYS[isoDayIdx(s.otherDate)]} ${fmtDate(s.otherDate)} · الحصة ${ORD[s.otherPeriod]}</b><small>يدخلها أ. ${esc(s.teacher)}</small></div>
+      <div class="row-actions"><button class="btn sm" type="button" data-doc="${i}">تنزيل النموذج للطباعة</button><button class="btn ghost sm" type="button" data-del="${i}">حذف</button></div></div></div>`).join("")
+    : `<div class="empty">${ME.isHead ? "لا توجد طلبات تبديل بعد." : "لم تطلب أي تبديل بعد."}</div>`;
+  box.querySelectorAll("[data-doc]").forEach(b => b.onclick = async () => {
+    const s = SWAPS[+b.dataset.doc], m = $("sw-log-msg"); m.textContent = "جارٍ إنشاء النموذج…";
+    try { await deliver(await window.docx.Packer.toBlob(buildSwapDoc(window.docx, swapInfo(s))), `نموذج طلب تبديل الحصة - ${s.teacher.split(" ")[0]} و${s.other.split(" ")[0]} - ${s.date}.docx`, m); }
+    catch (e) { m.textContent = "لم يتم إنشاء النموذج: " + cleanErr(e); }
+  });
+  box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => confirmInline(b, "اضغط مرة ثانية للحذف", async () => {
+    try { await run("deleteSwap", CODE, SWAPS[+b.dataset.del].id); loadSwaps(true); } catch (e) { $("sw-log-msg").textContent = cleanErr(e); }
+  }));
 }
 $("sw-date").onchange = renderSwapMine;
 $("sw-who").onchange = renderSwapMine;

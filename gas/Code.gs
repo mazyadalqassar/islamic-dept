@@ -15,6 +15,7 @@ const SHEET_VIS = "الزيارات";
 const SHEET_SUBS = "الاحتياط";
 const SHEET_PLAN = "خطة الزيارات";
 const SHEET_SCHOOL = "جدول المدرسة";
+const SHEET_SWAP = "التبديلات";
 // نائب رئيس القسم: له صلاحية ركن الاحتياط مع رئيس القسم
 const DEPUTY = "حمد عماد حمد العون";
 
@@ -60,7 +61,7 @@ function doGet() {
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
-  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool };
+  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap };
 
 function doPost(e) {
   let out;
@@ -100,6 +101,7 @@ function setup() {
     "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس القسم", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم", "نوع الزيارة", "الملاحظات"], true);
   sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل"], true);
   sheet_(SHEET_SCHOOL, ["المعلم", "القسم", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
+  sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "قسمه", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true);
   sheet_(SHEET_PLAN, ["الأسبوع", "التاريخ", "اليوم", "الحصة", "المعلم", "الفصل", "ملاحظة"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
@@ -700,5 +702,58 @@ function importSchool(code, b64) {
     rg.setNumberFormat("@");
     rg.setValues(rows.map(r => [String(r[0]), String(r[1]), String(r[2])]));
     return rows.length;
+  });
+}
+
+// ======================= التبديلات =======================
+const ORD_ = ["", "الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة"];
+const DAYS_ = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+function swapObj_(r) { return { id: r[0], at: r[1], teacher: r[2], subject: r[3], classes: r[4], date: r[5], period: Number(r[6]),
+  other: r[7], otherDept: r[8], otherSubject: r[9], otherDate: r[10], otherPeriod: Number(r[11]), schoolName: r[12], demo: isDemo_(r[2]) }; }
+function swapSheet_() { return sh_(SHEET_SWAP) || sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "قسمه", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true); }
+function dayOf_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? DAYS_[new Date(+m[1], +m[2] - 1, +m[3]).getDay()] : ""; }
+function dmy_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[3]}/${+m[2]}/${m[1]}` : iso; }
+
+/** يسجّل طلب تبديل ويرسل إيميلًا لرئيس القسم مع النموذج (وورد) */
+function saveSwap(code, s, docB64) {
+  const me = who_(code);
+  s = s || {};
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  if (!iso.test(s.date) || !iso.test(s.otherDate)) throw new Error("التاريخ غير صحيح.");
+  const p1 = Number(s.period), p2 = Number(s.otherPeriod);
+  if (!(p1 >= 1 && p1 <= 7 && p2 >= 1 && p2 <= 7)) throw new Error("رقم الحصة غير صحيح.");
+  const clip = (v, n) => String(v || "").slice(0, n);
+  const row = [newId_(), nowText_(), me.name, clip(s.subject, 60), clip(s.classes, 60), s.date, p1, clip(s.other, 80), clip(s.otherDept, 80), clip(s.otherSubject, 60), s.otherDate, p2, clip(s.schoolName, 80)];
+  withLock_(() => appendText_(swapSheet_(), row));
+  const o = swapObj_(row.map(String));
+  let att = [];
+  if (docB64 && String(docB64).length < 2000000) {
+    try { att = [Utilities.newBlob(Utilities.base64Decode(String(docB64).replace(/^data:[^,]+,/, "")), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", `نموذج طلب تبديل الحصة - ${me.name}.docx`)]; } catch (e) {}
+  }
+  notify_(me, `طلب تبديل حصة: أ. ${me.name} مع أ. ${o.other}`, `
+    <p>سجّل <b>أ. ${esc_(me.name)}</b> طلب تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${esc_(clip(s.classLabel, 60) || o.classes)}:</p>
+    <table style="border-collapse:collapse" cellpadding="6" border="1">
+      <tr style="background:#fbeee3"><th>المعلم</th><th>المادة</th><th>من الحصة</th><th>إلى الحصة</th><th>اليوم والتاريخ</th></tr>
+      <tr><td>أ. ${esc_(me.name)}</td><td>${esc_(o.subject)}</td><td>${ORD_[p1]}</td><td>${ORD_[p2]}</td><td>${dayOf_(o.date)} ${dmy_(o.date)}${o.date !== o.otherDate ? " ← " + dayOf_(o.otherDate) + " " + dmy_(o.otherDate) : ""}</td></tr>
+      <tr><td>أ. ${esc_(o.other)}</td><td>${esc_(o.otherSubject)}</td><td>${ORD_[p2]}</td><td>${ORD_[p1]}</td><td>${dayOf_(o.otherDate)} ${dmy_(o.otherDate)}${o.date !== o.otherDate ? " ← " + dayOf_(o.date) + " " + dmy_(o.date) : ""}</td></tr>
+    </table><p>النموذج مرفق بصيغة وورد للطباعة والتوقيع، وتجده أيضًا في الموقع: بدّل حصتي ← سجل التبديلات.</p>`, att);
+  return o;
+}
+
+/** رئيس القسم: كل التبديلات (التجريبية معلّمة) · المعلم: تبديلاته فقط */
+function listSwaps(code) {
+  const me = who_(code);
+  const sh = sh_(SHEET_SWAP); if (!sh) return [];
+  return rows_(SHEET_SWAP).slice(1).filter(r => r[0] && (me.isHead || r[2] === me.name)).map(swapObj_).reverse();
+}
+function deleteSwap(code, id) {
+  const me = who_(code);
+  return withLock_(() => {
+    const sh = swapSheet_(), row = findRow_(sh, 1, String(id));
+    if (row < 0) throw new Error("الطلب غير موجود.");
+    const owner = sh.getRange(row, 3).getDisplayValue();
+    if (!me.isHead && owner !== me.name) throw new Error("لا يمكن حذف هذا الطلب.");
+    sh.deleteRow(row);
+    return true;
   });
 }
