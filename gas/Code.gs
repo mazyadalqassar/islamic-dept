@@ -92,7 +92,7 @@ function setup() {
   sheet_(SHEET_SIG, ["المحضر", "المعلم", "وقت التوقيع", "التوقيع"], true);
   sheet_(SHEET_MYSIG, ["المعلم", "التوقيع", "آخر تحديث"], true);
   sheet_(SHEET_VIS, ["المعرف", "المعلم", "الفصل", "البطاقة", "التاريخ", "الحصة", "رقم الوحدة", "المجال", "رقم الدرس", "عنوان الدرس / السورة والآيات",
-    "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس القسم", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم"], true);
+    "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس القسم", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم", "نوع الزيارة", "الملاحظات"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
   codes.getRange("B:B").setNumberFormat("@");
@@ -509,12 +509,14 @@ function testEmail() { notify_(null, "تجربة تنبيهات موقع الق�
 // 8 رقم الدرس | 9 عنوان الدرس أو السورة والآيات | 10 رقم الزيارة | 11 التقييمات (JSON: [[المستوى، الملاحظة], ...])
 // 12 التوصيات | 13 توقيع رئيس القسم | 14 تاريخ الإنشاء | 15 توقيع المعلم | 16 وقت توقيع المعلم
 const VISIT_CARDS = { ie: "التربية الإسلامية", qr: "القرآن الكريم", tl: "حصة تلاوة" };
+const VISIT_TYPES = ["استطلاعية", "توجيهية", "تقويمية"];
+const VIS_COLS = 19; // 17 نوع الزيارة | 18 الملاحظات
 
 function visObj_(r, withImages) {
   let ratings = [];
   try { ratings = JSON.parse(r[11] || "[]"); } catch (e) {}
   const o = { id: r[0], teacher: r[1], classId: r[2], card: r[3], date: r[4], period: r[5], unit: r[6], domain: r[7], lessonNo: r[8], lesson: r[9],
-    number: r[10], ratings, recommendations: r[12], createdAt: r[14], teacherSignedAt: r[16], demo: isDemo_(r[1]) };
+    number: r[10], ratings, recommendations: r[12], createdAt: r[14], teacherSignedAt: r[16], type: r[17] || "", notes: r[18] || "", demo: isDemo_(r[1]) };
   if (withImages) { o.headSig = r[13]; o.teacherSig = r[15]; }
   return o;
 }
@@ -530,6 +532,7 @@ function saveVisit(code, v) {
   if (!classes) throw new Error("اختر المعلم.");
   if (classes.indexOf(v.classId) === -1) throw new Error("هذا الفصل ليس من فصول المعلم.");
   if (!VISIT_CARDS[v.card]) throw new Error("اختر نوع البطاقة.");
+  if (VISIT_TYPES.indexOf(v.type) === -1) throw new Error("اختر نوع الزيارة.");
   const ratings = (Array.isArray(v.ratings) ? v.ratings : []).slice(0, 40).map(x => [String((x && x[0]) || "").slice(0, 30), String((x && x[1]) || "").slice(0, 300)]);
   const headSig = String(v.headSig || "");
   if (headSig && !validSig_(headSig)) throw new Error("توقيعك غير صالح، ارسمه مرة أخرى.");
@@ -539,13 +542,14 @@ function saveVisit(code, v) {
     let old = null;
     if (v.id) {
       if (row < 0) throw new Error("الزيارة غير موجودة.");
-      old = sh.getRange(row, 1, 1, 17).getDisplayValues()[0];
+      old = sh.getRange(row, 1, 1, VIS_COLS).getDisplayValues()[0];
       if (old[16]) throw new Error("وقّع المعلم على هذه الزيارة، فلا يمكن تعديلها.");
     }
     const number = old ? old[10] : String(visRows_().filter(r => r[1] === teacher).length + 1);
     const values = [old ? old[0] : newId_(), teacher, v.classId, v.card, String(v.date || "").slice(0, 10), String(v.period || "").slice(0, 10),
       String(v.unit || "").slice(0, 40), String(v.domain || "").slice(0, 60), String(v.lessonNo || "").slice(0, 20), String(v.lesson || "").slice(0, 200),
-      number, JSON.stringify(ratings), String(v.recommendations || "").slice(0, 3000), headSig || (old ? old[13] : ""), old ? old[14] : nowText_(), "", ""];
+      number, JSON.stringify(ratings), String(v.recommendations || "").slice(0, 3000), headSig || (old ? old[13] : ""), old ? old[14] : nowText_(), "", "",
+      v.type, String(v.notes || "").slice(0, 3000)];
     if (row > 0) writeRow_(sh, row, values); else appendText_(sh, values);
     if (headSig) {
       const my = sh_(SHEET_MYSIG), r2 = findRow_(my, 1, me.name);
@@ -576,7 +580,7 @@ function signVisit(code, id, image) {
   return withLock_(() => {
     const sh = sh_(SHEET_VIS), row = findRow_(sh, 1, id);
     if (row < 0) throw new Error("الزيارة غير موجودة.");
-    const r = sh.getRange(row, 1, 1, 17).getDisplayValues()[0];
+    const r = sh.getRange(row, 1, 1, VIS_COLS).getDisplayValues()[0];
     if (r[1] !== me.name) throw new Error("هذه الزيارة ليست لك.");
     if (r[16]) throw new Error("وقّعت على هذه الزيارة من قبل.");
     const at = nowText_();
@@ -585,7 +589,7 @@ function signVisit(code, id, image) {
     const my = sh_(SHEET_MYSIG), r2 = findRow_(my, 1, me.name);
     if (r2 > 0) writeRow_(my, r2, [me.name, image, at]); else appendText_(my, [me.name, image, at]);
     notify_(me, `وقّع أ. ${me.name} على الزيارة الصفية رقم ${r[10]}`, `
-      <p>اطّلع <b>أ. ${esc_(me.name)}</b> على الزيارة الصفية رقم ${esc_(r[10])} (${esc_(VISIT_CARDS[r[3]] || "")}) بتاريخ ${esc_(r[4])}، ووقّع عليها في ${esc_(at)}.</p>
+      <p>اطّلع <b>أ. ${esc_(me.name)}</b> على الزيارة الصفية ${esc_(r[17] || "")} رقم ${esc_(r[10])} (${esc_(VISIT_CARDS[r[3]] || "")}) بتاريخ ${esc_(r[4])}، ووقّع عليها في ${esc_(at)}.</p>
       <p>يمكنك تنزيل بطاقة الزيارة موقّعة من ركن «الزيارات الصفية».</p>`);
     return { signedAt: at };
   });
