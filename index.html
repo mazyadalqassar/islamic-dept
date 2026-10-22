@@ -2126,32 +2126,51 @@ async function swapDoc(other, k2) {
   msg.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 function buildSwapDoc(D, x) {
-  const h = H(D), F = "FBEEE3", W = 9600;
+  const h = H(D), F = "FBEEE3", W = 9900, OR = h.ORANGE;
+  const ORD = ["", "الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة"];
   const cls = c => c.split(",").map(classLabel).join("، ");
-  const slotCells = (s, label) => [h.cell(label, { bold: true, fill: F, size: 20, w: 1900 }),
-    h.cell(`${DAYS[s.d]} ${fmtDate(s.date)}`, { size: 20, w: 2600, align: h.C }), h.cell(`الحصة ${ar(s.p)}`, { size: 20, bold: true, w: 1300, align: h.C }),
-    h.cell(ar(PERIOD_TIME[s.p]), { size: 19, w: 1700, align: h.C }), h.cell(cls(s.classes), { size: 20, w: 2100, align: h.C })];
-  const person = (s, n) => h.table([
-    [h.cell(`المعلم ${n}`, { bold: true, fill: F, size: 20, w: 1900 }), h.cell("أ. " + s.name, { bold: true, size: 21, w: 4500 }), h.cell(s.dept, { size: 19, w: 3200, align: h.C })],
-    [h.cell("المادة", { bold: true, fill: F, size: 20 }), h.cell(s.subject || "—", { size: 20 }), h.cell("", {})]
-  ], [1900, 4500, 3200]);
-  const hdr = ["", "اليوم والتاريخ", "الحصة", "الوقت", "الفصل"].map((t, i) => h.cell(t, { bold: true, size: 19, fill: "F3EFEA", align: h.C, w: [1900, 2600, 1300, 1700, 2100][i] }));
-  const slots = h.table([hdr, slotCells(x.me, "حصة المعلم الأول"), slotCells(x.other, "حصة المعلم الثاني")], [1900, 2600, 1300, 1700, 2100]);
-  const stamp = (role, name) => h.cell([h.para(role, { align: h.C, bold: true, size: 20, after: 40 }), h.para(name ? "أ. " + name : "الاسم: ............................", { align: h.C, size: 19, after: 160 }),
-    h.para("التوقيع: ....................", { align: h.C, size: 19, after: 120 }), h.para("الختم", { align: h.C, size: 17, color: h.MUTED, after: 900 })], { w: W / 2 });
-  const sign = (n, s) => h.cell([h.para(`المعلم ${n}`, { align: h.C, bold: true, size: 20, after: 40 }), h.para("أ. " + s.name, { align: h.C, size: 19, after: 200 }),
-    h.para("التوقيع: ....................", { align: h.C, size: 19, after: 0 })], { w: W / 2 });
+  const nb = { style: D.BorderStyle.NONE, size: 0, color: "FFFFFF" }, NB = { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb };
+  const C = h.C, P = (t, o = {}) => h.para(t, { after: 0, ...o });
+  const cell = (c, w, o = {}) => new D.TableCell({ width: { size: w, type: D.WidthType.DXA }, verticalAlign: D.VerticalAlign.CENTER,
+    shading: o.fill ? { type: D.ShadingType.CLEAR, fill: o.fill, color: "auto" } : undefined, margins: { top: 90, bottom: 90, left: 80, right: 80 },
+    children: Array.isArray(c) ? c : [P(c, { align: o.align || C, bold: o.bold, size: o.size || 20, color: o.color })] });
+  const tbl = (rows, widths, borders) => new D.Table({ visuallyRightToLeft: true, layout: D.TableLayoutType.FIXED, columnWidths: widths,
+    width: { size: widths.reduce((a, b) => a + b, 0), type: D.WidthType.DXA }, borders, rows: rows.map(r => new D.TableRow({ children: r, cantSplit: true })) });
+  const y = new Date().getMonth() >= 7 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  // الترويسة: الوزارة يمينًا، الشعار في الوسط، العام الدراسي يسارًا
+  const head = tbl([[
+    cell([P("وزارة التربية", { size: 21, bold: true, align: D.AlignmentType.RIGHT }), P("الإدارة العامة لمنطقة حولي التعليمية", { size: 20, align: D.AlignmentType.RIGHT }),
+      P("مدرسة أحمد الربعي الثانوية بنين", { size: 20, bold: true, color: OR, align: D.AlignmentType.RIGHT })], 3900),
+    cell([new D.Paragraph({ alignment: C, children: [h.img(b64ToBytes(LOGO_B64), 74, 78, "png")] })], 2100),
+    cell([P("العام الدراسي", { size: 19, color: h.MUTED, align: D.AlignmentType.LEFT }), P(`${y}/${y + 1}`, { size: 21, bold: true, align: D.AlignmentType.LEFT }),
+      P("قسم التربية الإسلامية", { size: 19, color: OR, bold: true, align: D.AlignmentType.LEFT })], 3900)
+  ]], [3900, 2100, 3900], NB);
+  const line = new D.Paragraph({ border: { bottom: { style: D.BorderStyle.SINGLE, size: 12, color: OR, space: 1 } }, spacing: { after: 240 }, children: [] });
+  const thin = { style: D.BorderStyle.SINGLE, size: 4, color: "D9D2CA" };
+  const GRID = { top: thin, bottom: thin, left: thin, right: thin, insideHorizontal: thin, insideVertical: thin };
+  const widths = [2300, 1250, 1050, 1100, 1100, 1800, 1300];
+  const hdr = ["اسم المعلم", "المادة", "الفصل", "من الحصة", "إلى الحصة", "اليوم والتاريخ", "التوقيع"].map((t, i) => cell(t, widths[i], { bold: true, fill: F, color: OR, size: 20 }));
+  const dateCell = (a, b) => a.date === b.date ? [P(DAYS[a.d], { align: C, size: 19, bold: true }), P(fmtDate(a.date), { align: C, size: 18 })]
+    : [P(`${DAYS[a.d]} ${fmtDate(a.date)}`, { align: C, size: 17 }), P("إلى", { align: C, size: 15, color: h.MUTED }), P(`${DAYS[b.d]} ${fmtDate(b.date)}`, { align: C, size: 17 })];
+  const row = (a, b) => [cell("أ. " + a.name, widths[0], { bold: true, size: 19 }), cell(a.subject || "—", widths[1], { size: 19 }), cell(cls(a.classes), widths[2], { size: 19 }),
+    cell(ORD[a.p], widths[3], { size: 19 }), cell(ORD[b.p], widths[4], { size: 19 }), cell(dateCell(a, b), widths[5]), cell("", widths[6])];
+  const table = new D.Table({ visuallyRightToLeft: true, layout: D.TableLayoutType.FIXED, columnWidths: widths, width: { size: W, type: D.WidthType.DXA }, borders: GRID,
+    rows: [new D.TableRow({ children: hdr }), ...[row(x.me, x.other), row(x.other, x.me)].map(r => new D.TableRow({ children: r, height: { value: 900, rule: D.HeightRule.ATLEAST } }))] });
+  const dots = P("..............................................................................................................................................", { color: h.MUTED, size: 20, after: 140 });
   const same = x.me.dept === x.other.dept;
-  return h.doc([h.letterhead(), h.para("", { after: 120 }),
-    h.para("نموذج تبديل حصة", { size: 36, bold: true, align: h.C, after: 40 }),
-    h.para(`تاريخ الطلب: ${DAYS[new Date().getDay()] || ""} ${fmtDate(todayISO())}`, { size: 20, align: h.C, color: h.MUTED, after: 220 }),
-    h.heading("أولًا: بيانات المعلمين"), person(x.me, "الأول"), h.para("", { after: 80 }), person(x.other, "الثاني"),
-    h.heading("ثانيًا: الحصتان المتبادلتان"), slots,
-    h.para(`اتفق المعلمان المذكوران أعلاه على تبادل الحصتين المبيّنتين، فيدخل المعلم الثاني حصة المعلم الأول يوم ${DAYS[x.me.d]} ${fmtDate(x.me.date)} في الحصة ${ar(x.me.p)}، ويدخل المعلم الأول حصة المعلم الثاني يوم ${DAYS[x.other.d]} ${fmtDate(x.other.date)} في الحصة ${ar(x.other.p)}، مع الفصل ${cls(x.me.classes)}، على أن يعود الجدول إلى وضعه المعتاد بعد ذلك.`,
-      { size: 21, justify: true, before: 160, after: 120 }),
-    h.heading("ثالثًا: توقيع المعلمين"), h.table([[sign("الأول", x.me), sign("الثاني", x.other)]], [W / 2, W / 2], h.noBorders),
-    h.heading("رابعًا: اعتماد رئيسي القسمين"),
-    h.table([[stamp("رئيس قسم التربية الإسلامية", HEAD_NAME), stamp(same ? "رئيس القسم" : "رئيس " + x.other.dept, same ? HEAD_NAME : "")]], [W / 2, W / 2])]);
+  const sig = (role, name, sub) => cell([P(role, { align: C, bold: true, size: 21, after: 30 }), P(sub || "", { align: C, size: 17, color: h.MUTED, after: 30 }), P(name ? "أ. " + name : "", { align: C, size: 19, after: 260 }),
+    P("التوقيع: ....................", { align: C, size: 19, color: h.MUTED, after: 160 }), P("الختم", { align: C, size: 17, color: h.MUTED, after: 700 })], 3300);
+  const signs = tbl([[sig("رئيس القسم", HEAD_NAME, "قسم التربية الإسلامية"), sig("رئيس القسم", same ? HEAD_NAME : "", x.other.dept), sig("المدير المساعد", "", " ")]], [3300, 3300, 3300], NB);
+  const deptLine = same ? "" : P(`(${x.other.dept})`, { align: C, size: 17, color: h.MUTED });
+  return new D.Document({ styles: { default: { document: { run: { font: "Arial", rightToLeft: true } } } },
+    sections: [{ properties: { page: { margin: { top: 800, bottom: 800, left: 1000, right: 1000 } } },
+      footers: { default: new D.Footer({ children: [P("قسم التربية الإسلامية · ثانوية أحمد الربعي للبنين", { size: 16, color: h.MUTED, align: C })] }) },
+      children: [head, line,
+        P("نموذج طلب تبديل الحصة", { size: 36, bold: true, align: C, after: 60 }),
+        P(`تاريخ الطلب: ${DAYS[new Date().getDay()] || ""} ${fmtDate(todayISO())}`, { size: 19, color: h.MUTED, align: C, after: 300 }),
+        table,
+        P("سبب التبديل:", { size: 23, bold: true, color: OR, before: 400, after: 160 }), dots, dots,
+        P("", { after: 300 }), signs] }] });
 }
 $("sw-date").onchange = renderSwapMine;
 $("sw-who").onchange = renderSwapMine;
