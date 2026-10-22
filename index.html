@@ -158,6 +158,9 @@ input[type="date"] { width: 100%; font: inherit; color: var(--ink); background: 
   .meta-grid { grid-template-columns: 1fr 1fr; }
   .thumbs { grid-template-columns: repeat(2, 1fr); }
 }
+.demo-admin summary { cursor: pointer; font-family: var(--f-display); font-weight: 700; }
+.demo-admin { margin-top: 12px; }
+.demo-code { font-family: ui-monospace, Menlo, Consolas, monospace; direction: ltr; letter-spacing: 2px; font-weight: 700; background: var(--bg); padding: 2px 8px; border-radius: 6px; user-select: all; }
 .empty { padding: 26px; text-align: center; color: var(--muted); }
 .foot { margin-top: 22px; font-size: 12.5px; color: var(--muted); }
 @media (max-width: 560px) { .summary { grid-template-columns: repeat(2, 1fr); } .brand h1 { font-size: 18px; } }
@@ -191,6 +194,13 @@ input[type="date"] { width: 100%; font: inherit; color: var(--ink); background: 
 
   <div id="app" hidden>
     <div class="who-bar"><b id="me-name"></b><button class="btn ghost sm" id="logout">خروج</button></div>
+    <div class="notice demo-note" id="demo-note" hidden>حساب تجريبي: جرّب كل الأركان بحرية، وبياناتك لا تظهر في تقارير القسم ولا متابعته.</div>
+    <details class="card demo-admin head-only" id="demo-admin" hidden>
+      <summary>الحسابات التجريبية</summary>
+      <div class="sub">لعرض الموقع على من تريد. بياناتهم معزولة ولا تظهر في أي تقرير أو متابعة.</div>
+      <div id="demo-list" class="list"></div>
+      <div class="saved" id="demo-msg"></div>
+    </details>
 
     <nav class="sections" aria-label="أركان الموقع">
       <button id="nav-curr" aria-selected="true"><b>ما قطع من المنهج</b><span>متابعة الخطة</span></button>
@@ -659,6 +669,8 @@ async function doLogin(code, silent) {
     $("view-login").hidden = true; $("app").hidden = false;
     $("me-name").textContent = "أ. " + r.name;
     document.querySelectorAll(".head-only").forEach(el => el.hidden = !r.isHead);
+    $("demo-note").hidden = !r.isDemo;
+    if (r.isHead) $("demo-admin").ontoggle = () => { if ($("demo-admin").open) loadDemos(); };
     let last = "curr"; try { last = localStorage.getItem("section") || "curr"; } catch (e) {}
     go(last);
     msg.textContent = "";
@@ -1085,6 +1097,28 @@ $("min-form").addEventListener("submit", async e => {
   try { const r = await run("saveMinute", CODE, data); MIN = null; openMinute(r.id); }
   catch (x) { msg.textContent = cleanErr(x); } finally { btn.disabled = false; }
 });
+
+// ================= الحسابات التجريبية (رئيس القسم) =================
+async function loadDemos() {
+  const box = $("demo-list"); box.innerHTML = '<div class="empty">جارٍ التحميل…</div>';
+  let list; try { list = await run("demoAccounts", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
+  box.innerHTML = list.map(d => `<div class="li">
+      <div class="li-main"><b>${esc(d.name)} <span class="pill ${d.active ? "ok" : "late"}">${d.active ? "مفعّل" : "موقوف"}</span></b>
+        <span class="sub">الرمز: <span class="demo-code">${esc(d.code)}</span> · ${ar(d.entries)} إدخالات منهج · ${ar(d.achievements)} إنجازات · ${ar(d.signatures)} تواقيع</span></div>
+      <div class="row-actions">
+        <button class="btn ghost sm" data-act="toggle" data-n="${esc(d.name)}">${d.active ? "إيقاف" : "تفعيل"}</button>
+        <button class="btn ghost sm" data-act="newcode" data-n="${esc(d.name)}">رمز جديد</button>
+        <button class="btn ghost sm" data-act="wipe" data-n="${esc(d.name)}">مسح بياناته</button>
+      </div></div>`).join("");
+  box.querySelectorAll("[data-act]").forEach(b => {
+    const go = async () => {
+      $("demo-msg").textContent = "جارٍ التنفيذ…";
+      try { await run("demoAction", CODE, b.dataset.n, b.dataset.act); $("demo-msg").textContent = "تم."; loadDemos(); }
+      catch (e) { $("demo-msg").textContent = cleanErr(e); }
+    };
+    b.onclick = b.dataset.act === "toggle" ? go : () => confirmInline(b, b.dataset.act === "wipe" ? "اضغط للتأكيد" : "تأكيد الرمز الجديد", go);
+  });
+}
 
 // ================= ملفات الوورد =================
 function H(D) {

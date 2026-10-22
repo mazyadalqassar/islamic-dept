@@ -34,6 +34,12 @@ const TEACHERS = [
 ];
 const MAX_DONE = { ie: 26, qr: 13 };
 
+// الحسابات التجريبية: تجرّب كل شيء، وبياناتها معزولة ولا تظهر في أي تقرير أو متابعة
+const DEMOS = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"] };
+const DEMO_MINUTE = "demo-minute";
+function isDemo_(name) { return Object.prototype.hasOwnProperty.call(DEMOS, name); }
+function demoPrefix_(me) { return me.isDemo ? "DEMO|" + me.name + "|" : ""; }
+
 function doGet() {
   return HtmlService.createTemplateFromFile("Index").evaluate()
     .setTitle("قسم التربية الإسلامية · ثانوية أحمد الربعي")
@@ -43,7 +49,7 @@ function doGet() {
 // ======================= واجهة الموقع الخارجي (GitHub Pages) =======================
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
-  getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive };
+  getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction };
 
 function doPost(e) {
   let out;
@@ -79,6 +85,10 @@ function setup() {
   sheet_(SHEET_MIN, ["المعرف", "العنوان", "التاريخ", "الوقت", "المكان", "الحضور", "جدول الأعمال", "ما دار في الاجتماع", "التوصيات", "تاريخ الإنشاء"], true);
   sheet_(SHEET_SIG, ["المحضر", "المعلم", "وقت التوقيع", "التوقيع"], true);
   sheet_(SHEET_MYSIG, ["المعلم", "التوقيع", "آخر تحديث"], true);
+  const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
+  Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
+  codes.getRange("B:B").setNumberFormat("@");
+  ensureDemoMinute_();
   folder_();
   const first = ss.getSheets()[0];
   if (first.getName() !== SHEET_CODES && first.getLastRow() === 0 && ss.getSheets().length > 3) ss.deleteSheet(first);
@@ -144,9 +154,13 @@ function who_(code) {
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][1]).trim().toUpperCase() === code) {
       const name = String(rows[i][0]).trim();
+      if (isDemo_(name)) {
+        if (String(rows[i][3]).indexOf("موقوف") !== -1) throw new Error("هذا الحساب التجريبي موقوف.");
+        return { name, classes: DEMOS[name], isHead: false, isDemo: true };
+      }
       const t = TEACHERS.find(x => x[0] === name);
       if (!t) throw new Error("الاسم في ورقة الرموز لا يطابق قائمة المعلمين.");
-      return { name, classes: t[1], isHead: String(rows[i][2]).trim() === "نعم" };
+      return { name, classes: t[1], isHead: String(rows[i][2]).trim() === "نعم", isDemo: false };
     }
   }
   Utilities.sleep(800); // يبطّئ محاولات التخمين
@@ -160,23 +174,27 @@ function head_(code) {
 
 // ======================= ما قطع من المنهج =======================
 
-function readEntries_() {
+/** prefix فارغ = بيانات القسم الرسمية فقط، وإلا بيانات حساب تجريبي واحد */
+function readEntries_(prefix) {
+  prefix = prefix || "";
   const rows = sh_(SHEET_DATA).getDataRange().getValues();
   const out = {};
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    if (!r[0]) continue;
-    out[r[0]] = { done: Number(r[4]), note: String(r[6] || ""), teacher: String(r[3]), updatedAt: r[7] ? new Date(r[7]).toISOString() : null };
+    const k = String(r[0] || "");
+    if (!k) continue;
+    if (prefix ? k.indexOf(prefix) !== 0 : k.indexOf("DEMO|") === 0) continue;
+    out[k.slice(prefix.length)] = { done: Number(r[4]), note: String(r[6] || ""), teacher: String(r[3]), updatedAt: r[7] ? new Date(r[7]).toISOString() : null };
   }
   return out;
 }
 
 function login(code) {
   const me = who_(code);
-  const all = readEntries_();
+  const all = readEntries_(demoPrefix_(me));
   const mine = {};
   me.classes.forEach(c => ["ie", "qr"].forEach(s => { const k = c + "__" + s; if (all[k]) mine[k] = all[k]; }));
-  return { name: me.name, classes: me.classes, isHead: me.isHead, entries: mine, all: me.isHead ? all : null };
+  return { name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, entries: mine, all: me.isHead ? all : null };
 }
 
 function saveEntry(code, classId, subject, done, note, label) {
@@ -187,7 +205,7 @@ function saveEntry(code, classId, subject, done, note, label) {
   if (!(done >= 0 && done <= MAX_DONE[subject])) throw new Error("قيمة غير صحيحة.");
   note = String(note || "").slice(0, 300);
   label = String(label || "").slice(0, 200);
-  const key = classId + "__" + subject;
+  const key = demoPrefix_(me) + classId + "__" + subject;
   return withLock_(() => {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sh = ss.getSheetByName(SHEET_DATA);
@@ -197,7 +215,7 @@ function saveEntry(code, classId, subject, done, note, label) {
     const idx = keys.indexOf(key);
     if (idx > 0) sh.getRange(idx + 1, 1, 1, row.length).setValues([row]);
     else sh.appendRow(row);
-    ss.getSheetByName(SHEET_LOG).appendRow([now, me.name, classId, row[2], done, note]);
+    if (!me.isDemo) ss.getSheetByName(SHEET_LOG).appendRow([now, me.name, classId, row[2], done, note]);
     return { updatedAt: now.toISOString() };
   });
 }
@@ -256,7 +274,7 @@ function deleteAchievement(code, id) {
 /** لرئيس القسم: كل الإنجازات مع التقارير */
 function allAchievements(code) {
   head_(code);
-  return rows_(SHEET_ACH).slice(1).filter(r => r[0]).map(r => achObj_(r, true)).reverse();
+  return rows_(SHEET_ACH).slice(1).filter(r => r[0] && !isDemo_(r[1])).map(r => achObj_(r, true)).reverse();
 }
 
 function saveReport(code, id, text) {
@@ -295,7 +313,7 @@ function sigRows_() { return rows_(SHEET_SIG).slice(1).filter(r => r[0]); }
 function listMinutes(code) {
   const me = who_(code);
   const sigs = sigRows_();
-  return rows_(SHEET_MIN).slice(1).filter(r => r[0]).map(r => {
+  return rows_(SHEET_MIN).slice(1).filter(r => r[0] && (me.isDemo ? r[0] === DEMO_MINUTE : r[0] !== DEMO_MINUTE)).map(r => {
     const m = minObj_(r);
     const mine = sigs.find(s => s[0] === m.id && s[1] === me.name);
     return { id: m.id, title: m.title, date: m.date, attendees: m.attendees,
@@ -307,7 +325,7 @@ function listMinutes(code) {
 function getMinute(code, id) {
   const me = who_(code);
   const r = rows_(SHEET_MIN).slice(1).find(x => x[0] === id);
-  if (!r) throw new Error("المحضر غير موجود.");
+  if (!r || (me.isDemo !== (id === DEMO_MINUTE))) throw new Error("المحضر غير موجود.");
   const m = minObj_(r);
   m.signatures = sigRows_().filter(s => s[0] === id).map(s => ({ teacher: s[1], signedAt: s[2], image: (me.isHead || s[1] === me.name) ? s[3] : "" }));
   return m;
@@ -376,4 +394,57 @@ function saveFileToDrive(code, name, b64) {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document", name);
   const f = folder_().createFile(blob);
   return f.getUrl();
+}
+
+// ======================= الحسابات التجريبية =======================
+
+function ensureDemoMinute_() {
+  const sh = sh_(SHEET_MIN);
+  if (findRow_(sh, 1, DEMO_MINUTE) > 0) return;
+  appendText_(sh, [DEMO_MINUTE, "محضر تجريبي للعرض", Utilities.formatDate(new Date(), "Asia/Kuwait", "yyyy-MM-dd"), "الحصة الخامسة", "غرفة قسم التربية الإسلامية",
+    JSON.stringify(Object.keys(DEMOS)), "مثال على بند من جدول الأعمال\nمثال على بند ثانٍ",
+    "هذا محضر تجريبي يوضح طريقة الاطلاع على المحاضر والتوقيع عليها إلكترونيًا.", "مثال على توصية\nمثال على توصية ثانية", nowText_()]);
+}
+
+/** لرئيس القسم: حالة الحسابات التجريبية */
+function demoAccounts(code) {
+  head_(code);
+  const rows = sh_(SHEET_CODES).getDataRange().getDisplayValues();
+  const entries = sh_(SHEET_DATA).getRange(1, 1, Math.max(sh_(SHEET_DATA).getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
+  const ach = rows_(SHEET_ACH).slice(1), sigs = sigRows_();
+  return Object.keys(DEMOS).map(n => {
+    const r = rows.find(x => x[0] === n) || [];
+    return { name: n, code: r[1] || "", active: String(r[3] || "").indexOf("موقوف") === -1,
+      entries: entries.filter(k => k.indexOf("DEMO|" + n + "|") === 0).length,
+      achievements: ach.filter(a => a[1] === n).length, signatures: sigs.filter(x => x[1] === n).length };
+  });
+}
+
+/** action: toggle (إيقاف/تفعيل) · wipe (مسح بياناته) · newcode (رمز جديد) */
+function demoAction(code, name, action) {
+  head_(code);
+  if (!isDemo_(name)) throw new Error("ليس حسابًا تجريبيًا.");
+  return withLock_(() => {
+    const codes = sh_(SHEET_CODES), row = findRow_(codes, 1, name);
+    if (row < 0) throw new Error("الحساب غير موجود. شغّل setup.");
+    if (action === "toggle") {
+      const note = codes.getRange(row, 4).getDisplayValue();
+      codes.getRange(row, 4).setValue(note.indexOf("موقوف") !== -1 ? "تجريبي" : "تجريبي - موقوف");
+    } else if (action === "newcode") {
+      codes.getRange(row, 2).setNumberFormat("@").setValue(newCode_());
+    } else if (action === "wipe") {
+      const data = sh_(SHEET_DATA), dv = data.getDataRange().getDisplayValues();
+      for (let i = dv.length - 1; i >= 1; i--) if (dv[i][0].indexOf("DEMO|" + name + "|") === 0) data.deleteRow(i + 1);
+      const ach = sh_(SHEET_ACH), av = ach.getDataRange().getDisplayValues();
+      for (let i = av.length - 1; i >= 1; i--) if (av[i][1] === name) {
+        (av[i][7] || "").split(",").filter(Boolean).forEach(fid => { try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {} });
+        ach.deleteRow(i + 1);
+      }
+      [SHEET_SIG, SHEET_MYSIG].forEach((sn, j) => {
+        const sh = sh_(sn), v = sh.getDataRange().getDisplayValues();
+        for (let i = v.length - 1; i >= 1; i--) if (v[i][j === 0 ? 1 : 0] === name) sh.deleteRow(i + 1);
+      });
+    } else throw new Error("إجراء غير معروف.");
+    return true;
+  });
 }
