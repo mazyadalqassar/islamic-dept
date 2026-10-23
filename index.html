@@ -2063,8 +2063,9 @@ function boldRuns(h, t) { return String(t).split(/(\*\*[^*]+\*\*)/).filter(Boole
 function buildAchievementDoc(D, a, imgs) {
   const h = H(D);
   const titleLine = (String(a.report || "").match(/^\s*العنوان\s*:\s*(.+)$/m) || [])[1] || a.title;
+  const byHead = a.teacher === HEAD_NAME; // إنجاز رئيس الشعبة نفسه
   const info = h.table([
-    [h.cell("المعلم", { bold: true, fill: "FBEEE3", w: 1600 }), h.cell("أ. " + a.teacher, { w: 3200 }), h.cell("التاريخ", { bold: true, fill: "FBEEE3", w: 1600 }), h.cell(fmtDate(a.date, true), { w: 3200 })],
+    [h.cell(byHead ? "رئيس الشعبة" : "المعلم", { bold: true, fill: "FBEEE3", w: 1600 }), h.cell("أ. " + a.teacher, { w: 3200 }), h.cell("التاريخ", { bold: true, fill: "FBEEE3", w: 1600 }), h.cell(fmtDate(a.date, true), { w: 3200 })],
     [h.cell("نوع النشاط", { bold: true, fill: "FBEEE3" }), h.cell(a.type), h.cell("الفئة المستهدفة", { bold: true, fill: "FBEEE3" }), h.cell(a.target || "طلاب المدرسة")]
   ], [1600, 3200, 1600, 3200]);
   const children = [h.letterhead(), h.para("", { after: 120 }),
@@ -2081,7 +2082,7 @@ function buildAchievementDoc(D, a, imgs) {
     }
     children.push(h.table(rows, [4800, 4800], h.noBorders));
   }
-  children.push(h.para("", { after: 240, keepNext: true }), h.signRow([["المعلم", "أ. " + a.teacher], ["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_NAME], ["مدير المدرسة", "أ. " + PRINCIPAL]]));
+  children.push(h.para("", { after: 240, keepNext: true }), h.signRow([...(byHead ? [] : [["المعلم", "أ. " + a.teacher]]), ["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_NAME], ["مدير المدرسة", "أ. " + PRINCIPAL]]));
   return h.doc(children);
 }
 
