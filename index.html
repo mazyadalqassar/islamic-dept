@@ -298,9 +298,30 @@ input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var
 .mail-line { margin-top: 14px; font-size: 13px; color: var(--muted); text-align: center; }
 .lv-steps { margin: 0; padding: 10px 14px 10px 10px; padding-right: 30px; background: var(--c-lv-s); border-radius: 12px; font-size: 13.5px; line-height: 1.9; }
 .lv-steps b { color: var(--c-lv); }
-.ltypes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-.ltype { font: inherit; font-family: var(--f-display); font-size: 14px; color: var(--ink); background: var(--surface); border: 2px solid var(--line); border-radius: 14px; padding: 12px 6px; cursor: pointer; }
-.ltype[aria-checked="true"] { border-color: var(--c-lv); background: var(--c-lv-s); color: var(--c-lv); }
+.ltypes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+.ltype { font: inherit; font-family: var(--f-display); font-size: 13.5px; color: var(--ink); background: var(--surface); border: 1.5px solid var(--line); border-radius: 999px; padding: 10px 4px; cursor: pointer; white-space: nowrap; }
+.ltype[aria-checked="true"] { border-color: var(--c-lv); background: var(--c-lv); color: #fff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ltype[aria-checked="true"] { color: #1b1a19; } }
+.lv-dayname { font-family: var(--f-body); font-weight: 400; color: var(--muted); font-size: 14px; }
+.pickf { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 13px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; text-align: right; }
+.pickf .ph { color: var(--muted); }
+.pickf svg { width: 18px; height: 18px; color: var(--muted); flex: 0 0 18px; }
+.wl-dim { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 50; }
+.wl-sheet { position: fixed; z-index: 51; left: 50%; transform: translateX(-50%); bottom: 18px; width: min(420px, calc(100% - 24px)); background: var(--surface); border-radius: 24px; padding: 14px 16px 16px; box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+.wl-sheet h3 { margin: 2px 0 8px; font-family: var(--f-display); font-size: 15px; text-align: center; }
+.wl-wheels { position: relative; display: flex; justify-content: center; gap: 4px; direction: ltr; height: 220px; }
+.wl-wheels::before { content: ""; position: absolute; left: 0; right: 0; top: 88px; height: 44px; background: var(--bg); border-radius: 12px; pointer-events: none; }
+.wl-col { position: relative; height: 220px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 88px 0; box-sizing: border-box; min-width: 64px; }
+.wl-col::-webkit-scrollbar { display: none; }
+.wl-col div { height: 44px; line-height: 44px; text-align: center; scroll-snap-align: center; font-size: 19px; color: var(--muted); opacity: .45; transition: opacity .15s, font-size .15s; padding: 0 6px; white-space: nowrap; }
+.wl-col div.near { opacity: .75; }
+.wl-col div.sel { opacity: 1; color: var(--ink); font-size: 24px; font-weight: 700; }
+.wl-col.fixed { overflow: hidden; scroll-snap-type: none; }
+.wl-hint { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 6px; min-height: 1.4em; }
+.wl-hint.err { color: var(--late); font-weight: 700; }
+.wl-acts { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.wl-reset { font: inherit; background: var(--bg); border: 0; color: var(--ink); border-radius: 999px; padding: 10px 20px; cursor: pointer; }
+.wl-ok { width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; font-size: 24px; cursor: pointer; }
 .lv-warn { margin-top: 12px; border: 1.5px solid var(--late); background: var(--late-soft); color: var(--late); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
 .lv-warn b { display: block; margin-bottom: 4px; }
 .lv-need { margin-top: 12px; background: var(--c-lv-s); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 1.8; }
@@ -331,7 +352,7 @@ input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var
 .lv-card .nextstep { margin-top: 8px; background: #fff4d6; color: #6b4a00; border-radius: 10px; padding: 8px 12px; font-size: 13.5px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lv-card .nextstep { background: #3a3016; color: #f0d58a; } }
 .lv-card .acts { display: grid; gap: 8px; margin-top: 10px; }
-@media (max-width: 420px) { .ltypes { grid-template-columns: 1fr; } }
+@media (max-width: 340px) { .ltype { font-size: 12.5px; } }
 /* دائرة الانتظار */
 @keyframes spin { to { transform: rotate(360deg); } }
 .busy::before { content: ""; display: inline-block; width: 15px; height: 15px; margin-left: 8px; vertical-align: -3px; border: 2.5px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .75s linear infinite; }
@@ -750,24 +771,24 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
           </ol>
           <label class="f">نوع الاستئذان</label>
           <div class="ltypes" role="radiogroup" aria-label="نوع الاستئذان">
-            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="تأخير صباحي">تأخير صباحي</button>
-            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="خروج أثناء الدوام">خروج أثناء الدوام</button>
-            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="انصراف مبكر">انصراف مبكر</button>
+            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="بداية الدوام">بداية الدوام</button>
+            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="أثناء الدوام">أثناء الدوام</button>
+            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="نهاية الدوام">نهاية الدوام</button>
           </div>
           <div id="lv-rest" hidden>
-            <div class="grid2">
-              <div><label class="f" for="lv-date">التاريخ</label><input type="date" id="lv-date"></div>
-              <div id="lv-who-wrap" hidden><label class="f" for="lv-who">المعلم (للتجربة)</label><select id="lv-who"></select></div>
-            </div>
-            <div class="sub" id="lv-daytype"></div>
-            <div class="grid2">
-              <div id="lv-from-wrap"><label class="f" for="lv-from" id="lv-from-label">من الساعة</label><input type="time" id="lv-from" min="07:10" max="14:05"></div>
-              <div id="lv-to-wrap"><label class="f" for="lv-to" id="lv-to-label">إلى الساعة</label><input type="time" id="lv-to" min="07:10" max="14:05"></div>
-            </div>
-            <div class="sub">الوقت تقريبي، ويكون أثناء الدوام فقط (٧:١٠ – ٢:٠٥).</div>
-            <div id="lv-periods"></div>
-            <label class="f" for="lv-reason">السبب</label>
+            <label class="f" for="lv-reason">سبب الاستئذان</label>
             <textarea id="lv-reason" rows="2" maxlength="500" required></textarea>
+            <div id="lv-who-wrap" hidden><label class="f" for="lv-who">المعلم (للتجربة)</label><select id="lv-who"></select></div>
+            <label class="f" id="lv-date-label">الاستئذان يوم <span class="lv-dayname" id="lv-dayname"></span></label>
+            <input type="hidden" id="lv-date">
+            <button type="button" class="pickf" id="lv-date-btn"><span id="lv-date-show" class="ph">اختر اليوم</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>
+            <div class="sub" id="lv-daytype" style="margin-top:4px"></div>
+            <div id="lv-from-wrap"><label class="f" id="lv-from-label">اعتبارًا من الساعة</label><input type="hidden" id="lv-from">
+              <button type="button" class="pickf" id="lv-from-btn" data-t="lv-from"><span class="ph">اختر الوقت</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button></div>
+            <div id="lv-to-wrap"><label class="f" id="lv-to-label">حتى الساعة</label><input type="hidden" id="lv-to">
+              <button type="button" class="pickf" id="lv-to-btn" data-t="lv-to"><span class="ph">اختر الوقت</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button></div>
+            <div class="sub" style="margin-top:4px">الوقت تقريبي، ويكون أثناء الدوام فقط (٧:١٠ ص – ٢:٠٥ م).</div>
+            <div id="lv-periods"></div>
             <div class="row-actions" style="margin-top:14px"><button class="btn" id="lv-submit" type="submit">إرسال لرئيس الشعبة</button></div>
           </div>
         </form>
@@ -2839,7 +2860,7 @@ function buildStudentDoc(D, list, fonts) {
 // ================= الاستئذانات =================
 // الخادم يرسل للمعلم استئذاناته فقط، ولرئيس الشعبة الكل.
 // المعلم لا يحدد الدقيقة: الموقع يحسب الوقت المطلوب من التزاماته (الحصص والمراقبات)، وبعد البصمة يسجّل وقته الفعلي.
-const LV_TYPES = ["تأخير صباحي", "خروج أثناء الدوام", "انصراف مبكر"];
+const LV_TYPES = ["بداية الدوام", "أثناء الدوام", "نهاية الدوام"];
 const LV_ST = { pending: "بانتظار موافقة رئيس الشعبة", ok: "موافقة مبدئية · بانتظار اعتماد المدير", no: "غير موافق عليه", done: "معتمد من المدير", nodone: "لم يعتمده المدير" };
 const LV_PILL = { [LV_ST.pending]: "late", [LV_ST.ok]: "ahead", [LV_ST.no]: "none", [LV_ST.done]: "ok", [LV_ST.nodone]: "none" };
 const DAY_MIN = "07:10", DAY_MAX = "14:05", FLEX_LATEST = "07:55", TEACH_END = "13:55";
@@ -2858,7 +2879,7 @@ document.querySelectorAll('input[name="lvf"]').forEach(x => x.onchange = () => r
 async function lvInit() {
   $("lv-who-wrap").hidden = !ME.isDemo;
   if (ME.isDemo && !$("lv-who").options.length) $("lv-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
-  if (!$("lv-date").value) $("lv-date").value = todayISO();
+  if (!$("lv-date").value) $("lv-date").value = nextWorkISO(todayISO()); lvShowPicks();
   if (!DUTIES) { try { DUTIES = await run("listDuties", CODE); } catch (e) { DUTIES = []; } }
   lvSetType(lvType);
 }
@@ -2897,9 +2918,9 @@ function lvTimes() {
 }
 function lvTimeError() {
   const { from, to } = lvTimes(), bad = v => v && (v < DAY_MIN || v > DAY_MAX);
-  if (lvType === LV_TYPES[0] && !to) return "اكتب الوقت المتوقع لحضورك.";
-  if (lvType === LV_TYPES[2] && !from) return "اكتب الوقت المتوقع لانصرافك.";
-  if (lvType === LV_TYPES[1] && (!from || !to)) return "اكتب وقت الخروج ووقت العودة.";
+  if (lvType === LV_TYPES[0] && !to) return "اختر الوقت المتوقع لحضورك (حتى الساعة).";
+  if (lvType === LV_TYPES[2] && !from) return "اختر الوقت المتوقع لانصرافك (اعتبارًا من الساعة).";
+  if (lvType === LV_TYPES[1] && (!from || !to)) return "اختر وقت الخروج ووقت العودة.";
   if (bad(from) || bad(to)) return "الوقت يجب أن يكون أثناء الدوام (٧:١٠ – ٢:٠٥).";
   if (from && to && from >= to) return "وقت العودة لازم يكون بعد وقت الخروج.";
   return "";
@@ -2915,8 +2936,8 @@ function lvRender() {
   const box = $("lv-periods"), date = $("lv-date").value, d = isoDay(date), name = lvMe(), S = daySchedule(d);
   const morning = lvType === LV_TYPES[0], leave = lvType === LV_TYPES[2];
   $("lv-from-wrap").hidden = morning; $("lv-to-wrap").hidden = leave;
-  $("lv-from-label").textContent = leave ? "وقت الانصراف المتوقع" : "وقت الخروج";
-  $("lv-to-label").textContent = morning ? "وقت الحضور المتوقع" : "وقت العودة";
+  $("lv-from-label").textContent = "اعتبارًا من الساعة";
+  $("lv-to-label").textContent = "حتى الساعة"; lvShowPicks();
   $("lv-daytype").textContent = !date ? "" : S ? (S.quiz ? "توقيت أيام الاختبار القصير (الأحد والثلاثاء والخميس)." : "التوقيت العادي (الاثنين والأربعاء).") : "";
   if (!S) { box.innerHTML = date ? '<div class="lv-warn"><b>هذا اليوم عطلة. اختر يوم دوام.</b></div>' : ""; return; }
   const keep = {}; box.querySelectorAll("[data-s]").forEach(i => keep[i.dataset.s] = i.value);
@@ -2970,7 +2991,7 @@ $("lv-form").addEventListener("submit", async e => {
   btn.disabled = true; msg.textContent = "جارٍ الإرسال…";
   try {
     await run("saveLeave", CODE, { type: lvType, date: $("lv-date").value, from, to, reason: $("lv-reason").value.trim(), periods, contacted: !!periods.length });
-    LEAVES = null; $("lv-reason").value = ""; $("lv-from").value = ""; $("lv-to").value = ""; $("lv-periods").innerHTML = ""; lvSetType("");
+    LEAVES = null; $("lv-reason").value = ""; $("lv-from").value = ""; $("lv-to").value = ""; $("lv-periods").innerHTML = ""; lvShowPicks(); lvSetType("");
     msg.textContent = ME.isHead ? "سُجّل استئذانك. قدّمه عن طريق الديوان، وبعد البصمة سجّل وقتك في «الاستئذانات»."
       : "أُرسل الاستئذان لرئيس الشعبة، ويصلك إيميل عند الموافقة. بعد الموافقة المبدئية قدّم الإذن عن طريق الديوان.";
   } catch (x) { msg.textContent = "لم يُرسل: " + cleanErr(x); }
@@ -3034,6 +3055,77 @@ function renderLeaves() {
     b.onclick = act === "del" || act === "no" || act === "nodone" ? () => confirmInline(b, "اضغط للتأكيد", go_) : go_;
   });
 }
+
+// ---------- بكرات اختيار اليوم والوقت ----------
+const MONTHS_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+const pad2 = n => String(n).padStart(2, "0");
+// cols: [{items:[{v,label}], sel, fixed?}] تُعرض من اليسار لليمين (الساعة يمينًا)
+function openWheel(o) {
+  const dim = document.createElement("div"); dim.className = "wl-dim";
+  const sh = document.createElement("div"); sh.className = "wl-sheet"; sh.setAttribute("role", "dialog"); sh.setAttribute("aria-label", o.title);
+  sh.innerHTML = `<h3>${esc(o.title)}</h3><div class="wl-wheels"></div><div class="wl-hint">${esc(o.hint || "")}</div>
+    <div class="wl-acts"><button type="button" class="wl-reset">${esc(o.resetLabel || "مسح")}</button><button type="button" class="wl-ok" aria-label="تم">✓</button></div>`;
+  document.body.append(dim, sh);
+  const box = sh.querySelector(".wl-wheels"), hint = sh.querySelector(".wl-hint");
+  const cols = [];
+  const paint = c => { const i = c.idx(); [...c.el.children].forEach((d, k) => { d.className = k === i ? "sel" : Math.abs(k - i) === 1 ? "near" : ""; }); };
+  function build(ci, def) {
+    const d = def || o.cols[ci], el = cols[ci] ? cols[ci].el : document.createElement("div");
+    el.className = "wl-col" + (d.fixed ? " fixed" : ""); if (d.width) el.style.minWidth = d.width + "px";
+    el.innerHTML = d.items.map(x => `<div>${esc(x.label)}</div>`).join("");
+    const c = cols[ci] = { el, def: d, idx: () => Math.max(0, Math.min(d.items.length - 1, Math.round(el.scrollTop / 44))), val: () => (d.items[cols[ci].idx()] || {}).v };
+    if (!el.parentNode) box.append(el);
+    el.scrollTop = Math.max(0, d.sel || 0) * 44; paint(c);
+    let t; el.onscroll = () => { paint(c); clearTimeout(t); t = setTimeout(() => { hint.className = "wl-hint"; hint.textContent = o.hint || ""; o.onChange && o.onChange(cols.map(x => x.val()), { cols, rebuild }); }, 120); };
+    return c;
+  }
+  function rebuild(ci, def) { build(ci, def); }
+  o.cols.forEach((d, i) => build(i, d));
+  const close = () => { dim.remove(); sh.remove(); };
+  dim.onclick = close;
+  sh.querySelector(".wl-reset").onclick = () => { o.onReset && o.onReset(); close(); };
+  sh.querySelector(".wl-ok").onclick = () => { const err = o.onOk(cols.map(x => x.val())); if (err) { hint.className = "wl-hint err"; hint.textContent = err; } else close(); };
+  o.onChange && o.onChange(cols.map(x => x.val()), { cols, rebuild });
+  setTimeout(() => sh.querySelector(".wl-ok").focus(), 50);
+}
+// أيام الدوام في شهر (بلا جمعة وسبت)
+function workDays(y, m) { const out = []; const n = new Date(y, m + 1, 0).getDate(); for (let d = 1; d <= n; d++) { const w = new Date(y, m, d).getDay(); if (w !== 5 && w !== 6) out.push({ v: d, label: `${DAYS[w]} ${ar(d)}` }); } return out; }
+function nextWorkISO(iso) { const [y, m, d] = iso.split("-").map(Number); const x = new Date(y, m - 1, d, 12); while (x.getDay() === 5 || x.getDay() === 6) x.setDate(x.getDate() + 1); return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`; }
+function pickDate(inputId, title, onDone) {
+  const cur = $(inputId).value || nextWorkISO(todayISO());
+  let [y, m, d] = cur.split("-").map(Number); m -= 1;
+  const years = [2026, 2027].map(v => ({ v, label: ar(v) }));
+  const months = MONTHS_AR.map((l, i) => ({ v: i, label: l }));
+  const dayCol = (yy, mm, want) => { const it = workDays(yy, mm); let s = it.findIndex(x => x.v >= want); if (s < 0) s = it.length - 1; return { items: it, sel: s, width: 130 }; };
+  openWheel({ title, hint: "أيام الدوام فقط (بلا جمعة وسبت)", resetLabel: "اليوم",
+    cols: [{ items: years, sel: Math.max(0, years.findIndex(x => x.v === y)), width: 70 }, { items: months, sel: m, width: 96 }, dayCol(y, m, d)],
+    onChange: (v, api) => { if (v[0] !== y || v[1] !== m) { const dd = v[2] || d; y = v[0]; m = v[1]; api.rebuild(2, dayCol(y, m, dd)); } },
+    onReset: () => { $(inputId).value = nextWorkISO(todayISO()); onDone(); },
+    onOk: v => { $(inputId).value = `${v[0]}-${pad2(v[1] + 1)}-${pad2(v[2])}`; onDone(); } });
+}
+const HOURS12 = [7, 8, 9, 10, 11, 12, 13, 14];
+const hLabel = h => ar(h > 12 ? h - 12 : h);
+function pickTime(inputId, title, onDone) {
+  const cur = $(inputId).value || (inputId === "lv-to" ? "10:00" : "12:00");
+  const h0 = +cur.slice(0, 2), m0 = +cur.slice(3, 5);
+  const per = h => h >= 12 ? "م" : "ص";
+  openWheel({ title, hint: "أثناء الدوام فقط: ٧:١٠ ص – ٢:٠٥ م",
+    cols: [{ items: [{ v: "", label: per(h0) }], sel: 0, fixed: true, width: 48 },
+      { items: Array.from({ length: 60 }, (_, i) => ({ v: i, label: ar(pad2(i)) })), sel: m0, width: 64 },
+      { items: HOURS12.map(h => ({ v: h, label: hLabel(h) })), sel: Math.max(0, HOURS12.indexOf(h0)), width: 64 }],
+    onChange: (v, api) => { const c = api.cols[0].el.firstChild; if (c) c.textContent = per(v[2]); },
+    onReset: () => { $(inputId).value = ""; onDone(); },
+    onOk: v => { const t = `${pad2(v[2])}:${pad2(v[1])}`; if (t < DAY_MIN || t > DAY_MAX) return "اختر وقتًا بين ٧:١٠ ص و٢:٠٥ م."; $(inputId).value = t; onDone(); } });
+}
+const fmtT = t => t ? `${hm12(t)} ${+t.slice(0, 2) >= 12 ? "م" : "ص"}` : "";
+function lvShowPicks() {
+  const d = $("lv-date").value, sh = $("lv-date-show");
+  sh.textContent = d ? `${ar(+d.slice(8))} ${MONTHS_AR[+d.slice(5, 7) - 1]} ${ar(d.slice(0, 4))}` : "اختر اليوم"; sh.className = d ? "" : "ph";
+  $("lv-dayname").textContent = d ? `(${dayName(d)})` : "";
+  ["lv-from", "lv-to"].forEach(id => { const s = $(id + "-btn").querySelector("span"), v = $(id).value; s.textContent = v ? fmtT(v) : "اختر الوقت"; s.className = v ? "" : "ph"; });
+}
+$("lv-date-btn").onclick = () => pickDate("lv-date", "يوم الاستئذان", () => { lvShowPicks(); lvType && lvRender(); });
+["lv-from", "lv-to"].forEach(id => $(id + "-btn").onclick = () => pickTime(id, $(id + "-label").textContent, () => { lvShowPicks(); lvType && lvRender(); }));
 
 // ---------- إيميل المعلم ----------
 let emailBack = false;
