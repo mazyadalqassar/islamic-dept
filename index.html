@@ -305,6 +305,8 @@ input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var
 .lv-dayname { font-family: var(--f-body); font-weight: 400; color: var(--muted); font-size: 14px; }
 .pickf { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 13px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; text-align: right; }
 .pickf .ph { color: var(--muted); }
+.pickf .en { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.wl-col { font-variant-numeric: tabular-nums; }
 .pickf svg { width: 18px; height: 18px; color: var(--muted); flex: 0 0 18px; }
 .wl-dim { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 50; }
 .wl-sheet { position: fixed; z-index: 51; left: 50%; transform: translateX(-50%); bottom: 18px; width: min(420px, calc(100% - 24px)); background: var(--surface); border-radius: 24px; padding: 14px 16px 16px; box-shadow: 0 20px 50px rgba(0,0,0,.3); }
@@ -787,7 +789,7 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
               <button type="button" class="pickf" id="lv-from-btn" data-t="lv-from"><span class="ph">اختر الوقت</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button></div>
             <div id="lv-to-wrap"><label class="f" id="lv-to-label">حتى الساعة</label><input type="hidden" id="lv-to">
               <button type="button" class="pickf" id="lv-to-btn" data-t="lv-to"><span class="ph">اختر الوقت</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button></div>
-            <div class="sub" style="margin-top:4px">الوقت تقريبي، ويكون أثناء الدوام فقط (٧:١٠ ص – ٢:٠٥ م).</div>
+            <div class="sub" style="margin-top:4px">الوقت تقريبي، ويكون أثناء الدوام فقط (<bdi dir="ltr">7:10 AM – 2:05 PM</bdi>).</div>
             <div id="lv-periods"></div>
             <div class="row-actions" style="margin-top:14px"><button class="btn" id="lv-submit" type="submit">إرسال لرئيس الشعبة</button></div>
           </div>
@@ -3058,6 +3060,9 @@ function renderLeaves() {
 
 // ---------- بكرات اختيار اليوم والوقت ----------
 const MONTHS_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+// اليوم والوقت في نموذج الاستئذان بالإنجليزية (بطلب رئيس الشعبة)
+const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const pad2 = n => String(n).padStart(2, "0");
 // cols: [{items:[{v,label}], sel, fixed?}] تُعرض من اليسار لليمين (الساعة يمينًا)
 function openWheel(o) {
@@ -3089,40 +3094,40 @@ function openWheel(o) {
   setTimeout(() => sh.querySelector(".wl-ok").focus(), 50);
 }
 // أيام الدوام في شهر (بلا جمعة وسبت)
-function workDays(y, m) { const out = []; const n = new Date(y, m + 1, 0).getDate(); for (let d = 1; d <= n; d++) { const w = new Date(y, m, d).getDay(); if (w !== 5 && w !== 6) out.push({ v: d, label: `${DAYS[w]} ${ar(d)}` }); } return out; }
+function workDays(y, m) { const out = []; const n = new Date(y, m + 1, 0).getDate(); for (let d = 1; d <= n; d++) { const w = new Date(y, m, d).getDay(); if (w !== 5 && w !== 6) out.push({ v: d, label: `${DAYS_EN[w]} ${d}` }); } return out; }
 function nextWorkISO(iso) { const [y, m, d] = iso.split("-").map(Number); const x = new Date(y, m - 1, d, 12); while (x.getDay() === 5 || x.getDay() === 6) x.setDate(x.getDate() + 1); return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`; }
 function pickDate(inputId, title, onDone) {
   const cur = $(inputId).value || nextWorkISO(todayISO());
   let [y, m, d] = cur.split("-").map(Number); m -= 1;
-  const years = [2026, 2027].map(v => ({ v, label: ar(v) }));
-  const months = MONTHS_AR.map((l, i) => ({ v: i, label: l }));
-  const dayCol = (yy, mm, want) => { const it = workDays(yy, mm); let s = it.findIndex(x => x.v >= want); if (s < 0) s = it.length - 1; return { items: it, sel: s, width: 130 }; };
+  const years = [2026, 2027].map(v => ({ v, label: String(v) }));
+  const months = MONTHS_EN.map((l, i) => ({ v: i, label: l }));
+  const dayCol = (yy, mm, want) => { const it = workDays(yy, mm); let s = it.findIndex(x => x.v >= want); if (s < 0) s = it.length - 1; return { items: it, sel: s, width: 96 }; };
   openWheel({ title, hint: "أيام الدوام فقط (بلا جمعة وسبت)", resetLabel: "اليوم",
-    cols: [{ items: years, sel: Math.max(0, years.findIndex(x => x.v === y)), width: 70 }, { items: months, sel: m, width: 96 }, dayCol(y, m, d)],
-    onChange: (v, api) => { if (v[0] !== y || v[1] !== m) { const dd = v[2] || d; y = v[0]; m = v[1]; api.rebuild(2, dayCol(y, m, dd)); } },
+    cols: [dayCol(y, m, d), { items: months, sel: m, width: 72 }, { items: years, sel: Math.max(0, years.findIndex(x => x.v === y)), width: 80 }],
+    onChange: (v, api) => { if (v[2] !== y || v[1] !== m) { const dd = v[0] || d; y = v[2]; m = v[1]; api.rebuild(0, dayCol(y, m, dd)); } },
     onReset: () => { $(inputId).value = nextWorkISO(todayISO()); onDone(); },
-    onOk: v => { $(inputId).value = `${v[0]}-${pad2(v[1] + 1)}-${pad2(v[2])}`; onDone(); } });
+    onOk: v => { $(inputId).value = `${v[2]}-${pad2(v[1] + 1)}-${pad2(v[0])}`; onDone(); } });
 }
 const HOURS12 = [7, 8, 9, 10, 11, 12, 13, 14];
-const hLabel = h => ar(h > 12 ? h - 12 : h);
+const hLabel = h => String(h > 12 ? h - 12 : h);
 function pickTime(inputId, title, onDone) {
   const cur = $(inputId).value || (inputId === "lv-to" ? "10:00" : "12:00");
   const h0 = +cur.slice(0, 2), m0 = +cur.slice(3, 5);
-  const per = h => h >= 12 ? "م" : "ص";
-  openWheel({ title, hint: "أثناء الدوام فقط: ٧:١٠ ص – ٢:٠٥ م",
-    cols: [{ items: [{ v: "", label: per(h0) }], sel: 0, fixed: true, width: 48 },
-      { items: Array.from({ length: 60 }, (_, i) => ({ v: i, label: ar(pad2(i)) })), sel: m0, width: 64 },
-      { items: HOURS12.map(h => ({ v: h, label: hLabel(h) })), sel: Math.max(0, HOURS12.indexOf(h0)), width: 64 }],
-    onChange: (v, api) => { const c = api.cols[0].el.firstChild; if (c) c.textContent = per(v[2]); },
+  const per = h => h >= 12 ? "PM" : "AM";
+  openWheel({ title, hint: "أثناء الدوام فقط: \u20667:10 AM – 2:05 PM\u2069",
+    cols: [{ items: HOURS12.map(h => ({ v: h, label: hLabel(h) })), sel: Math.max(0, HOURS12.indexOf(h0)), width: 64 },
+      { items: Array.from({ length: 60 }, (_, i) => ({ v: i, label: pad2(i) })), sel: m0, width: 64 },
+      { items: [{ v: "", label: per(h0) }], sel: 0, fixed: true, width: 56 }],
+    onChange: (v, api) => { const c = api.cols[2].el.firstChild; if (c) c.textContent = per(v[0]); },
     onReset: () => { $(inputId).value = ""; onDone(); },
-    onOk: v => { const t = `${pad2(v[2])}:${pad2(v[1])}`; if (t < DAY_MIN || t > DAY_MAX) return "اختر وقتًا بين ٧:١٠ ص و٢:٠٥ م."; $(inputId).value = t; onDone(); } });
+    onOk: v => { const t = `${pad2(v[0])}:${pad2(v[1])}`; if (t < DAY_MIN || t > DAY_MAX) return "اختر وقتًا بين \u20667:10 AM\u2069 و\u20662:05 PM\u2069."; $(inputId).value = t; onDone(); } });
 }
-const fmtT = t => t ? `${hm12(t)} ${+t.slice(0, 2) >= 12 ? "م" : "ص"}` : "";
+const fmtT = t => { if (!t) return ""; const h = +t.slice(0, 2); return `${h > 12 ? h - 12 : h}:${t.slice(3, 5)} ${h >= 12 ? "PM" : "AM"}`; };
 function lvShowPicks() {
   const d = $("lv-date").value, sh = $("lv-date-show");
-  sh.textContent = d ? `${ar(+d.slice(8))} ${MONTHS_AR[+d.slice(5, 7) - 1]} ${ar(d.slice(0, 4))}` : "اختر اليوم"; sh.className = d ? "" : "ph";
+  sh.textContent = d ? `${+d.slice(8)} ${MONTHS_EN[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}` : "اختر اليوم"; sh.className = d ? "en" : "ph";
   $("lv-dayname").textContent = d ? `(${dayName(d)})` : "";
-  ["lv-from", "lv-to"].forEach(id => { const s = $(id + "-btn").querySelector("span"), v = $(id).value; s.textContent = v ? fmtT(v) : "اختر الوقت"; s.className = v ? "" : "ph"; });
+  ["lv-from", "lv-to"].forEach(id => { const s = $(id + "-btn").querySelector("span"), v = $(id).value; s.textContent = v ? fmtT(v) : "اختر الوقت"; s.className = v ? "en" : "ph"; });
 }
 $("lv-date-btn").onclick = () => pickDate("lv-date", "يوم الاستئذان", () => { lvShowPicks(); lvType && lvRender(); });
 ["lv-from", "lv-to"].forEach(id => $(id + "-btn").onclick = () => pickTime(id, $(id + "-label").textContent, () => { lvShowPicks(); lvType && lvRender(); }));
