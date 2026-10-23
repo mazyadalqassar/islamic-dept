@@ -289,6 +289,14 @@ nav.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg)
 .stu-checks .check { color: var(--ink); align-items: flex-start; margin-top: 8px; }
 .stu-checks .check input { flex: 0 0 18px; margin-top: 3px; }
 #sec-stu [hidden] { display: none !important; }
+/* دائرة الانتظار */
+@keyframes spin { to { transform: rotate(360deg); } }
+.busy::before { content: ""; display: inline-block; width: 15px; height: 15px; margin-left: 8px; vertical-align: -3px; border: 2.5px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .75s linear infinite; }
+.err.busy { color: var(--muted); }
+#login-msg.busy { display: flex; align-items: center; justify-content: center; gap: 0; font-size: 15px; margin-top: 14px; }
+#login-msg.busy::before { width: 22px; height: 22px; border-width: 3px; margin-left: 10px; vertical-align: 0; }
+.empty.busy::before { width: 20px; height: 20px; vertical-align: -5px; }
+@media (prefers-reduced-motion: reduce) { .busy::before { animation-duration: 2s; } }
 .grades { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; margin-top: 6px; }
 .grades th { position: static; color: var(--ink); vertical-align: middle; }
 .grades th:first-child { width: 28%; }
@@ -379,7 +387,7 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
         <button id="nav-min" class="tile t-min" type="button"><b>محاضر الاجتماعات</b></button>
         <button id="nav-vis" class="tile t-vis" type="button"><b>الزيارات الصفية</b></button>
         <button id="nav-swap" class="tile t-swap" type="button"><b>بدّل حصتي</b></button>
-        <button id="nav-stu" class="tile t-stu" type="button"><b>متابعة الطلاب</b></button>
+        <button id="nav-stu" class="tile t-stu" type="button"><b>متابعة الفائقين والضعاف</b></button>
         <button id="nav-subs" class="tile t-subs staff-only wide-tile" type="button" hidden><b>الاحتياط</b></button>
       </nav>
 
@@ -1093,7 +1101,7 @@ $("logout").onclick = () => {
 };
 
 const SECTIONS = ["curr", "ach", "min", "vis", "subs", "swap", "stu"];
-const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الطلاب" };
+const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والضعاف" };
 // noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
 function go(sec, noHist) {
   if (sec !== "home" && SECTIONS.indexOf(sec) === -1) sec = "home";
@@ -2599,7 +2607,7 @@ $("st-all-doc").onclick = async () => {
   const m = $("st-admin-msg"), list = (STU || []).filter(s => !s.demo);
   if (!list.length) { m.textContent = "لا توجد تقارير."; return; }
   m.textContent = "جارٍ إنشاء الملف…";
-  try { await deliver(await stuBlob(list), `تقارير متابعة الطلاب - ${todayISO()}.docx`, m); } catch (e) { m.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
+  try { await deliver(await stuBlob(list), `تقارير الفائقين والضعاف - ${todayISO()}.docx`, m); } catch (e) { m.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
 };
 $("st-wipe").onclick = () => {
   const m = $("st-admin-msg");
@@ -2869,6 +2877,18 @@ function setVisType(t) {
   box.querySelectorAll(".vtype").forEach(b => b.setAttribute("aria-checked", b.dataset.t === t));
   $("vf-rest").hidden = !t;
 }
+
+// دائرة انتظار تلقائية بجانب أي رسالة تبدأ بـ«جارٍ» (التحقق، التحميل، الحفظ…)
+(function () {
+  const sel = ".saved, .err, .empty";
+  const mark = el => { if (el && el.classList) el.classList.toggle("busy", /^\s*جارٍ/.test(el.textContent || "")); };
+  const scan = root => { if (!root || root.nodeType !== 1) return; if (root.matches(sel)) mark(root); root.querySelectorAll(sel).forEach(mark); };
+  new MutationObserver(ms => ms.forEach(m => {
+    const t = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+    if (t) { const c = t.closest(sel); if (c) mark(c); }
+    m.addedNodes.forEach(scan);
+  })).observe(document.body, { subtree: true, childList: true, characterData: true });
+})();
 
 (function () { let c = ""; try { c = localStorage.getItem("code") || ""; } catch (e) {} if (c) { $("code").value = c; doLogin(c, true); } })();
 
