@@ -2863,6 +2863,8 @@ function dayCommitments(name, date) {
     if (cls) out.push({ key: "p" + p, kind: "حصة", label: `الحصة ${ORD[p]} · ${classLabel(cls)}`, from: r[0], to: r[1] });
     const b = busyAt(name, d, p); if (b) info.push(`${b} (الحصة ${ORD[p]} ${hm12(r[0])})`);
   }
+  // حصة الاختبار القصير التزام على كل المعلمين (بطلب رئيس الشعبة)
+  if (S.q) out.push({ key: "q", kind: "حصة الاختبار القصير", label: "حصة الاختبار القصير", from: S.q[0], to: S.q[1] });
   (DUTIES || []).filter(x => x.date === date && x.teacher === name).forEach((x, i) => {
     let r = x.from && x.to ? [x.from, x.to] : /الأولى/.test(x.duty) ? S.b1 : /الصلاة|الثانية/.test(x.duty) ? S.b2 : null;
     out.push({ key: "d" + i, kind: "مراقبة", label: x.duty, from: r ? r[0] : "", to: r ? r[1] : "" });
