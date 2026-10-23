@@ -1,5 +1,5 @@
 /**
- * موقع قسم التربية الإسلامية — ثانوية أحمد الربعي للبنين
+ * موقع شعبة التربية الإسلامية — ثانوية أحمد الربعي للبنين
  * الأركان: ما قطع من المنهج · إنجازات المعلمين · محاضر الاجتماعات
  * بعد أي تحديث للكود: شغّل setup مرة واحدة، ثم حدّث النشر (Manage deployments ← New version).
  */
@@ -26,7 +26,7 @@ const HEAD_EMAIL = "mazyadalqassar@gmail.com";
 const SITE_URL = "https://mazyadalqassar.github.io/islamic-dept/";
 const ST_READY = "جاهز";
 
-// المعلمون وفصولهم (الجدول العام للقسم). s = علمي، l = أدبي
+// المعلمون وفصولهم (الجدول العام للشعبة). s = علمي، l = أدبي
 const TEACHERS = [
   ["مزيد حمد خليفة القصار", ["11s-1"], true],
   ["عبدالله طارق محمد الخليفي", ["10-1", "11s-4"]],
@@ -53,7 +53,7 @@ function demoPrefix_(me) { return me.isDemo ? "DEMO|" + me.name + "|" : ""; }
 
 function doGet() {
   return HtmlService.createTemplateFromFile("Index").evaluate()
-    .setTitle("قسم التربية الإسلامية · ثانوية أحمد الربعي")
+    .setTitle("شعبة التربية الإسلامية · ثانوية أحمد الربعي")
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
 }
 
@@ -100,8 +100,8 @@ function setup() {
   sheet_(SHEET_VIS, ["المعرف", "المعلم", "الفصل", "البطاقة", "التاريخ", "الحصة", "رقم الوحدة", "المجال", "رقم الدرس", "عنوان الدرس / السورة والآيات",
     "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس الشعبة", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم", "نوع الزيارة", "الملاحظات"], true);
   sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل"], true);
-  sheet_(SHEET_SCHOOL, ["المعلم", "القسم", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
-  sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "قسمه", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true);
+  sheet_(SHEET_SCHOOL, ["المعلم", "الشعبة", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
+  sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true);
   sheet_(SHEET_PLAN, ["الأسبوع", "التاريخ", "اليوم", "الحصة", "المعلم", "الفصل", "ملاحظة"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
@@ -130,7 +130,7 @@ function folder_() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty("FOLDER_ID");
   if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
-  const f = DriveApp.createFolder("موقع قسم التربية الإسلامية - الملفات");
+  const f = DriveApp.createFolder("موقع شعبة التربية الإسلامية - الملفات");
   props.setProperty("FOLDER_ID", f.getId());
   return f;
 }
@@ -192,7 +192,7 @@ function head_(code) {
 
 // ======================= ما قطع من المنهج =======================
 
-/** prefix فارغ = بيانات القسم الرسمية فقط، وإلا بيانات حساب تجريبي واحد */
+/** prefix فارغ = بيانات الشعبة الرسمية فقط، وإلا بيانات حساب تجريبي واحد */
 function readEntries_(prefix) {
   prefix = prefix || "";
   const rows = sh_(SHEET_DATA).getDataRange().getValues();
@@ -271,7 +271,7 @@ function submitAchievement(code, a) {
     String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, "", nowText_(), ""];
   withLock_(() => appendText_(sh_(SHEET_ACH), row));
   notify_(me, `إنجاز جديد: ${title} — أ. ${me.name}`, `
-    <p>رفع <b>أ. ${esc_(me.name)}</b> إنجازًا جديدًا في موقع القسم، وهو بانتظار الصياغة.</p>
+    <p>رفع <b>أ. ${esc_(me.name)}</b> إنجازًا جديدًا في موقع الشعبة، وهو بانتظار الصياغة.</p>
     <table cellpadding="6" style="border-collapse:collapse;border:1px solid #e6e1db">
       <tr><td style="background:#fbeee3"><b>العنوان</b></td><td>${esc_(title)}</td></tr>
       <tr><td style="background:#fbeee3"><b>النوع</b></td><td>${esc_(row[3])}</td></tr>
@@ -440,7 +440,7 @@ function saveFileToDrive(code, name, b64) {
 function ensureDemoMinute_() {
   const sh = sh_(SHEET_MIN);
   if (findRow_(sh, 1, DEMO_MINUTE) > 0) return;
-  appendText_(sh, [DEMO_MINUTE, "محضر تجريبي للعرض", Utilities.formatDate(new Date(), "Asia/Kuwait", "yyyy-MM-dd"), "الحصة الخامسة", "غرفة قسم التربية الإسلامية",
+  appendText_(sh, [DEMO_MINUTE, "محضر تجريبي للعرض", Utilities.formatDate(new Date(), "Asia/Kuwait", "yyyy-MM-dd"), "الحصة الخامسة", "غرفة شعبة التربية الإسلامية",
     JSON.stringify(Object.keys(DEMOS)), "مثال على بند من جدول الأعمال\nمثال على بند ثانٍ",
     "هذا محضر تجريبي يوضح طريقة الاطلاع على المحاضر والتوقيع عليها إلكترونيًا.", "مثال على توصية\nمثال على توصية ثانية", nowText_()]);
 }
@@ -501,18 +501,18 @@ function notify_(me, subject, html, attachments) {
     MailApp.sendEmail({
       to: HEAD_EMAIL,
       subject: (demo ? "[تجريبي] " : "") + subject,
-      name: "موقع قسم التربية الإسلامية",
+      name: "موقع شعبة التربية الإسلامية",
       htmlBody: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:14px;line-height:1.8;color:#2b2b2b">
         ${demo ? '<p style="background:#fff4d6;padding:6px 10px;border-radius:6px">هذا تنبيه من <b>حساب تجريبي</b>، ولا يظهر في التقارير الرسمية.</p>' : ""}
         ${html}
-        <p><a href="${SITE_URL}" style="color:#c8641c">فتح موقع القسم</a></p></div>`,
+        <p><a href="${SITE_URL}" style="color:#c8641c">فتح موقع الشعبة</a></p></div>`,
       attachments: attachments || []
     });
   } catch (e) { console.error("notify failed: " + e); }
 }
 
 /** لتجربة الإيميل من المحرر */
-function testEmail() { notify_(null, "تجربة تنبيهات موقع القسم", "<p>وصلتك هذه الرسالة، يعني التنبيهات تعمل.</p>"); }
+function testEmail() { notify_(null, "تجربة تنبيهات موقع الشعبة", "<p>وصلتك هذه الرسالة، يعني التنبيهات تعمل.</p>"); }
 
 // ======================= الزيارات الصفية =======================
 // أعمدة الزيارات: 0 المعرف | 1 المعلم | 2 الفصل | 3 البطاقة (ie | qr | tl) | 4 التاريخ | 5 الحصة | 6 رقم الوحدة | 7 المجال
@@ -689,14 +689,14 @@ function schoolTable(code) {
   });
 }
 
-/** لرئيس الشعبة: استيراد جدول المدرسة (JSON مضغوط gzip بترميز base64: [[المعلم، القسم، الجدول]]) */
+/** لرئيس الشعبة: استيراد جدول المدرسة (JSON مضغوط gzip بترميز base64: [[المعلم، الشعبة، الجدول]]) */
 function importSchool(code, b64) {
   head_(code);
   const json = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), "application/x-gzip")).getDataAsString("UTF-8");
   const rows = JSON.parse(json);
   if (!Array.isArray(rows) || !rows.length) throw new Error("بيانات الجدول غير صالحة.");
   return withLock_(() => {
-    const sh = sheet_(SHEET_SCHOOL, ["المعلم", "القسم", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
+    const sh = sheet_(SHEET_SCHOOL, ["المعلم", "الشعبة", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
     if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 3).clearContent();
     const rg = sh.getRange(2, 1, rows.length, 3);
     rg.setNumberFormat("@");
@@ -710,7 +710,7 @@ const ORD_ = ["", "الأولى", "الثانية", "الثالثة", "الرا�
 const DAYS_ = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 function swapObj_(r) { return { id: r[0], at: r[1], teacher: r[2], subject: r[3], classes: r[4], date: r[5], period: Number(r[6]),
   other: r[7], otherDept: r[8], otherSubject: r[9], otherDate: r[10], otherPeriod: Number(r[11]), schoolName: r[12], demo: isDemo_(r[2]) }; }
-function swapSheet_() { return sh_(SHEET_SWAP) || sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "قسمه", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true); }
+function swapSheet_() { return sh_(SHEET_SWAP) || sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true); }
 function dayOf_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? DAYS_[new Date(+m[1], +m[2] - 1, +m[3]).getDay()] : ""; }
 function dmy_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[3]}/${+m[2]}/${m[1]}` : iso; }
 
