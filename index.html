@@ -288,7 +288,30 @@ nav.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg)
 .stu-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .stu-checks .check { color: var(--ink); align-items: flex-start; margin-top: 8px; }
 .stu-checks .check input { flex: 0 0 18px; margin-top: 3px; }
-#sec-stu [hidden] { display: none !important; }
+#sec-stu [hidden], #sec-lv [hidden] { display: none !important; }
+/* الاستئذانات */
+:root { --c-lv: #5f7d2e; --c-lv-s: #edf3e2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-lv: #a8c870; --c-lv-s: #26301a; } }
+:root[data-theme="dark"] { --c-lv: #a8c870; --c-lv-s: #26301a; }
+.t-lv { --tc: var(--c-lv); --ts: var(--c-lv-s); }
+input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+.mail-line { margin-top: 14px; font-size: 13px; color: var(--muted); text-align: center; }
+.lv-steps { margin: 0; padding: 10px 14px 10px 10px; padding-right: 30px; background: var(--c-lv-s); border-radius: 12px; font-size: 13.5px; line-height: 1.9; }
+.lv-steps b { color: var(--c-lv); }
+.ltypes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.ltype { font: inherit; font-family: var(--f-display); font-size: 14px; color: var(--ink); background: var(--surface); border: 2px solid var(--line); border-radius: 14px; padding: 12px 6px; cursor: pointer; }
+.ltype[aria-checked="true"] { border-color: var(--c-lv); background: var(--c-lv-s); color: var(--c-lv); }
+.lv-warn { margin-top: 12px; border: 1.5px solid var(--late); background: var(--late-soft); color: var(--late); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.lv-warn b { display: block; margin-bottom: 4px; }
+.lv-p { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; margin-top: 8px; color: var(--ink); }
+.lv-p .pl { font-weight: 700; font-size: 13.5px; }
+.lv-ok { margin-top: 12px; color: var(--ok); font-size: 13.5px; }
+.lv-card h3 { margin: 0; font-family: var(--f-display); font-size: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lv-card .meta { font-size: 13.5px; line-height: 1.8; margin-top: 4px; }
+.lv-card .nextstep { margin-top: 8px; background: #fff4d6; color: #6b4a00; border-radius: 10px; padding: 8px 12px; font-size: 13.5px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lv-card .nextstep { background: #3a3016; color: #f0d58a; } }
+.lv-card .acts { display: grid; gap: 8px; margin-top: 10px; }
+@media (max-width: 420px) { .ltypes { grid-template-columns: 1fr; } }
 /* دائرة الانتظار */
 @keyframes spin { to { transform: rotate(360deg); } }
 .busy::before { content: ""; display: inline-block; width: 15px; height: 15px; margin-left: 8px; vertical-align: -3px; border: 2.5px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .75s linear infinite; }
@@ -369,6 +392,18 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
     </form>
   </section>
 
+  <!-- إيميل المعلم: إجباري أول دخول -->
+  <section id="view-email" class="card login" hidden>
+    <h2>إيميلك للإشعارات</h2>
+    <div class="sub">اكتب إيميلك لتصلك إشعارات الموقع، مثل الموافقة على استئذانك. يمكنك تغييره لاحقًا من الصفحة الرئيسية.</div>
+    <form id="email-form">
+      <label class="f" for="my-email">الإيميل</label>
+      <input type="email" id="my-email" dir="ltr" autocomplete="email" inputmode="email" placeholder="name@example.com" required>
+      <div class="row-actions" style="margin-top:12px"><button class="btn" id="email-save" type="submit">حفظ والمتابعة</button><button class="btn ghost" id="email-cancel" type="button" hidden>إلغاء</button></div>
+      <div class="err" id="email-msg"></div>
+    </form>
+  </section>
+
   <div id="app" hidden>
     <!-- الصفحة الرئيسية -->
     <div id="home">
@@ -388,8 +423,10 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
         <button id="nav-vis" class="tile t-vis" type="button"><b>الزيارات الصفية</b></button>
         <button id="nav-swap" class="tile t-swap" type="button"><b>بدّل حصتي</b></button>
         <button id="nav-stu" class="tile t-stu" type="button"><b>متابعة الفائقين والضعاف</b></button>
-        <button id="nav-subs" class="tile t-subs staff-only wide-tile" type="button" hidden><b>الاحتياط</b></button>
+        <button id="nav-lv" class="tile t-lv" type="button"><b>الاستئذانات</b></button>
+        <button id="nav-subs" class="tile t-subs staff-only" type="button" hidden><b>الاحتياط</b></button>
       </nav>
+      <div class="mail-line" id="mail-line" hidden>إشعاراتك تصل إلى: <b id="mail-show"></b> <button class="linkbtn" type="button" id="mail-change">تغيير</button></div>
 
       <section id="dash" class="head-only" hidden>
         <nav class="seg" role="tablist">
@@ -674,6 +711,57 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
           <div class="row-actions"><input type="text" id="st-wipe-word" maxlength="10" style="max-width:160px"><button class="btn ghost" id="st-wipe" type="button">مسح كل التقارير</button></div>
           <div class="saved" id="st-admin-msg"></div>
         </details>
+      </section>
+    </section>
+
+    <!-- ركن الاستئذانات: المعلم يرى استئذاناته، ورئيس الشعبة يرى الكل -->
+    <section id="sec-lv" hidden>
+      <nav class="tabs" role="tablist">
+        <button id="lvtab-new" role="tab" aria-selected="true">استئذان جديد</button>
+        <button id="lvtab-list" role="tab" aria-selected="false"><span class="head-only" hidden>الاستئذانات</span><span class="teacher-only">استئذاناتي</span></button>
+      </nav>
+      <section id="lv-new">
+        <form class="card" id="lv-form" autocomplete="off">
+          <h2>طلب استئذان</h2>
+          <ol class="lv-steps">
+            <li>قدّم الاستئذان هنا أولًا لرئيس الشعبة.</li>
+            <li>بعد <b>الموافقة المبدئية</b> يصلك إيميل، فقدّم الإذن عن طريق <b>الديوان</b>.</li>
+            <li>بعد قرار المدير سجّله هنا في «استئذاناتي».</li>
+          </ol>
+          <label class="f">نوع الاستئذان</label>
+          <div class="ltypes" role="radiogroup" aria-label="نوع الاستئذان">
+            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="تأخير صباحي">تأخير صباحي</button>
+            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="خروج أثناء الدوام">خروج أثناء الدوام</button>
+            <button type="button" class="ltype" role="radio" aria-checked="false" data-t="انصراف مبكر">انصراف مبكر</button>
+          </div>
+          <div id="lv-rest" hidden>
+            <div class="grid2">
+              <div><label class="f" for="lv-date">التاريخ</label><input type="date" id="lv-date"></div>
+              <div id="lv-who-wrap" hidden><label class="f" for="lv-who">المعلم (للتجربة)</label><select id="lv-who"></select></div>
+            </div>
+            <div class="grid2">
+              <div id="lv-from-wrap"><label class="f" for="lv-from" id="lv-from-label">من الساعة</label><input type="time" id="lv-from"></div>
+              <div id="lv-to-wrap"><label class="f" for="lv-to" id="lv-to-label">إلى الساعة</label><input type="time" id="lv-to"></div>
+            </div>
+            <div id="lv-periods"></div>
+            <label class="f" for="lv-reason">السبب</label>
+            <textarea id="lv-reason" rows="2" maxlength="500" required></textarea>
+            <div class="row-actions" style="margin-top:14px"><button class="btn" id="lv-submit" type="submit">إرسال لرئيس الشعبة</button></div>
+          </div>
+        </form>
+        <div class="saved" id="lv-msg"></div>
+      </section>
+      <section id="lv-list" hidden>
+        <div class="row-actions" style="margin-top:12px">
+          <div class="chips head-only" id="lv-filter" hidden>
+            <label class="chip"><input type="radio" name="lvf" value="pending" checked><span>بانتظار موافقتك</span></label>
+            <label class="chip"><input type="radio" name="lvf" value=""><span>الكل</span></label>
+            <label class="chip"><input type="radio" name="lvf" value="mine"><span>استئذاناتي</span></label>
+          </div>
+          <button class="btn ghost sm" id="lv-reload" type="button">تحديث</button>
+        </div>
+        <div class="saved" id="lv-list-msg"></div>
+        <div class="list" id="lv-cards"></div>
       </section>
     </section>
 
@@ -1083,8 +1171,10 @@ async function doLogin(code, silent) {
     document.querySelectorAll(".staff-only").forEach(el => el.hidden = !r.canSubs);
     $("demo-note").hidden = !r.isDemo;
     if (r.isHead) $("demo-admin").ontoggle = () => { if ($("demo-admin").open) loadDemos(); };
+    layoutTiles(); showMailLine();
     go("home", true);
     msg.textContent = "";
+    if (!r.isDemo && !r.email) showEmailGate(false);
   } catch (e) {
     msg.textContent = cleanErr(e);
     if (silent) { try { localStorage.removeItem("code"); } catch (x) {} msg.textContent = ""; }
@@ -1096,12 +1186,12 @@ $("logout").onclick = () => {
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
-  DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new"; SCHOOL = null; swapPick = null; SWAPS = null; STU = null; stuSub = "new"; stuEditId = ""; ROSTER = null; $("sr-class").innerHTML = ""; $("st-detail").hidden = true;
+  DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new"; SCHOOL = null; swapPick = null; SWAPS = null; STU = null; stuSub = "new"; stuEditId = ""; ROSTER = null; $("sr-class").innerHTML = ""; LEAVES = null; lvSub = "new"; lvType = ""; $("view-email").hidden = true; $("mail-line").hidden = true; $("st-detail").hidden = true;
   $("app").hidden = true; $("view-login").hidden = false; $("code").value = "";
 };
 
-const SECTIONS = ["curr", "ach", "min", "vis", "subs", "swap", "stu"];
-const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والضعاف" };
+const SECTIONS = ["curr", "ach", "min", "vis", "subs", "swap", "stu", "lv"];
+const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والضعاف", lv: "الاستئذانات" };
 // noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
 function go(sec, noHist) {
   if (sec !== "home" && SECTIONS.indexOf(sec) === -1) sec = "home";
@@ -1121,6 +1211,7 @@ function go(sec, noHist) {
   if (sec === "subs") subsTab(subsSub);
   if (sec === "swap") swapTab("new");
   if (sec === "stu") stuTab(stuSub);
+  if (sec === "lv") lvTab(lvSub);
 }
 SECTIONS.forEach(s => $("nav-" + s).onclick = () => go(s));
 $("back-home").onclick = () => { if (history.state && history.state.sec && history.state.sec !== "home" && history.length > 1) history.back(); else go("home", true); };
@@ -2715,6 +2806,169 @@ function buildStudentDoc(D, list, fonts) {
   return new D.Document(opts);
 }
 
+// ================= الاستئذانات =================
+// الخادم يرسل للمعلم استئذاناته فقط، ولرئيس الشعبة الكل.
+const LV_TYPES = ["تأخير صباحي", "خروج أثناء الدوام", "انصراف مبكر"];
+const LV_ST = { pending: "بانتظار موافقة رئيس الشعبة", ok: "موافقة مبدئية · بانتظار اعتماد المدير", no: "غير موافق عليه", done: "معتمد من المدير", nodone: "لم يعتمده المدير" };
+const LV_PILL = { [LV_ST.pending]: "late", [LV_ST.ok]: "ahead", [LV_ST.no]: "none", [LV_ST.done]: "ok", [LV_ST.nodone]: "none" };
+const DAY_START = "07:00", DAY_END = "14:00";
+let LEAVES = null, lvSub = "new", lvType = "";
+function lvMe() { return ME.isDemo ? ($("lv-who").value || TEACHERS[0][0]) : ME.name; }
+function periodRange(p) { const m = String(PERIOD_TIME[p] || "").match(/(\d\d:\d\d)\D+(\d\d:\d\d)/); return m ? [m[1], m[2]] : null; }
+function lvTab(which) {
+  lvSub = which;
+  ["new", "list"].forEach(k => { $("lvtab-" + k).setAttribute("aria-selected", k === which); $("lv-" + k).hidden = k !== which; });
+  if (which === "new") lvInit(); else loadLeaves();
+}
+$("lvtab-new").onclick = () => lvTab("new");
+$("lvtab-list").onclick = () => lvTab("list");
+$("lv-reload").onclick = () => loadLeaves(true);
+document.querySelectorAll('input[name="lvf"]').forEach(x => x.onchange = () => renderLeaves());
+function lvInit() {
+  $("lv-who-wrap").hidden = !ME.isDemo;
+  if (ME.isDemo && !$("lv-who").options.length) $("lv-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
+  if (!$("lv-date").value) $("lv-date").value = todayISO();
+  lvSetType(lvType);
+}
+function lvSetType(t) {
+  lvType = t;
+  document.querySelectorAll("#lv-form .ltype").forEach(b => b.setAttribute("aria-checked", b.dataset.t === t));
+  $("lv-rest").hidden = !t; if (!t) return;
+  const morning = t === LV_TYPES[0], leave = t === LV_TYPES[2];
+  $("lv-from-wrap").hidden = morning; $("lv-to-wrap").hidden = leave;
+  $("lv-from-label").textContent = leave ? "وقت الانصراف" : "من الساعة";
+  $("lv-to-label").textContent = morning ? "وقت الحضور" : "إلى الساعة";
+  $("lv-reason").placeholder = "اكتب سبب الاستئذان باختصار";
+  lvPeriods();
+}
+document.querySelectorAll("#lv-form .ltype").forEach(b => b.onclick = () => lvSetType(b.dataset.t));
+function lvTimes() {
+  const from = lvType === LV_TYPES[0] ? DAY_START : $("lv-from").value, to = lvType === LV_TYPES[2] ? DAY_END : $("lv-to").value;
+  return { from, to };
+}
+// الحصص التي تقع في وقت الاستئذان من جدول الشعبة
+function lvAffected() {
+  const date = $("lv-date").value, d = isoDay(date), { from, to } = lvTimes();
+  if (!date || d < 0 || d > 4 || !from || !to || from >= to) return { ok: false, list: [], busy: [] };
+  const name = lvMe(), list = [], busy = [];
+  for (let p = 1; p <= 7; p++) {
+    const r = periodRange(p); if (!r || !(from < r[1] && to > r[0])) continue;
+    const cls = teachingAt(name, d, p); if (cls) list.push({ p, cls });
+    const b = busyAt(name, d, p); if (b) busy.push({ p, what: b });
+  }
+  return { ok: true, list, busy, d, date };
+}
+function lvPeriods() {
+  const box = $("lv-periods"), a = lvAffected();
+  if (!a.ok) { const d = isoDay($("lv-date").value); box.innerHTML = d === 5 || d === 6 ? '<div class="lv-warn"><b>هذا اليوم عطلة.</b></div>' : ""; return; }
+  const ORD = ["", "الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة"];
+  const busy = a.busy.length ? `<div class="sub" style="margin-top:8px">لديك في هذا الوقت: ${a.busy.map(b => esc(b.what) + " (الحصة " + ORD[b.p] + ")").join("، ")}.</div>` : "";
+  if (!a.list.length) { box.innerHTML = '<div class="lv-ok">لا توجد لديك حصص في وقت الاستئذان.</div>' + busy; return; }
+  const old = {}; box.querySelectorAll("[data-p]").forEach(s => old[s.dataset.p] = [s.value, (box.querySelector(`[data-po="${s.dataset.p}"]`) || {}).value]);
+  box.innerHTML = `<div class="lv-warn"><b>لديك ${a.list.length === 1 ? "حصة" : a.list.length === 2 ? "حصتان" : ar(a.list.length) + " حصص"} وقت الاستئذان: لازم توفّر بديلًا لكل حصة وتؤكده لرئيس الشعبة.</b>
+    ${a.list.map(x => { const free = availableFor(a.date, a.d, x.p, lvMe(), x.cls).map(f => f.name);
+      return `<div class="lv-p"><span class="pl">الحصة ${ORD[x.p]} · ${esc(classLabel(x.cls))}</span>
+        <select data-p="${x.p}" data-cls="${esc(x.cls)}"><option value="">اختر البديل…</option>${free.map(n => `<option>${esc(n)}</option>`).join("")}<option value="__o">معلم من شعبة أخرى…</option></select>
+        <span></span><input type="text" data-po="${x.p}" placeholder="اسم البديل" hidden></div>`; }).join("")}</div>${busy}`;
+  box.querySelectorAll("[data-p]").forEach(s => {
+    const o = box.querySelector(`[data-po="${s.dataset.p}"]`), prev = old[s.dataset.p];
+    if (prev) { s.value = [...s.options].some(x => x.value === prev[0]) ? prev[0] : ""; o.value = prev[1] || ""; }
+    o.hidden = s.value !== "__o";
+    s.onchange = () => { o.hidden = s.value !== "__o"; if (!o.hidden) o.focus(); };
+  });
+}
+["lv-date", "lv-from", "lv-to", "lv-who"].forEach(id => $(id).addEventListener("change", lvPeriods));
+["lv-from", "lv-to"].forEach(id => $(id).addEventListener("input", lvPeriods));
+$("lv-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const msg = $("lv-msg"), btn = $("lv-submit");
+  if (!lvType) { msg.textContent = "اختر نوع الاستئذان."; return; }
+  const { from, to } = lvTimes(), d = isoDay($("lv-date").value);
+  if (!$("lv-date").value || d === 5 || d === 6) { msg.textContent = "اختر يوم دوام."; return; }
+  if (!from || !to || from >= to) { msg.textContent = "اكتب الوقت بشكل صحيح."; return; }
+  const periods = [];
+  for (const s of $("lv-periods").querySelectorAll("[data-p]")) {
+    const sub = s.value === "__o" ? $("lv-periods").querySelector(`[data-po="${s.dataset.p}"]`).value.trim() : s.value;
+    if (sub.length < 3) { msg.textContent = "اختر البديل لكل حصة."; s.focus(); return; }
+    periods.push({ p: +s.dataset.p, cls: s.dataset.cls, label: classLabel(s.dataset.cls), sub });
+  }
+  if ($("lv-reason").value.trim().length < 3) { msg.textContent = "اكتب سبب الاستئذان."; $("lv-reason").focus(); return; }
+  btn.disabled = true; msg.textContent = "جارٍ الإرسال…";
+  try {
+    await run("saveLeave", CODE, { type: lvType, date: $("lv-date").value, from, to, reason: $("lv-reason").value.trim(), periods });
+    LEAVES = null; $("lv-reason").value = ""; $("lv-from").value = ""; $("lv-to").value = ""; lvSetType("");
+    msg.textContent = ME.isHead ? "سُجّل استئذانك. قدّمه عن طريق الديوان، ثم سجّل قرار المدير في «الاستئذانات»."
+      : "أُرسل الاستئذان لرئيس الشعبة، ويصلك إيميل عند الموافقة. بعد الموافقة المبدئية قدّم الإذن عن طريق الديوان.";
+  } catch (x) { msg.textContent = "لم يُرسل: " + cleanErr(x); }
+  finally { btn.disabled = false; }
+});
+
+async function loadLeaves(force) {
+  const box = $("lv-cards");
+  if (!LEAVES || force) { box.innerHTML = '<div class="empty">جارٍ التحميل…</div>'; try { LEAVES = await run("listLeaves", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; } }
+  renderLeaves();
+}
+function lvWhen(l) { return `${dayName(l.date)} ${fmtDate(l.date)} · ${l.type === LV_TYPES[0] ? "الحضور الساعة " + ar(l.to) : l.type === LV_TYPES[2] ? "الانصراف الساعة " + ar(l.from) : "من " + ar(l.from) + " إلى " + ar(l.to)}`; }
+function renderLeaves() {
+  if (!LEAVES) return;
+  const f = ME.isHead ? ((document.querySelector('input[name="lvf"]:checked') || {}).value || "") : "";
+  const list = LEAVES.filter(l => !f || (f === "pending" ? l.status === LV_ST.pending : l.teacher === ME.name));
+  const ORD = ["", "الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة"];
+  $("lv-list-msg").textContent = ME.isHead ? `بانتظار موافقتك: ${ar(LEAVES.filter(l => l.status === LV_ST.pending).length)}` : "";
+  $("lv-cards").innerHTML = list.length ? list.map(l => {
+    const mine = l.teacher === ME.name, canFinal = l.status === LV_ST.ok && (mine || ME.isHead);
+    return `<div class="card lv-card" data-id="${esc(l.id)}">
+      <h3>${ME.isHead ? "أ. " + esc(l.teacher) + " · " : ""}${esc(l.type)} <span class="pill ${LV_PILL[l.status] || "none"}">${esc(l.status)}</span>${l.demo ? ' <span class="pill none">تجريبي</span>' : ""}</h3>
+      <div class="meta">${lvWhen(l)}<br>السبب: ${esc(l.reason)}
+        ${l.periods.length ? "<br>الحصص: " + l.periods.map(x => `${ORD[x.p]} (${esc(x.label || classLabel(x.cls))}) ← أ. ${esc(x.sub)}`).join("، ") : ""}
+        ${l.note ? `<br>ملاحظة رئيس الشعبة: ${esc(l.note)}` : ""}
+        <br><span class="sub">طُلب ${fmtStamp(l.createdAt)}${l.finalBy ? " · سجّل قرار المدير أ. " + esc(l.finalBy) : ""}</span></div>
+      ${l.status === LV_ST.ok && mine ? '<div class="nextstep">الخطوة التالية: قدّم الإذن عن طريق الديوان لاعتماد المدير، ثم سجّل قراره هنا.</div>' : ""}
+      <div class="acts">
+        ${ME.isHead && l.status === LV_ST.pending ? `<input type="text" data-note placeholder="ملاحظة للمعلم (اختياري)" maxlength="400">
+          <div class="row-actions"><button class="btn sm" type="button" data-act="ok">موافقة مبدئية</button><button class="btn ghost sm" type="button" data-act="no">عدم الموافقة</button></div>` : ""}
+        ${canFinal ? `<div class="row-actions"><button class="btn sm" type="button" data-act="done">اعتمده المدير</button><button class="btn ghost sm" type="button" data-act="nodone">لم يعتمده المدير</button></div>` : ""}
+        ${(mine && l.status === LV_ST.pending) || ME.isHead ? `<div class="row-actions"><button class="btn ghost sm" type="button" data-act="del">${mine && l.status === LV_ST.pending ? "إلغاء الطلب" : "حذف"}</button></div>` : ""}
+      </div><div class="saved" data-msg></div></div>`; }).join("")
+    : `<div class="empty">${f === "pending" ? "لا توجد استئذانات بانتظار موافقتك." : ME.isHead && !f ? "لا توجد استئذانات بعد." : "لا توجد استئذانات بعد."}</div>`;
+  $("lv-cards").querySelectorAll("[data-act]").forEach(b => {
+    const card = b.closest(".lv-card"), id = card.dataset.id, m = card.querySelector("[data-msg]"), act = b.dataset.act;
+    const go_ = async () => {
+      m.textContent = "جارٍ الحفظ…"; card.querySelectorAll("button").forEach(x => x.disabled = true);
+      try {
+        if (act === "ok" || act === "no") { const r = await run("decideLeave", CODE, id, act === "ok", (card.querySelector("[data-note]") || {}).value || ""); upd(r); }
+        else if (act === "done" || act === "nodone") upd(await run("finalLeave", CODE, id, act === "done"));
+        else { await run("deleteLeave", CODE, id); LEAVES = LEAVES.filter(x => x.id !== id); renderLeaves(); }
+      } catch (e) { m.textContent = cleanErr(e); card.querySelectorAll("button").forEach(x => x.disabled = false); }
+    };
+    const upd = r => { const i = LEAVES.findIndex(x => x.id === r.id); if (i !== -1) LEAVES[i] = Object.assign({ demo: LEAVES[i].demo }, r); DASH = null; renderLeaves();
+      if ((act === "ok" || act === "no") && r.emailed === false) $("lv-list-msg").textContent = `تم. ملاحظة: أ. ${r.teacher} لم يسجّل إيميله بعد، فلم يصله إشعار.`; };
+    b.onclick = act === "del" || act === "no" || act === "nodone" ? () => confirmInline(b, "اضغط للتأكيد", go_) : go_;
+  });
+}
+
+// ---------- إيميل المعلم ----------
+let emailBack = false;
+function showEmailGate(back) {
+  emailBack = !!back;
+  $("view-email").hidden = false; $("app").hidden = true; $("email-cancel").hidden = !back;
+  $("my-email").value = (ME && ME.email) || ""; $("email-msg").textContent = ""; setTimeout(() => $("my-email").focus(), 50);
+}
+function showMailLine() { $("mail-line").hidden = !ME || ME.isDemo; $("mail-show").textContent = (ME && ME.email) || ""; }
+$("email-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const m = $("email-msg"); $("email-save").disabled = true; m.textContent = "جارٍ الحفظ…";
+  try { ME.email = await run("setMyEmail", CODE, $("my-email").value); m.textContent = ""; $("view-email").hidden = true; $("app").hidden = false; showMailLine(); }
+  catch (x) { m.textContent = cleanErr(x); } finally { $("email-save").disabled = false; }
+});
+$("email-cancel").onclick = () => { $("view-email").hidden = true; $("app").hidden = false; };
+$("mail-change").onclick = () => showEmailGate(true);
+// بطاقة عريضة للأخيرة إذا كان عدد البطاقات الظاهرة فرديًا
+function layoutTiles() {
+  const tiles = [...document.querySelectorAll("nav.sections .tile")]; tiles.forEach(t => t.classList.remove("wide-tile"));
+  const vis = tiles.filter(t => !t.hidden); if (vis.length % 2) vis[vis.length - 1].classList.add("wide-tile");
+}
+
 // ================= الصفحة الرئيسية =================
 const SVG = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const ICONS = {
@@ -2726,6 +2980,7 @@ const ICONS = {
   search: SVG('<circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/>'),
   guide: SVG('<path d="M12 3a6 6 0 0 0-3.5 10.9V17h7v-3.1A6 6 0 0 0 12 3zM9.5 20h5"/>'),
   check: SVG('<path d="M5 12.5l4.5 4.5L19 7.5M5 20h14"/>'),
+  lv: SVG('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2M16.5 3.5l3 3"/>'),
   stu: SVG('<circle cx="12" cy="7.5" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7M12 13v3"/>')
 };
 const TEACHER_SUBS = { curr: "سجّل آخر ما وصلت إليه", ach: "ارفع أنشطتك وفعالياتك", min: "اطّلع على المحاضر ووقّع", vis: "زياراتك الصفية" };
@@ -2754,15 +3009,15 @@ async function loadDash(force) {
   if (!ME) return;
   if (!ME.isHead) { SECTIONS.forEach(s => setSub(s, TEACHER_SUBS[s])); return; }
   SECTIONS.forEach(s => { if (!DASH) setSub(s, HEAD_SUBS[s]); });
-  const fresh = DASH && Date.now() - DASH.at < 60000 && ACH_ALL && MIN && VIS && VPLAN && SUBS && STU;
+  const fresh = DASH && Date.now() - DASH.at < 60000 && ACH_ALL && MIN && VIS && VPLAN && SUBS && STU && LEAVES;
   if (!fresh || force) {
     if (!DASH) $("dash-list").innerHTML = '<div class="empty">جارٍ تجهيز ملخص الشعبة…</div>';
     try {
       const code = CODE;
-      const [ach, min, vis, plan, subs, stu] = await Promise.all([run("allAchievements", code), run("listMinutes", code), run("listVisits", code),
-        run("visitPlan", code).catch(() => []), run("subsList", code).catch(() => []), run("listStudents", code).catch(() => [])]);
+      const [ach, min, vis, plan, subs, stu, lvs] = await Promise.all([run("allAchievements", code), run("listMinutes", code), run("listVisits", code),
+        run("visitPlan", code).catch(() => []), run("subsList", code).catch(() => []), run("listStudents", code).catch(() => []), run("listLeaves", code).catch(() => [])]);
       if (code !== CODE) return;
-      ACH_ALL = ach; MIN = min; VIS = vis; VPLAN = plan; SUBS = subs; STU = stu;
+      ACH_ALL = ach; MIN = min; VIS = vis; VPLAN = plan; SUBS = subs; STU = stu; LEAVES = lvs;
       DASH = { at: Date.now() };
     } catch (e) { if (!DASH && ME && ME.isHead) $("dash-list").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
   }
@@ -2796,6 +3051,8 @@ function renderDash() {
     `<div class="ditem t-${sec}"${act ? ` data-act="${esc(act)}"` : ""}><span class="dic">${ICONS[icon || sec]}</span><span class="dtx">${html}${small ? `<small>${small}</small>` : ""}</span>${right}</div>`;
   if (dashTab === "tasks") {
     const out = [];
+    (LEAVES || []).filter(l => l.status === LV_ST.pending).slice(0, 4).forEach(l =>
+      out.push(item("lv", "lv", `استئذان بانتظار موافقتك: أ. ${esc(l.teacher)}`, `${esc(l.type)} · ${lvWhen(l)}`, '<button class="btn sm" type="button">افتح</button>', "lv")));
     d.pendAch.slice(0, 3).forEach(a => out.push(item("ach", "", `مراجعة إنجاز «${esc(a.title)}»`, `أ. ${esc(a.teacher)} · رُفع ${relTime(parseStamp(a.createdAt))}`, '<button class="btn sm" type="button">افتح</button>', "ach:" + a.id)));
     if (d.pendAch.length > 3) out.push(`<div class="dmore">و${ar(d.pendAch.length - 3)} غيرها في ركن الإنجازات</div>`);
     d.openMin.slice(0, 2).forEach(m => out.push(item("min", "", `متابعة توقيع «${esc(m.title)}»`, `وقّع ${ar(m.signedCount)} من ${ar(m.attendees.length)}`, '<button class="btn sm" type="button">عرض</button>', "min:" + m.id)));
@@ -2828,6 +3085,7 @@ function renderDash() {
     });
     const abs = {}; (SUBS || []).forEach(r => { (abs[r.absence] = abs[r.absence] || { r, n: 0, at: r.at }).n++; });
     Object.values(abs).forEach(a => ev.push({ t: parseStamp(a.at), sec: "subs", html: `غياب أ. ${esc(a.r.teacher)} يوم ${DAYS[isoDay(a.r.date)]} ${fmtDate(a.r.date)} (${countWord(a.n).replace("حصتين", "حصتان")})`, act: "subs" }));
+    (LEAVES || []).filter(l => !l.demo && l.teacher !== ME.name).forEach(l => ev.push({ t: parseStamp(l.createdAt), sec: "lv", html: `طلب أ. ${esc(l.teacher)} ${esc(l.type)} ليوم ${fmtDate(l.date)}`, act: "lv" }));
     (STU || []).filter(s => !s.demo).forEach(s => ev.push({ t: parseStamp(s.createdAt), sec: "stu", html: `رفع أ. ${esc(s.teacher)} تقرير طالب ${s.kind === "weak" ? "متعثر" : "فائق"}: ${esc(s.student)}`, act: "stu:" + s.id }));
     (MIN || []).forEach(m => ev.push({ t: parseStamp(m.date), sec: "min", html: `محضر: «${esc(m.title)}» · وقّع ${ar(m.signedCount)} من ${ar(m.attendees.length)}`, act: "min:" + m.id, dateOnly: true }));
     Object.keys(ALL || {}).forEach(k => {
@@ -2852,6 +3110,7 @@ async function dashAct(act) {
   else if (k === "late") { filterStatus = "late"; go("curr"); setTab("head"); }
   else if (k === "curr") { go("curr"); setTab("head"); }
   else if (k === "subs") { subsSub = "new"; go("subs"); }
+  else if (k === "lv") { lvSub = "list"; go("lv"); }
   else if (k === "stu") { stuSub = "list"; go("stu"); await loadStu(); openStu(id); }
   else if (k === "planlist") { visSub = "plan"; go("vis"); }
   else if (k === "plan") { const [n, c] = id.split("|"); go("vis"); startVisitFor(n, c); }
