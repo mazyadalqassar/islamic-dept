@@ -2939,7 +2939,9 @@ function lvRender() {
 // مثل dayCommitments مع فصل الاجتماعات (تنبيه فقط بلا بديل)
 function dayCommitments2(name, date) {
   const d = isoDay(date), S = daySchedule(d), meets = [];
-  const { list } = dayCommitments(name, date);
+  // حصة الاختبار القصير تنبيه فقط مثل الاجتماعات (لا بديل لها)
+  const all0 = dayCommitments(name, date).list, list = all0.filter(c => c.key !== "q");
+  all0.filter(c => c.key === "q").forEach(c => meets.push(c));
   if (S) for (let p = 1; p <= 7; p++) { const b = busyAt(name, d, p), r = S[p]; if (b && r) meets.push({ key: "m" + p, kind: "اجتماع", label: b, from: r[0], to: r[1] }); }
   return { list, meets };
 }
