@@ -306,6 +306,13 @@ input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var
 .lv-need { margin-top: 12px; background: var(--c-lv-s); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 1.8; }
 .lv-need b { color: var(--c-lv); }
 .lv-need.has-hit { border: 2px solid var(--late); }
+.lv-rows { display: grid; gap: 6px; margin-top: 8px; }
+.lv-row { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: 14px; }
+.lv-row small { color: var(--muted); margin-right: 6px; }
+.lv-row.hit { border: 1.5px solid var(--late); background: var(--late-soft); color: var(--late); font-weight: 700; }
+.lv-row.hit small { color: var(--late); font-weight: 400; }
+.lv-row .tag { display: block; margin: 2px 0 0; }
+.lv-row input[type="text"] { margin-top: 6px; font-weight: 400; }
 .lv-need li.hit { color: var(--late); font-weight: 700; background: var(--late-soft); border-radius: 8px; padding: 2px 8px; margin: 3px 0; list-style-position: inside; }
 .lv-commits { margin-top: 10px; display: grid; gap: 6px; }
 .lv-c { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface); }
@@ -2915,15 +2922,19 @@ function lvRender() {
   const hits = err ? [] : list.filter(c => lvHits(c, from, to)), mhits = err ? [] : meets.filter(c => lvHits(c, from, to));
   const flex = morning ? "الحضور المرن من ٧:١٠ إلى ٧:٥٥، وما بعده يُحسب تأخيرًا." : leave ? "الانصراف المرن: من حضر ٧:١٠ ينصرف ١:٣٠، ومن حضر ٧:٥٥ ينصرف ٢:٠٥." : "";
   const all = [...list, ...meets].sort((a, b) => a.from < b.from ? -1 : 1);
-  box.innerHTML = `<div class="lv-need${hits.length || mhits.length ? " has-hit" : ""}"><b>التزاماتك في هذا اليوم:</b>${all.length ? `<ul class="stu-ul">${all.map(c => { const hit = hits.includes(c) || mhits.includes(c); return `<li${hit ? ' class="hit"' : ""}>${esc(c.label)} · ${hm12(c.from)} – ${hm12(c.to)}${hit ? " ← في وقت استئذانك" : ""}</li>`; }).join("")}</ul>` : " ما عندك حصص ولا مراقبة."}
+  // قائمة واحدة: الالتزام الواقع في وقت الاستئذان يظهر بالأحمر، وتحته مباشرة خانة البديل (الاجتماع تنبيه فقط)
+  const row = c => {
+    const hit = hits.includes(c), mhit = mhits.includes(c);
+    return `<div class="lv-row${hit || mhit ? " hit" : ""}"><div>${esc(c.label)} <small>${hm12(c.from)} – ${hm12(c.to)}</small>${mhit ? ' <small class="tag">تنبيه: في وقت استئذانك</small>' : ""}</div>
+      ${hit ? `<input type="text" data-s="${c.key}" data-kind="${esc(c.kind)}" data-label="${esc(c.label)}" data-time="${c.from}-${c.to}" placeholder="اكتب اسم البديل (من أي شعبة)" maxlength="80" value="${esc(keep[c.key] || "")}">` : ""}</div>`;
+  };
+  box.innerHTML = `<div class="lv-need${hits.length || mhits.length ? " has-hit" : ""}"><b>التزاماتك في هذا اليوم:</b>
+      ${all.length ? `<div class="lv-rows">${all.map(row).join("")}</div>` : " ما عندك حصص ولا مراقبة."}
+      ${hits.length ? `<div class="lv-late">لازم توفّر بديلًا لكل حصة أو مراقبة باللون الأحمر وتكتب اسمه في خانتها.</div>
+        <label class="check" style="color:var(--late)"><input type="checkbox" id="lv-conf"${keepConf ? " checked" : ""}> تواصلت مع البدلاء وأكدت معهم</label>` : ""}
+      ${!err && (from || to) && !hits.length && !mhits.length ? '<div class="lv-ok">ما عندك حصة ولا مراقبة في هذا الوقت.</div>' : ""}
       ${flex ? `<div class="sub" style="margin-top:6px">${flex}</div>` : ""}</div>
-    ${err ? `<div class="lv-warn"><b>${err}</b></div>` : ""}
-    ${mhits.length ? `<div class="lv-warn" style="background:var(--c-lv-s);border-color:var(--line);color:var(--ink)">تنبيه: عندك ${mhits.map(c => `<b>${esc(c.label)}</b> (${hm12(c.from)})`).join("، ")} في وقت الاستئذان.</div>` : ""}
-    ${hits.length ? `<div class="lv-warn"><b>عندك في وقت الاستئذان ${hits.length === 1 ? "التزام" : hits.length === 2 ? "التزامان" : ar(hits.length) + " التزامات"}: لازم توفّر بديلًا لكل واحد وتكتب اسمه.</b>
-      <div class="lv-commits">${hits.map(c => `<div class="lv-c miss"><div><b>${esc(c.label)}</b> <small>${hm12(c.from)} – ${hm12(c.to)}</small></div>
-        <input type="text" data-s="${c.key}" data-kind="${esc(c.kind)}" data-label="${esc(c.label)}" data-time="${c.from}-${c.to}" placeholder="اكتب اسم البديل (من أي شعبة)" maxlength="80" value="${esc(keep[c.key] || "")}"></div>`).join("")}</div>
-      <label class="check" style="color:inherit"><input type="checkbox" id="lv-conf"${keepConf ? " checked" : ""}> تواصلت مع البدلاء وأكدت معهم</label></div>`
-      : (!err && (from || to) ? '<div class="lv-ok">ما عندك حصة ولا مراقبة في هذا الوقت.</div>' : "")}`;
+    ${err ? `<div class="lv-warn"><b>${err}</b></div>` : ""}`;
 }
 // مثل dayCommitments مع فصل الاجتماعات (تنبيه فقط بلا بديل)
 function dayCommitments2(name, date) {
