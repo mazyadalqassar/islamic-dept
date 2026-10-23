@@ -224,7 +224,7 @@ function login(code) {
   const all = readEntries_(demoPrefix_(me));
   const mine = {};
   me.classes.forEach(c => ["ie", "qr"].forEach(s => { const k = c + "__" + s; if (all[k]) mine[k] = all[k]; }));
-  return { name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, canSubs: !me.isDemo && (me.isHead || me.name === DEPUTY), email: me.isDemo ? "" : (emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "")), entries: mine, all: me.isHead ? all : null };
+  return { name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, canSubs: !me.isDemo && me.isHead, email: me.isDemo ? "" : (emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "")), entries: mine, all: me.isHead ? all : null };
 }
 
 function saveEntry(code, classId, subject, done, note, label) {
@@ -627,10 +627,10 @@ function deleteVisit(code, id) {
 }
 
 
-// ======================= الاحتياط (رئيس الشعبة ونائبه) =======================
+// ======================= الاحتياط (رئيس الشعبة فقط؛ أُلغيت صلاحية نائب رئيس الشعبة ٢٣/١٠/٢٠٢٦) =======================
 function staff_(code) {
   const me = who_(code);
-  if (me.isDemo || !(me.isHead || me.name === DEPUTY)) throw new Error("هذه الصلاحية لرئيس الشعبة ونائبه فقط.");
+  if (me.isDemo || !me.isHead) throw new Error("هذه الصلاحية لرئيس الشعبة فقط.");
   return me;
 }
 function subsRows_() { const sh = sh_(SHEET_SUBS); return sh ? rows_(SHEET_SUBS).slice(1).filter(r => r[0]) : []; }
@@ -1143,8 +1143,8 @@ function leavesOfDay_(date) {
 }
 function t12_(t) { if (!t) return ""; const h = +t.slice(0, 2); return `${h > 12 ? h - 12 : h}:${t.slice(3, 5)} ${h >= 12 ? "م" : "ص"}`; }
 function leavesDayHtml_(date, list) {
-  const when = o => o.type === LV_TYPES_[0] ? `حتى ${t12_(o.to)}` : o.type === LV_TYPES_[2] ? `اعتبارًا من ${t12_(o.from)}` : `${t12_(o.from)} – ${t12_(o.to)}`;
-  const rows = list.map((o, i) => `<tr><td class="c">${i + 1}</td><td><b>أ. ${esc_(o.teacher)}</b></td><td class="c">${esc_(o.type)}</td><td class="c">${esc_(when(o))}</td>
+  const when = o => o.type === LV_TYPES_[0] ? `حتى ${t12_(o.to)}` : o.type === LV_TYPES_[2] ? `اعتبارًا من ${t12_(o.from)}` : `من ${t12_(o.from)} إلى ${t12_(o.to)}`;
+  const rows = list.map((o, i) => `<tr><td class="c">${i + 1}</td><td><b>أ. ${esc_(o.teacher)}</b></td><td class="c">${esc_(o.type)}</td><td class="c" style="white-space:nowrap">${esc_(when(o))}</td>
     <td class="c">${o.status === LV_ST_.pending ? "بانتظار رئيس الشعبة" : o.status === LV_ST_.done ? "معتمد من المدير" : o.status === LV_ST_.nodone ? "لم يعتمده المدير" : "موافقة مبدئية"}</td></tr>`).join("");
   return `<html dir="rtl"><head><meta charset="utf-8"><style>
     @page { size: A4; margin: 14mm; } body { font-family: Arial, Tahoma, sans-serif; color: #2b2b2b; font-size: 12pt; direction: rtl; }
@@ -1157,7 +1157,7 @@ function leavesDayHtml_(date, list) {
   <table class="lh"><tr><td><b>دولة الكويت · وزارة التربية</b><br>منطقة حولي التعليمية<br><b>ثانوية أحمد الربعي للبنين</b><br><span class="o">شعبة التربية الإسلامية</span></td>
     <td style="text-align:left"><img src="data:image/png;base64,${LOGO_PNG_B64_}" width="62"></td></tr></table>
   <h1>كشف استئذانات المعلمين</h1><div class="sub">${dayOf_(date)} ${dmy_(date)}</div>
-  <table class="t"><tr><th style="width:7%">م</th><th>اسم المعلم</th><th style="width:20%">نوع الإذن</th><th style="width:22%">الوقت التقريبي</th><th style="width:21%">الحالة</th></tr>${rows}</table>
+  <table class="t"><tr><th style="width:7%">م</th><th>اسم المعلم</th><th style="width:16%">نوع الإذن</th><th style="width:27%">الوقت التقريبي</th><th style="width:19%">الحالة</th></tr>${rows}</table>
   <div class="sum">العدد: ${list.length} · بداية الدوام: ${list.filter(o => o.type === LV_TYPES_[0]).length} · أثناء الدوام: ${list.filter(o => o.type === LV_TYPES_[1]).length} · نهاية الدوام: ${list.filter(o => o.type === LV_TYPES_[2]).length}</div>
   <table class="sig"><tr><td><b>رئيس شعبة التربية الإسلامية</b><br>أ. مزيد حمد خليفة القصار<br><br>التوقيع: ....................</td><td><b>مدير المدرسة</b><br>أ. فيصل المحمد<br><br>التوقيع: ....................</td></tr></table>
   </body></html>`;
