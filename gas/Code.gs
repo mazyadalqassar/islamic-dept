@@ -51,7 +51,7 @@ const TEACHERS = [
 const MAX_DONE = { ie: 26, qr: 13 };
 
 // الحسابات التجريبية: تجرّب كل شيء، وبياناتها معزولة ولا تظهر في أي تقرير أو متابعة
-const DEMOS = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"] };
+const DEMOS = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"], "مشاري بدر العبد الهادي": ["10-3", "11s-2", "12l-1"] };
 const DEMO_MINUTE = "demo-minute";
 function isDemo_(name) { return Object.prototype.hasOwnProperty.call(DEMOS, name); }
 function demoPrefix_(me) { return me.isDemo ? "DEMO|" + me.name + "|" : ""; }

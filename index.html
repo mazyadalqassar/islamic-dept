@@ -1691,7 +1691,7 @@ const VIS_CARDS = {
 };
 const VIS_LEVELS = ["ممتاز", "جيد جدًا", "جيد", "متابع", "متدني"];
 const VIS_TYPES = ["استطلاعية", "توجيهية", "تقويمية"];
-const DEMO_CLASSES = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"] };
+const DEMO_CLASSES = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"], "مشاري بدر العبد الهادي": ["10-3", "11s-2", "12l-1"] };
 function visItems(card) { const out = []; VIS_CARDS[card].groups.forEach(([g, items]) => items.forEach(t => out.push({ group: g, text: t }))); return out; }
 function hijri(iso) {
   const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return "";
@@ -3139,7 +3139,7 @@ function renderDash() {
     `<div class="ditem t-${sec}"${act ? ` data-act="${esc(act)}"` : ""}><span class="dic">${ICONS[icon || sec]}</span><span class="dtx">${html}${small ? `<small>${small}</small>` : ""}</span>${right}</div>`;
   if (dashTab === "tasks") {
     const out = [];
-    (LEAVES || []).filter(l => l.status === LV_ST.pending).slice(0, 4).forEach(l =>
+    (LEAVES || []).filter(l => l.status === LV_ST.pending && !l.demo).slice(0, 4).forEach(l =>
       out.push(item("lv", "lv", `استئذان بانتظار موافقتك: أ. ${esc(l.teacher)}`, `${esc(l.type)} · ${lvWhen(l)}`, '<button class="btn sm" type="button">افتح</button>', "lv")));
     d.pendAch.slice(0, 3).forEach(a => out.push(item("ach", "", `مراجعة إنجاز «${esc(a.title)}»`, `أ. ${esc(a.teacher)} · رُفع ${relTime(parseStamp(a.createdAt))}`, '<button class="btn sm" type="button">افتح</button>', "ach:" + a.id)));
     if (d.pendAch.length > 3) out.push(`<div class="dmore">و${ar(d.pendAch.length - 3)} غيرها في ركن الإنجازات</div>`);
