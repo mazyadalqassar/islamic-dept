@@ -17,6 +17,7 @@ const SHEET_PLAN = "خطة الزيارات";
 const SHEET_SCHOOL = "جدول المدرسة";
 const SHEET_SWAP = "التبديلات";
 const SHEET_STU = "متابعة الطلاب";
+const SHEET_ROSTER = "كشوف الطلاب";
 // نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
 
@@ -63,7 +64,7 @@ function doGet() {
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
-  listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, deleteStudent, wipeStudents };
+  listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, deleteStudent, wipeStudents, myRoster, importRoster };
 
 function doPost(e) {
   let out;
@@ -105,6 +106,7 @@ function setup() {
   sheet_(SHEET_SCHOOL, ["المعلم", "الشعبة", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
   sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true);
   sheet_(SHEET_STU, STU_HEAD_, true);
+  sheet_(SHEET_ROSTER, ["الفصل", "م", "اسم الطالب"], true);
   sheet_(SHEET_PLAN, ["الأسبوع", "التاريخ", "اليوم", "الحصة", "المعلم", "الفصل", "ملاحظة"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
@@ -897,5 +899,37 @@ function wipeStudents(code, confirm) {
     const sh = stuSheet_(), n = sh.getLastRow() - 1;
     if (n > 0) sh.deleteRows(2, n);
     return Math.max(n, 0);
+  });
+}
+
+
+// ======================= كشوف الطلاب =======================
+// الاسم الكامل والفصل فقط (بلا رقم مدني). المعلم يستلم طلاب فصوله، ورئيس الشعبة كل الفصول، والحسابات التجريبية أسماء وهمية.
+function myRoster(code) {
+  const me = who_(code);
+  const out = {};
+  if (me.isDemo) { me.classes.forEach(c => { out[c] = [1, 2, 3, 4, 5, 6].map(i => "طالب تجريبي " + i); }); return out; }
+  const sh = sh_(SHEET_ROSTER); if (!sh) return out;
+  rows_(SHEET_ROSTER).slice(1).forEach(r => {
+    if (!r[0] || !r[2]) return;
+    if (!me.isHead && me.classes.indexOf(r[0]) === -1) return;
+    (out[r[0]] = out[r[0]] || []).push([Number(r[1]), r[2]]);
+  });
+  Object.keys(out).forEach(k => { out[k] = out[k].sort((a, b) => a[0] - b[0]).map(x => x[1]); });
+  return out;
+}
+/** لرئيس الشعبة: استيراد الكشوف (JSON مضغوط gzip بترميز base64: [[الفصل، م، الاسم]]) ويستبدل القديم */
+function importRoster(code, b64) {
+  head_(code);
+  const rows = JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), "application/x-gzip")).getDataAsString("UTF-8"));
+  if (!Array.isArray(rows) || !rows.length) throw new Error("بيانات الكشوف غير صالحة.");
+  rows.forEach(r => { if (/\d{8,}/.test(String(r[2]))) throw new Error("الكشف فيه أرقام مدنية."); });
+  return withLock_(() => {
+    const sh = sheet_(SHEET_ROSTER, ["الفصل", "م", "اسم الطالب"], true);
+    if (sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);
+    const rg = sh.getRange(2, 1, rows.length, 3);
+    rg.setNumberFormat("@");
+    rg.setValues(rows.map(r => [String(r[0]), String(r[1]), String(r[2])]));
+    return rows.length;
   });
 }

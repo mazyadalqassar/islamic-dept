@@ -309,6 +309,13 @@ nav.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg)
 .stu-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 14px; }
 .stu-kv dt { color: var(--muted); } .stu-kv dd { margin: 0; font-weight: 600; }
 .stu-ul { margin: 4px 0 0; padding-right: 20px; font-size: 14px; }
+.roster { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; counter-reset: r; }
+.roster li { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 7px 10px; }
+.roster li .n { flex: 0 0 26px; color: var(--muted); font-size: 12.5px; text-align: center; }
+.roster li .nm { flex: 1; min-width: 0; font-size: 14.5px; }
+.roster li .btn { padding: 4px 10px; font-size: 12.5px; border: 1.5px solid; }
+.roster li .btn.w { border-color: var(--c-weak); color: var(--c-weak); background: transparent; }
+.roster li .btn.t { border-color: var(--c-top); color: var(--c-top); background: transparent; }
 .privacy { font-size: 12.5px; color: var(--muted); background: var(--c-stu-s); border-radius: 10px; padding: 8px 12px; margin-top: 10px; }
 @media (max-width: 640px) { .stu-checks { grid-template-columns: 1fr; } }
 nav.sections .wide-tile { grid-column: 1 / -1; min-height: 64px; }
@@ -591,6 +598,7 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
       <nav class="tabs" role="tablist">
         <button id="sttab-new" role="tab" aria-selected="true">تقرير جديد</button>
         <button id="sttab-list" role="tab" aria-selected="false"><span class="head-only" hidden>كل التقارير</span><span class="teacher-only">تقاريري</span></button>
+        <button id="sttab-roster" role="tab" aria-selected="false"><span class="head-only" hidden>كشوف الفصول</span><span class="teacher-only">طلابي</span></button>
       </nav>
       <section id="st-new">
         <form class="card" id="st-form" autocomplete="off">
@@ -602,8 +610,9 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
           </div>
           <div id="st-rest" hidden>
             <div class="grid2">
-              <div><label class="f" for="st-student">اسم الطالب</label><input type="text" id="st-student" maxlength="80" placeholder="الاسم الثلاثي" required></div>
               <div><label class="f" for="st-class">الفصل</label><select id="st-class"></select></div>
+              <div><label class="f" for="st-pick">اسم الطالب</label><select id="st-pick"></select>
+                <input type="text" id="st-student" maxlength="80" placeholder="اكتب اسم الطالب الكامل" style="margin-top:6px" hidden></div>
               <div><label class="f" for="st-subject">المادة</label><select id="st-subject"><option value="ie">التربية الإسلامية</option><option value="qr">القرآن الكريم</option></select></div>
               <div><label class="f" for="st-date">تاريخ التقرير</label><input type="date" id="st-date"></div>
             </div>
@@ -627,6 +636,16 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
           </div>
         </form>
         <div class="saved" id="st-msg"></div>
+      </section>
+      <section id="st-roster" hidden>
+        <div class="card">
+          <h2>كشوف الطلاب</h2>
+          <div class="sub">الاسم الكامل والفصل فقط. اضغط «متعثر» أو «فائق» بجانب الطالب لتبدأ تقريره.</div>
+          <label class="f" for="sr-class">الفصل</label><select id="sr-class"></select>
+          <input type="text" id="sr-q" placeholder="ابحث باسم الطالب" style="margin-top:8px">
+        </div>
+        <div class="saved" id="sr-msg"></div>
+        <ol class="roster" id="sr-list"></ol>
       </section>
       <section id="st-list" hidden>
         <div class="row-actions" style="margin-top:12px">
@@ -1071,7 +1090,7 @@ $("logout").onclick = () => {
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
-  DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new"; SCHOOL = null; swapPick = null; SWAPS = null; STU = null; stuSub = "new"; stuEditId = ""; $("st-detail").hidden = true;
+  DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new"; SCHOOL = null; swapPick = null; SWAPS = null; STU = null; stuSub = "new"; stuEditId = ""; ROSTER = null; $("sr-class").innerHTML = ""; $("st-detail").hidden = true;
   $("app").hidden = true; $("view-login").hidden = false; $("code").value = "";
 };
 
@@ -2362,11 +2381,64 @@ let STU = null, stuSub = "new", stuEditId = "", stuKind = "", stuOpen = "";
 
 function stuTab(which) {
   stuSub = which;
-  ["new", "list"].forEach(k => { $("sttab-" + k).setAttribute("aria-selected", k === which); $("st-" + k).hidden = k !== which; });
-  if (which === "new") { if (!stuEditId) stuForm(null); } else { $("st-detail").hidden = true; $("st-cards").hidden = false; loadStu(); }
+  ["new", "list", "roster"].forEach(k => { $("sttab-" + k).setAttribute("aria-selected", k === which); $("st-" + k).hidden = k !== which; });
+  if (which === "new") { if (!stuEditId) stuForm(null); }
+  else if (which === "roster") initRoster();
+  else { $("st-detail").hidden = true; $("st-cards").hidden = false; document.querySelector("#st-list > .row-actions").hidden = false; loadStu(); }
 }
 $("sttab-new").onclick = () => { stuEditId = ""; stuTab("new"); };
 $("sttab-list").onclick = () => stuTab("list");
+$("sttab-roster").onclick = () => stuTab("roster");
+
+// ---------- كشوف الطلاب: الخادم يرسل طلاب فصول المعلم فقط ----------
+let ROSTER = null;
+async function getRoster() { if (!ROSTER) { try { ROSTER = await run("myRoster", CODE); } catch (e) { ROSTER = null; throw e; } } return ROSTER; }
+const OTHER_NAME = "__other";
+async function fillPick(selected) {
+  const sel = $("st-pick"), cls = $("st-class").value;
+  let names = [];
+  try { names = (await getRoster())[cls] || []; } catch (e) {}
+  if (cls !== $("st-class").value) return;
+  const known = !selected || names.indexOf(selected) !== -1;
+  sel.innerHTML = `<option value="">${names.length ? "اختر الطالب…" : "لا يوجد كشف لهذا الفصل"}</option>` + names.map((n, i) => `<option value="${esc(n)}">${ar(i + 1)}. ${esc(n)}</option>`).join("") + `<option value="${OTHER_NAME}">اسم غير موجود في الكشف…</option>`;
+  sel.value = selected ? (known ? selected : OTHER_NAME) : "";
+  $("st-student").hidden = sel.value !== OTHER_NAME;
+  $("st-student").value = selected || "";
+}
+$("st-class").onchange = () => fillPick("");
+$("st-pick").onchange = () => {
+  const v = $("st-pick").value, other = v === OTHER_NAME;
+  $("st-student").hidden = !other; $("st-student").value = other ? "" : v;
+  if (other) $("st-student").focus();
+};
+function rosterClasses() { return ME.isHead ? ALL_CLASSES.map(c => c.id) : (ME.classes || []); }
+async function initRoster() {
+  const sel = $("sr-class");
+  if (!sel.options.length) {
+    const mine = ME.classes || [];
+    sel.innerHTML = rosterClasses().map(c => `<option value="${esc(c)}">${esc(classLabel(c))}${ME.isHead && mine.indexOf(c) === -1 ? " · أ. " + esc((ALL_CLASSES.find(x => x.id === c) || {}).teacher || "") : ""}</option>`).join("");
+  }
+  $("sr-list").innerHTML = '<div class="empty">جارٍ التحميل…</div>';
+  try { await getRoster(); if (!STU) STU = await run("listStudents", CODE); } catch (e) { $("sr-list").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
+  renderRoster();
+}
+function renderRoster() {
+  const cls = $("sr-class").value, q = $("sr-q").value.trim(), names = (ROSTER || {})[cls] || [];
+  const canReport = (ME.classes || []).indexOf(cls) !== -1;
+  const has = n => (STU || []).filter(s => s.classId === cls && s.student === n);
+  const list = names.map((n, i) => [i, n]).filter(([, n]) => !q || n.indexOf(q) !== -1);
+  $("sr-msg").textContent = names.length ? `${ar(names.length)} طالبًا${q ? " · النتائج: " + ar(list.length) : ""}` : "";
+  $("sr-list").innerHTML = !names.length ? '<div class="empty">لا يوجد كشف لهذا الفصل.</div>' : !list.length ? '<div class="empty">لا يوجد طالب بهذا الاسم.</div>'
+    : list.map(([i, n]) => { const r = has(n);
+      return `<li><span class="n">${ar(i + 1)}</span><span class="nm">${esc(n)}${r.map(s => ` <span class="kpill ${s.kind}">${s.kind === "weak" ? "متعثر" : "فائق"}</span>`).join("")}</span>
+        ${canReport ? `<button class="btn w" type="button" data-k="weak" data-n="${esc(n)}">متعثر</button><button class="btn t" type="button" data-k="top" data-n="${esc(n)}">فائق</button>` : ""}</li>`; }).join("");
+  $("sr-list").querySelectorAll("[data-k]").forEach(b => b.onclick = async () => {
+    stuEditId = ""; stuTab("new"); $("st-class").value = cls; await fillPick(b.dataset.n); setStuKind(b.dataset.k);
+    setTimeout(() => $("st-rest").scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  });
+}
+$("sr-class").onchange = renderRoster;
+$("sr-q").oninput = renderRoster;
 $("st-reload").onclick = () => loadStu(true);
 
 function stuChecks(boxId, items, picked) {
@@ -2393,8 +2465,9 @@ function stuForm(r) {
   $("st-form-title").textContent = r ? "تعديل تقرير الطالب" : "تقرير طالب";
   $("st-cancel").hidden = !r; $("st-submit").textContent = r ? "حفظ التعديل" : "رفع التقرير";
   $("st-class").innerHTML = (ME.classes || []).map(c => `<option value="${esc(c)}">${esc(classLabel(c))}</option>`).join("");
-  $("st-student").value = r ? r.student : ""; $("st-date").value = r ? r.date : todayISO();
+  $("st-date").value = r ? r.date : todayISO();
   if (r) { $("st-class").value = r.classId; $("st-subject").value = r.subject; }
+  fillPick(r ? r.student : "");
   [0, 1, 2, 3].forEach(i => $("st-g" + i).value = r ? (r.grades[i] || "") : "");
   $("st-desc").value = r ? r.desc : ""; $("st-rec").value = r ? r.rec : "";
   document.querySelectorAll("#st-form .stype").forEach(b => b.disabled = !!r);
@@ -2411,7 +2484,7 @@ $("st-form").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("st-msg"), btn = $("st-submit");
   if (!stuKind) { msg.textContent = "اختر نوع التقرير."; return; }
-  if ($("st-student").value.trim().length < 3) { msg.textContent = "اكتب اسم الطالب."; $("st-student").focus(); return; }
+  if ($("st-student").value.trim().length < 3) { msg.textContent = "اختر الطالب من الكشف أو اكتب اسمه."; ($("st-student").hidden ? $("st-pick") : $("st-student")).focus(); return; }
   const r = { id: stuEditId || undefined, kind: stuKind, student: $("st-student").value.trim(), classId: $("st-class").value, classLabel: classLabel($("st-class").value), subject: $("st-subject").value,
     date: $("st-date").value || todayISO(), grades: [0, 1, 2, 3].map(i => $("st-g" + i).value.trim()), signs: stuPicked("st-signs", "st-signs-other"),
     desc: $("st-desc").value.trim(), actions: stuPicked("st-actions", "st-actions-other"), rec: $("st-rec").value.trim() };
