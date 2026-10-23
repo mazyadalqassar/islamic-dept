@@ -987,6 +987,7 @@ function notifyTeacher_(name, subject, html) {
 // المعلم يرى استئذاناته فقط، ورئيس الشعبة يرى الكل. الخطوات: طلب ← موافقة رئيس الشعبة المبدئية ← تقديمه في الديوان ← اعتماد المدير.
 // المعلم لا يحدد الدقيقة مسبقًا: الموقع يحسب «الوقت المطلوب» من التزاماته (حصص ومراقبات)، وبعد البصمة يسجّل وقته الفعلي.
 // الأعمدة: 0 المعرف | 1 المعلم | 2 النوع | 3 التاريخ | 4 بداية الفترة (للخروج أثناء الدوام) | 5 الوقت المطلوب | 6 السبب
+// (E و F: الأوقات التقريبية التي كتبها المعلم: الخروج/الانصراف والحضور/العودة)
 // 7 الالتزامات التي سيفوّتها والبدلاء JSON [{kind, label, time, sub}] | 8 الحالة | 9 ملاحظة رئيس الشعبة | 10 وقت الطلب
 // 11 وقت قرار رئيس الشعبة | 12 وقت قرار المدير | 13 سجّل قرار المدير | 14 وقت البصمة الفعلي | 15 تواصل مع البدلاء
 const LEAVE_HEAD_ = ["المعرف", "المعلم", "النوع", "التاريخ", "بداية الفترة", "الوقت المطلوب", "السبب", "الالتزامات والبدلاء", "الحالة", "ملاحظة رئيس الشعبة", "وقت الطلب", "وقت قرار رئيس الشعبة", "وقت قرار المدير", "سجّل قرار المدير", "وقت البصمة الفعلي", "تواصل مع البدلاء"];
@@ -1005,7 +1006,7 @@ function leaveGet_(me, sh, id) {
   return { row, o };
 }
 function lvWhen_(o) {
-  const need = !o.to ? "" : o.type === LV_TYPES_[0] ? " · يحضر قبل " + o.to : o.type === LV_TYPES_[2] ? " · لا ينصرف قبل " + o.to : o.from ? ` · بين ${o.from} و${o.to}` : "";
+  const need = o.type === LV_TYPES_[0] ? " · الحضور تقريبًا " + o.to : o.type === LV_TYPES_[2] ? " · الانصراف تقريبًا " + o.from : ` · من ${o.from} إلى ${o.to} تقريبًا`;
   return `${dayOf_(o.date)} ${dmy_(o.date)}${need}${o.actual ? " · وقت البصمة " + o.actual : ""}`;
 }
 function lvTable_(o) {
@@ -1028,6 +1029,9 @@ function saveLeave(code, l) {
   const hm = /^\d{2}:\d{2}$/, inDay = v => !v || (hm.test(v) && v >= DAY_MIN_ && v <= DAY_MAX_);
   l.from = String(l.from || ""); l.to = String(l.to || "");
   if (!inDay(l.from) || !inDay(l.to) || (l.from && l.to && l.from >= l.to)) throw new Error("الوقت يجب أن يكون أثناء الدوام (٧:١٠ – ٢:٠٥).");
+  if (type === LV_TYPES_[0]) { l.from = ""; if (!l.to) throw new Error("اكتب الوقت المتوقع للحضور."); }
+  if (type === LV_TYPES_[2]) { l.to = ""; if (!l.from) throw new Error("اكتب الوقت المتوقع للانصراف."); }
+  if (type === LV_TYPES_[1] && (!l.from || !l.to)) throw new Error("اكتب وقت الخروج ووقت العودة.");
   const d = new Date(l.date + "T12:00:00").getDay(); if (d === 5 || d === 6) throw new Error("اختر يوم دوام.");
   const reason = String(l.reason || "").trim().slice(0, 500);
   if (reason.length < 3) throw new Error("اكتب سبب الاستئذان.");

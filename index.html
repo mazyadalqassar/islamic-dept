@@ -751,6 +751,11 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
               <div id="lv-who-wrap" hidden><label class="f" for="lv-who">المعلم (للتجربة)</label><select id="lv-who"></select></div>
             </div>
             <div class="sub" id="lv-daytype"></div>
+            <div class="grid2">
+              <div id="lv-from-wrap"><label class="f" for="lv-from" id="lv-from-label">من الساعة</label><input type="time" id="lv-from" min="07:10" max="14:05"></div>
+              <div id="lv-to-wrap"><label class="f" for="lv-to" id="lv-to-label">إلى الساعة</label><input type="time" id="lv-to" min="07:10" max="14:05"></div>
+            </div>
+            <div class="sub">الوقت تقريبي، ويكون أثناء الدوام فقط (٧:١٠ – ٢:٠٥).</div>
             <div id="lv-periods"></div>
             <label class="f" for="lv-reason">السبب</label>
             <textarea id="lv-reason" rows="2" maxlength="500" required></textarea>
@@ -2872,85 +2877,81 @@ function dayCommitments(name, date) {
   out.sort((a, b) => (a.from || "99") < (b.from || "99") ? -1 : 1);
   return { list: out, info };
 }
-function lvMissed() { return [...$("lv-periods").querySelectorAll("[data-c]:checked")].map(x => x.dataset.c); }
+// الأوقات التي كتبها المعلم (تقريبية، أثناء الدوام فقط)
+function lvTimes() {
+  const f = $("lv-from").value, t = $("lv-to").value;
+  return lvType === LV_TYPES[0] ? { from: "", to: t } : lvType === LV_TYPES[2] ? { from: f, to: "" } : { from: f, to: t };
+}
+function lvTimeError() {
+  const { from, to } = lvTimes(), bad = v => v && (v < DAY_MIN || v > DAY_MAX);
+  if (lvType === LV_TYPES[0] && !to) return "اكتب الوقت المتوقع لحضورك.";
+  if (lvType === LV_TYPES[2] && !from) return "اكتب الوقت المتوقع لانصرافك.";
+  if (lvType === LV_TYPES[1] && (!from || !to)) return "اكتب وقت الخروج ووقت العودة.";
+  if (bad(from) || bad(to)) return "الوقت يجب أن يكون أثناء الدوام (٧:١٠ – ٢:٠٥).";
+  if (from && to && from >= to) return "وقت العودة لازم يكون بعد وقت الخروج.";
+  return "";
+}
+// الالتزامات التي تقع في وقت الاستئذان
+function lvHits(c, from, to) {
+  if (!c.from) return false;
+  if (lvType === LV_TYPES[0]) return to && c.from < to;
+  if (lvType === LV_TYPES[2]) return from && c.to > from;
+  return from && to && c.from < to && c.to > from;
+}
 function lvRender() {
-  const box = $("lv-periods"), date = $("lv-date").value, d = isoDay(date), name = lvMe();
-  const S = daySchedule(d);
+  const box = $("lv-periods"), date = $("lv-date").value, d = isoDay(date), name = lvMe(), S = daySchedule(d);
+  const morning = lvType === LV_TYPES[0], leave = lvType === LV_TYPES[2];
+  $("lv-from-wrap").hidden = morning; $("lv-to-wrap").hidden = leave;
+  $("lv-from-label").textContent = leave ? "وقت الانصراف المتوقع" : "وقت الخروج";
+  $("lv-to-label").textContent = morning ? "وقت الحضور المتوقع" : "وقت العودة";
   $("lv-daytype").textContent = !date ? "" : S ? (S.quiz ? "توقيت أيام الاختبار القصير (الأحد والثلاثاء والخميس)." : "التوقيت العادي (الاثنين والأربعاء).") : "";
   if (!S) { box.innerHTML = date ? '<div class="lv-warn"><b>هذا اليوم عطلة. اختر يوم دوام.</b></div>' : ""; return; }
-  // نحتفظ بالاختيارات فقط إذا بقي اليوم والنوع والمعلم كما هي
-  const sig = `${date}|${lvType}|${name}`, same = box.dataset.sig === sig; box.dataset.sig = sig;
-  const keep = {}; if (same) box.querySelectorAll("[data-c]").forEach(c => keep[c.dataset.c] = [c.checked, (box.querySelector(`[data-s="${c.dataset.c}"]`) || {}).value || ""]);
-  const keepWin = same ? (box.querySelector('input[name="lvw"]:checked') || {}).value : "", keepConf = same && ($("lv-conf") || {}).checked;
-  const { list, info } = dayCommitments(name, date);
-  let need = "", wins = "";
-  if (lvType !== LV_TYPES[1]) need = '<span id="lv-needt"></span>';
-  else {
-    const gaps = []; let cur = FLEX_LATEST;
-    list.filter(c => c.from).forEach(c => { if (c.from > cur && minutesBetween(cur, c.from) >= 15) gaps.push([cur, c.from]); if (c.to > cur) cur = c.to; });
-    if (TEACH_END > cur && minutesBetween(cur, TEACH_END) >= 15) gaps.push([cur, TEACH_END]);
-    need = gaps.length ? "أوقاتك الفاضية في هذا اليوم. اختر الفترة اللي بتطلع فيها:" : "ما عندك وقت فاضي طويل في هذا اليوم.";
-    wins = `<div class="lv-win">${gaps.map(g => `<label><input type="radio" name="lvw" value="${g[0]}-${g[1]}"> من ${hm12(g[0])} إلى ${hm12(g[1])}</label>`).join("")}
-      <label><input type="radio" name="lvw" value="other"> وقت غير ذلك (بفوّت التزامًا)</label></div>`;
-  }
-  const flex = lvType === LV_TYPES[0] ? '<div class="sub" style="margin-top:6px">الحضور المرن من ٧:١٠ إلى ٧:٥٥، وما بعده يُحسب تأخيرًا.</div>'
-    : lvType === LV_TYPES[2] ? '<div class="sub" style="margin-top:6px">الانصراف المرن: من حضر ٧:١٠ ينصرف ١:٣٠، ومن حضر ٧:٥٥ ينصرف ٢:٠٥.</div>' : "";
-  box.innerHTML = `<div class="lv-need">${need}${wins}${flex}${info.length ? `<div class="sub" style="margin-top:6px">للعلم: ${info.map(esc).join("، ")}.</div>` : ""}</div>
-    ${list.length ? `<label class="f">التزاماتك في هذا اليوم <span class="sub">(أشّر على اللي بتفوّته)</span></label><div class="lv-commits">${list.map(c => `<div class="lv-c" data-row="${c.key}">
-      <label><input type="checkbox" data-c="${c.key}" data-kind="${esc(c.kind)}" data-label="${esc(c.label)}" data-time="${c.from ? c.from + "-" + c.to : ""}"> ${esc(c.label)} <small>${c.from ? hm12(c.from) + " – " + hm12(c.to) : ""}</small></label>
-      <input type="text" data-s="${c.key}" placeholder="اكتب اسم البديل (من أي شعبة)" maxlength="80" hidden></div>`).join("")}</div>` : ""}
-    <div id="lv-missbox"></div>`;
-  box.querySelectorAll("[data-c]").forEach(c => { const k = keep[c.dataset.c]; if (k) { c.checked = k[0]; box.querySelector(`[data-s="${c.dataset.c}"]`).value = k[1]; } c.onchange = lvMissUpdate; });
-  box.querySelectorAll('input[name="lvw"]').forEach(r => { if (r.value === keepWin) r.checked = true; r.onchange = lvMissUpdate; });
-  lvMissUpdate(keepConf);
+  const keep = {}; box.querySelectorAll("[data-s]").forEach(i => keep[i.dataset.s] = i.value);
+  const keepConf = ($("lv-conf") || {}).checked && box.dataset.sig === `${date}|${lvType}|${name}`;
+  box.dataset.sig = `${date}|${lvType}|${name}`;
+  const { list, meets } = dayCommitments2(name, date), { from, to } = lvTimes(), err = (from || to) ? lvTimeError() : "";
+  const hits = err ? [] : list.filter(c => lvHits(c, from, to)), mhits = err ? [] : meets.filter(c => lvHits(c, from, to));
+  const flex = morning ? "الحضور المرن من ٧:١٠ إلى ٧:٥٥، وما بعده يُحسب تأخيرًا." : leave ? "الانصراف المرن: من حضر ٧:١٠ ينصرف ١:٣٠، ومن حضر ٧:٥٥ ينصرف ٢:٠٥." : "";
+  const all = [...list, ...meets].sort((a, b) => a.from < b.from ? -1 : 1);
+  box.innerHTML = `<div class="lv-need"><b>التزاماتك في هذا اليوم:</b>${all.length ? `<ul class="stu-ul">${all.map(c => `<li>${esc(c.label)} · ${hm12(c.from)} – ${hm12(c.to)}</li>`).join("")}</ul>` : " ما عندك حصص ولا مراقبة."}
+      ${flex ? `<div class="sub" style="margin-top:6px">${flex}</div>` : ""}</div>
+    ${err ? `<div class="lv-warn"><b>${err}</b></div>` : ""}
+    ${mhits.length ? `<div class="lv-warn" style="background:var(--c-lv-s);border-color:var(--line);color:var(--ink)">تنبيه: عندك ${mhits.map(c => `<b>${esc(c.label)}</b> (${hm12(c.from)})`).join("، ")} في وقت الاستئذان.</div>` : ""}
+    ${hits.length ? `<div class="lv-warn"><b>عندك في وقت الاستئذان ${hits.length === 1 ? "التزام" : hits.length === 2 ? "التزامان" : ar(hits.length) + " التزامات"}: لازم توفّر بديلًا لكل واحد وتكتب اسمه.</b>
+      <div class="lv-commits">${hits.map(c => `<div class="lv-c miss"><div><b>${esc(c.label)}</b> <small>${hm12(c.from)} – ${hm12(c.to)}</small></div>
+        <input type="text" data-s="${c.key}" data-kind="${esc(c.kind)}" data-label="${esc(c.label)}" data-time="${c.from}-${c.to}" placeholder="اكتب اسم البديل (من أي شعبة)" maxlength="80" value="${esc(keep[c.key] || "")}"></div>`).join("")}</div>
+      <label class="check" style="color:inherit"><input type="checkbox" id="lv-conf"${keepConf ? " checked" : ""}> تواصلت مع البدلاء وأكدت معهم</label></div>`
+      : (!err && (from || to) ? '<div class="lv-ok">ما عندك حصة ولا مراقبة في هذا الوقت.</div>' : "")}`;
 }
-// نص الوقت المطلوب بعد استبعاد ما سيفوّته
-function lvNeedText() {
-  const el = $("lv-needt"); if (!el) return;
-  const { list } = dayCommitments(lvMe(), $("lv-date").value), miss = new Set(lvMissed()), kept = list.filter(c => !miss.has(c.key) && c.from);
-  if (!list.length) { el.innerHTML = "ما عندك حصص ولا مراقبة في هذا اليوم."; return; }
-  if (!kept.length) { el.innerHTML = "بتفوّت كل التزاماتك في هذا اليوم، فلازم بديل لكل واحد."; return; }
-  if (lvType === LV_TYPES[0]) { const c = kept[0]; el.innerHTML = `لازم تكون موجود قبل <b>${hm12(c.from)}</b>، عندك <b>${esc(c.label)}</b>.`; }
-  else { const c = kept[kept.length - 1]; el.innerHTML = `لا تنصرف قبل <b>${hm12(c.to)}</b>، آخر التزام عندك <b>${esc(c.label)}</b>.`; }
+// مثل dayCommitments مع فصل الاجتماعات (تنبيه فقط بلا بديل)
+function dayCommitments2(name, date) {
+  const d = isoDay(date), S = daySchedule(d), meets = [];
+  const { list } = dayCommitments(name, date);
+  if (S) for (let p = 1; p <= 7; p++) { const b = busyAt(name, d, p), r = S[p]; if (b && r) meets.push({ key: "m" + p, kind: "اجتماع", label: b, from: r[0], to: r[1] }); }
+  return { list, meets };
 }
-function minutesBetween(a, b) { const m = t => +t.slice(0, 2) * 60 + +t.slice(3); return m(b) - m(a); }
-function lvMissUpdate(keepConf) {
-  const box = $("lv-periods"), miss = lvMissed();
-  box.querySelectorAll("[data-c]").forEach(c => { const on = c.checked; c.closest(".lv-c").classList.toggle("miss", on); box.querySelector(`[data-s="${c.dataset.c}"]`).hidden = !on; });
-  lvNeedText();
-  const n = miss.length, conf = keepConf === true || ($("lv-conf") || {}).checked;
-  $("lv-missbox").innerHTML = n ? `<div class="lv-warn"><b>بتفوّت ${n === 1 ? "التزامًا" : n === 2 ? "التزامين" : ar(n) + " التزامات"}: لازم توفّر بديلًا لكل واحد وتكتب اسمه.</b>
-    <label class="check" style="color:inherit"><input type="checkbox" id="lv-conf"${conf ? " checked" : ""}> تواصلت مع البدلاء وأكدت معهم</label></div>` : "";
-}
-// الوقت المطلوب بعد استبعاد الالتزامات التي سيفوّتها
-function lvNeed() {
-  const date = $("lv-date").value, { list } = dayCommitments(lvMe(), date), miss = new Set(lvMissed()), kept = list.filter(c => !miss.has(c.key) && c.from);
-  if (lvType === LV_TYPES[0]) return { from: "", to: kept.length ? kept[0].from : "" };
-  if (lvType === LV_TYPES[2]) return { from: "", to: kept.length ? kept[kept.length - 1].to : "" };
-  const w = ($("lv-periods").querySelector('input[name="lvw"]:checked') || {}).value || "";
-  return w && w !== "other" ? { from: w.split("-")[0], to: w.split("-")[1] } : { from: "", to: "" };
-}
-["lv-date", "lv-who"].forEach(id => $(id).addEventListener("change", () => lvType && lvRender()));
+["lv-date", "lv-who", "lv-from", "lv-to"].forEach(id => $(id).addEventListener("change", () => lvType && lvRender()));
+["lv-from", "lv-to"].forEach(id => $(id).addEventListener("input", () => lvType && lvRender()));
 $("lv-form").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("lv-msg"), btn = $("lv-submit"), box = $("lv-periods");
   if (!lvType) { msg.textContent = "اختر نوع الاستئذان."; return; }
   if (!daySchedule(isoDay($("lv-date").value))) { msg.textContent = "اختر يوم دوام."; return; }
-  if (lvType === LV_TYPES[1] && !box.querySelector('input[name="lvw"]:checked')) { msg.textContent = "اختر الفترة اللي بتطلع فيها."; return; }
-  if (lvType === LV_TYPES[1] && box.querySelector('input[name="lvw"]:checked').value === "other" && !lvMissed().length) { msg.textContent = "أشّر على الالتزام اللي بتفوّته."; return; }
+  const err = lvTimeError(); if (err) { msg.textContent = err; return; }
+  lvRender();
   const periods = [];
-  for (const c of box.querySelectorAll("[data-c]:checked")) {
-    const s = box.querySelector(`[data-s="${c.dataset.c}"]`), sub = s.value.trim();
-    if (sub.length < 3) { msg.textContent = `اكتب اسم البديل: ${c.dataset.label}.`; s.focus(); return; }
-    periods.push({ kind: c.dataset.kind, label: c.dataset.label, time: c.dataset.time, sub });
+  for (const s of box.querySelectorAll("[data-s]")) {
+    const sub = s.value.trim();
+    if (sub.length < 3) { msg.textContent = `اكتب اسم البديل: ${s.dataset.label}.`; s.focus(); return; }
+    periods.push({ kind: s.dataset.kind, label: s.dataset.label, time: s.dataset.time, sub });
   }
   if (periods.length && !($("lv-conf") || {}).checked) { msg.textContent = "أكّد أنك تواصلت مع البدلاء."; return; }
   if ($("lv-reason").value.trim().length < 3) { msg.textContent = "اكتب سبب الاستئذان."; $("lv-reason").focus(); return; }
-  const { from, to } = lvNeed();
+  const { from, to } = lvTimes();
   btn.disabled = true; msg.textContent = "جارٍ الإرسال…";
   try {
-    await run("saveLeave", CODE, { type: lvType, date: $("lv-date").value, from, to, reason: $("lv-reason").value.trim(), periods, contacted: periods.length ? true : false });
-    LEAVES = null; $("lv-reason").value = ""; $("lv-periods").innerHTML = ""; $("lv-periods").dataset.sig = ""; lvSetType("");
+    await run("saveLeave", CODE, { type: lvType, date: $("lv-date").value, from, to, reason: $("lv-reason").value.trim(), periods, contacted: !!periods.length });
+    LEAVES = null; $("lv-reason").value = ""; $("lv-from").value = ""; $("lv-to").value = ""; $("lv-periods").innerHTML = ""; lvSetType("");
     msg.textContent = ME.isHead ? "سُجّل استئذانك. قدّمه عن طريق الديوان، وبعد البصمة سجّل وقتك في «الاستئذانات»."
       : "أُرسل الاستئذان لرئيس الشعبة، ويصلك إيميل عند الموافقة. بعد الموافقة المبدئية قدّم الإذن عن طريق الديوان.";
   } catch (x) { msg.textContent = "لم يُرسل: " + cleanErr(x); }
@@ -2963,14 +2964,14 @@ async function loadLeaves(force) {
   renderLeaves();
 }
 function lvWhen(l) {
-  const need = !l.to ? "" : l.type === LV_TYPES[0] ? ` · يحضر قبل ${hm12(l.to)}` : l.type === LV_TYPES[2] ? ` · لا ينصرف قبل ${hm12(l.to)}` : l.from ? ` · بين ${hm12(l.from)} و${hm12(l.to)}` : "";
+  const need = l.type === LV_TYPES[0] ? (l.to ? ` · الحضور تقريبًا ${hm12(l.to)}` : "") : l.type === LV_TYPES[2] ? (l.from ? ` · الانصراف تقريبًا ${hm12(l.from)}` : "") : l.from ? ` · من ${hm12(l.from)} إلى ${hm12(l.to)} تقريبًا` : "";
   return `${dayName(l.date)} ${fmtDate(l.date)}${need}`;
 }
 const ACTUAL_LABEL = { [LV_TYPES[0]]: "وقت الحضور (البصمة)", [LV_TYPES[1]]: "وقت العودة (البصمة)", [LV_TYPES[2]]: "وقت الانصراف (البصمة)" };
 function lvLate(l) {
-  if (!l.actual || !l.to) return "";
-  if (l.type === LV_TYPES[2]) return l.actual < l.to ? "انصرف قبل الوقت المطلوب" : "";
-  return l.actual > l.to ? (l.type === LV_TYPES[0] ? "حضر بعد الوقت المطلوب" : "عاد بعد الوقت المطلوب") : "";
+  if (!l.actual) return "";
+  if (l.type === LV_TYPES[2]) return l.from && l.actual < l.from ? "انصرف قبل الوقت المذكور في الاستئذان" : "";
+  return l.to && l.actual > l.to ? (l.type === LV_TYPES[0] ? "حضر بعد الوقت المذكور في الاستئذان" : "عاد بعد الوقت المذكور في الاستئذان") : "";
 }
 function renderLeaves() {
   if (!LEAVES) return;
@@ -2987,7 +2988,7 @@ function renderLeaves() {
         ${l.actual ? `<br>${ACTUAL_LABEL[l.type]}: <b>${hm12(l.actual)}</b>` : ""}
         ${l.note ? `<br>ملاحظة رئيس الشعبة: ${esc(l.note)}` : ""}
         <br><span class="sub">طُلب ${fmtStamp(l.createdAt)}${l.finalBy ? " · سجّل قرار المدير أ. " + esc(l.finalBy) : ""}</span></div>
-      ${late ? `<div class="lv-late">⚠ ${late}${l.periods.length ? "" : " وبدون بديل"}.</div>` : ""}
+      ${late ? `<div class="lv-late">⚠ ${late}.</div>` : ""}
       ${l.status === LV_ST.ok && mine ? '<div class="nextstep">الخطوة التالية: قدّم الإذن عن طريق الديوان لاعتماد المدير، ثم سجّل قراره ووقت البصمة هنا.</div>' : ""}
       <div class="acts">
         ${ME.isHead && l.status === LV_ST.pending ? `<input type="text" data-note placeholder="ملاحظة للمعلم (اختياري)" maxlength="400">
