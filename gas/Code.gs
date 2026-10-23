@@ -20,6 +20,7 @@ const SHEET_STU = "متابعة الطلاب";
 const SHEET_ROSTER = "كشوف الطلاب";
 const SHEET_LEAVE = "الاستئذانات";
 const SHEET_EMAIL = "إيميلات المعلمين";
+const SHEET_DUTY = "المراقبة";
 // نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
 
@@ -67,7 +68,7 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
-  setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave };
+  setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave, setLeaveActual, listDuties, importDuties };
 
 function doPost(e) {
   let out;
@@ -112,6 +113,7 @@ function setup() {
   sheet_(SHEET_ROSTER, ["الفصل", "م", "اسم الطالب"], true);
   sheet_(SHEET_LEAVE, LEAVE_HEAD_, true);
   sheet_(SHEET_EMAIL, ["المعلم", "الإيميل", "آخر تحديث"], true);
+  sheet_(SHEET_DUTY, DUTY_HEAD_, true);
   sheet_(SHEET_PLAN, ["الأسبوع", "التاريخ", "اليوم", "الحصة", "المعلم", "الفصل", "ملاحظة"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
@@ -983,15 +985,18 @@ function notifyTeacher_(name, subject, html) {
 
 // ======================= الاستئذانات =======================
 // المعلم يرى استئذاناته فقط، ورئيس الشعبة يرى الكل. الخطوات: طلب ← موافقة رئيس الشعبة المبدئية ← تقديمه في الديوان ← اعتماد المدير.
-// الأعمدة: 0 المعرف | 1 المعلم | 2 النوع | 3 التاريخ | 4 من | 5 إلى | 6 السبب | 7 الحصص والبدلاء JSON [{p, cls, sub}] | 8 الحالة
-// 9 ملاحظة رئيس الشعبة | 10 وقت الطلب | 11 وقت قرار رئيس الشعبة | 12 وقت تسجيل قرار المدير | 13 سجّل قرار المدير
-const LEAVE_HEAD_ = ["المعرف", "المعلم", "النوع", "التاريخ", "من", "إلى", "السبب", "الحصص والبدلاء", "الحالة", "ملاحظة رئيس الشعبة", "وقت الطلب", "وقت قرار رئيس الشعبة", "وقت قرار المدير", "سجّل قرار المدير"];
+// المعلم لا يحدد الدقيقة مسبقًا: الموقع يحسب «الوقت المطلوب» من التزاماته (حصص ومراقبات)، وبعد البصمة يسجّل وقته الفعلي.
+// الأعمدة: 0 المعرف | 1 المعلم | 2 النوع | 3 التاريخ | 4 بداية الفترة (للخروج أثناء الدوام) | 5 الوقت المطلوب | 6 السبب
+// 7 الالتزامات التي سيفوّتها والبدلاء JSON [{kind, label, time, sub}] | 8 الحالة | 9 ملاحظة رئيس الشعبة | 10 وقت الطلب
+// 11 وقت قرار رئيس الشعبة | 12 وقت قرار المدير | 13 سجّل قرار المدير | 14 وقت البصمة الفعلي | 15 تواصل مع البدلاء
+const LEAVE_HEAD_ = ["المعرف", "المعلم", "النوع", "التاريخ", "بداية الفترة", "الوقت المطلوب", "السبب", "الالتزامات والبدلاء", "الحالة", "ملاحظة رئيس الشعبة", "وقت الطلب", "وقت قرار رئيس الشعبة", "وقت قرار المدير", "سجّل قرار المدير", "وقت البصمة الفعلي", "تواصل مع البدلاء"];
+const DAY_MIN_ = "07:10", DAY_MAX_ = "14:05";
 const LV_TYPES_ = ["تأخير صباحي", "خروج أثناء الدوام", "انصراف مبكر"];
 const LV_ST_ = { pending: "بانتظار موافقة رئيس الشعبة", ok: "موافقة مبدئية · بانتظار اعتماد المدير", no: "غير موافق عليه", done: "معتمد من المدير", nodone: "لم يعتمده المدير" };
 function leaveSheet_() { return sh_(SHEET_LEAVE) || sheet_(SHEET_LEAVE, LEAVE_HEAD_, true); }
 function leaveObj_(r) { return { id: r[0], teacher: r[1], type: r[2], date: r[3], from: r[4], to: r[5], reason: r[6], periods: json_(r[7], []), status: r[8], note: r[9],
-  createdAt: r[10], decidedAt: r[11], finalAt: r[12], finalBy: r[13], demo: isDemo_(r[1]) }; }
-function leaveRow_(o) { return [o.id, o.teacher, o.type, o.date, o.from, o.to, o.reason, JSON.stringify(o.periods || []), o.status, o.note || "", o.createdAt, o.decidedAt || "", o.finalAt || "", o.finalBy || ""]; }
+  createdAt: r[10], decidedAt: r[11], finalAt: r[12], finalBy: r[13], actual: r[14], contacted: r[15] === "نعم", demo: isDemo_(r[1]) }; }
+function leaveRow_(o) { return [o.id, o.teacher, o.type, o.date, o.from, o.to, o.reason, JSON.stringify(o.periods || []), o.status, o.note || "", o.createdAt, o.decidedAt || "", o.finalAt || "", o.finalBy || "", o.actual || "", o.contacted ? "نعم" : ""]; }
 function leaveGet_(me, sh, id) {
   const row = findRow_(sh, 1, String(id));
   if (row < 0) throw new Error("الاستئذان غير موجود.");
@@ -999,10 +1004,13 @@ function leaveGet_(me, sh, id) {
   if (!me.isHead && o.teacher !== me.name) throw new Error("لا يمكنك الوصول إلى هذا الاستئذان.");
   return { row, o };
 }
-function lvWhen_(o) { return `${dayOf_(o.date)} ${dmy_(o.date)} · ${o.type === LV_TYPES_[0] ? "الحضور الساعة " + o.to : o.type === LV_TYPES_[2] ? "الانصراف الساعة " + o.from : "من " + o.from + " إلى " + o.to}`; }
+function lvWhen_(o) {
+  const need = !o.to ? "" : o.type === LV_TYPES_[0] ? " · يحضر قبل " + o.to : o.type === LV_TYPES_[2] ? " · لا ينصرف قبل " + o.to : o.from ? ` · بين ${o.from} و${o.to}` : "";
+  return `${dayOf_(o.date)} ${dmy_(o.date)}${need}${o.actual ? " · وقت البصمة " + o.actual : ""}`;
+}
 function lvTable_(o) {
-  return o.periods.length ? `<table style="border-collapse:collapse" cellpadding="6" border="1"><tr style="background:#fbeee3"><th>الحصة</th><th>الفصل</th><th>البديل</th></tr>
-    ${o.periods.map(x => `<tr><td>${ORD_[x.p] || x.p}</td><td>${esc_(x.label || x.cls)}</td><td>أ. ${esc_(x.sub)}</td></tr>`).join("")}</table>` : "<p>لا توجد حصص في وقت الاستئذان.</p>";
+  return o.periods.length ? `<table style="border-collapse:collapse" cellpadding="6" border="1"><tr style="background:#fbeee3"><th>الالتزام</th><th>الوقت</th><th>البديل</th></tr>
+    ${o.periods.map(x => `<tr><td>${esc_(x.label)}</td><td>${esc_(x.time || "")}</td><td>${esc_(x.sub)}</td></tr>`).join("")}</table>${o.contacted ? "<p>أكّد المعلم أنه تواصل مع البدلاء.</p>" : ""}` : "<p>لن يفوّت أي حصة أو مراقبة.</p>";
 }
 
 function listLeaves(code) {
@@ -1017,17 +1025,17 @@ function saveLeave(code, l) {
   const type = LV_TYPES_.indexOf(l.type) !== -1 ? l.type : "";
   if (!type) throw new Error("اختر نوع الاستئذان.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(l.date || ""))) throw new Error("التاريخ غير صحيح.");
-  const hm = /^\d{2}:\d{2}$/;
-  if (!hm.test(String(l.from || "")) || !hm.test(String(l.to || "")) || l.from >= l.to) throw new Error("الوقت غير صحيح.");
+  const hm = /^\d{2}:\d{2}$/, inDay = v => !v || (hm.test(v) && v >= DAY_MIN_ && v <= DAY_MAX_);
+  l.from = String(l.from || ""); l.to = String(l.to || "");
+  if (!inDay(l.from) || !inDay(l.to) || (l.from && l.to && l.from >= l.to)) throw new Error("الوقت يجب أن يكون أثناء الدوام (٧:١٠ – ٢:٠٥).");
+  const d = new Date(l.date + "T12:00:00").getDay(); if (d === 5 || d === 6) throw new Error("اختر يوم دوام.");
   const reason = String(l.reason || "").trim().slice(0, 500);
   if (reason.length < 3) throw new Error("اكتب سبب الاستئذان.");
-  const periods = (Array.isArray(l.periods) ? l.periods : []).slice(0, 7).map(x => ({ p: Number(x && x.p), cls: String((x && x.cls) || "").slice(0, 20), label: String((x && x.label) || "").slice(0, 40), sub: String((x && x.sub) || "").trim().slice(0, 80) }));
-  periods.forEach(x => {
-    if (!(x.p >= 1 && x.p <= 7)) throw new Error("رقم الحصة غير صحيح.");
-    if (x.sub.length < 3) throw new Error(`حدّد البديل للحصة ${ORD_[x.p]}.`);
-  });
+  const periods = (Array.isArray(l.periods) ? l.periods : []).slice(0, 12).map(x => ({ kind: String((x && x.kind) || "").slice(0, 20), label: String((x && x.label) || "").slice(0, 80), time: String((x && x.time) || "").slice(0, 20), sub: String((x && x.sub) || "").trim().slice(0, 80) }));
+  periods.forEach(x => { if (x.sub.length < 3) throw new Error(`اكتب اسم البديل: ${x.label}.`); });
+  if (periods.length && !l.contacted) throw new Error("أكّد أنك تواصلت مع البدلاء.");
   const o = { id: newId_(), teacher: me.name, type, date: l.date, from: l.from, to: l.to, reason, periods,
-    status: me.isHead ? LV_ST_.ok : LV_ST_.pending, note: "", createdAt: nowText_(), decidedAt: me.isHead ? nowText_() : "" };
+    status: me.isHead ? LV_ST_.ok : LV_ST_.pending, note: "", createdAt: nowText_(), decidedAt: me.isHead ? nowText_() : "", contacted: !!(periods.length && l.contacted) };
   withLock_(() => appendText_(leaveSheet_(), leaveRow_(o)));
   if (!me.isHead) notify_(me, `طلب استئذان: أ. ${me.name} · ${type} · ${dmy_(o.date)}`, `
     <p>قدّم <b>أ. ${esc_(me.name)}</b> طلب <b>${esc_(type)}</b>:</p>
@@ -1079,5 +1087,42 @@ function deleteLeave(code, id) {
     if (!me.isHead && cur.o.status !== LV_ST_.pending) throw new Error("لا يمكن إلغاء الاستئذان بعد البت فيه. راجع رئيس الشعبة.");
     sh.deleteRow(cur.row);
     return true;
+  });
+}
+
+/** وقت البصمة الفعلي بعد الاستئذان (صاحب الاستئذان أو رئيس الشعبة) */
+function setLeaveActual(code, id, time) {
+  const me = who_(code);
+  time = String(time || "");
+  if (!/^\d{2}:\d{2}$/.test(time) || time < DAY_MIN_ || time > DAY_MAX_) throw new Error("وقت البصمة يجب أن يكون أثناء الدوام (٧:١٠ – ٢:٠٥).");
+  return withLock_(() => {
+    const sh = leaveSheet_(), cur = leaveGet_(me, sh, id);
+    if (cur.o.status === LV_ST_.no) throw new Error("هذا الاستئذان غير موافق عليه.");
+    cur.o.actual = time; writeRow_(sh, cur.row, leaveRow_(cur.o));
+    return cur.o;
+  });
+}
+
+// ======================= جدول المراقبة =======================
+// أعمدة: 0 التاريخ | 1 المعلم | 2 المهمة (مراقبة الفرصة الأولى، مراقبة فرصة الصلاة، مراقبة اختبار…) | 3 من | 4 إلى (اختياريان؛ يُحسبان من التوقيت للفرص)
+const DUTY_HEAD_ = ["التاريخ", "المعلم", "المهمة", "من", "إلى"];
+function listDuties(code) {
+  const me = who_(code);
+  const sh = sh_(SHEET_DUTY); if (!sh) return [];
+  return rows_(SHEET_DUTY).slice(1).filter(r => r[0] && r[1] && (me.isHead || r[1] === me.name)).map(r => ({ date: r[0], teacher: r[1], duty: r[2], from: r[3], to: r[4] }));
+}
+/** لرئيس الشعبة: إضافة مراقبات (rows: [[التاريخ، المعلم، المهمة، من، إلى]]). replace=true يستبدل مراقبات التواريخ نفسها */
+function importDuties(code, rows, replace) {
+  head_(code);
+  rows = (Array.isArray(rows) ? rows : []).filter(r => /^\d{4}-\d{2}-\d{2}$/.test(String(r[0])) && r[1] && r[2]);
+  if (!rows.length) throw new Error("لا توجد مراقبات صالحة.");
+  return withLock_(() => {
+    const sh = sh_(SHEET_DUTY) || sheet_(SHEET_DUTY, DUTY_HEAD_, true);
+    if (replace) {
+      const dates = new Set(rows.map(r => String(r[0]))), all = sh.getDataRange().getDisplayValues();
+      for (let i = all.length - 1; i >= 1; i--) if (dates.has(all[i][0])) sh.deleteRow(i + 1);
+    }
+    rows.forEach(r => appendText_(sh, [r[0], r[1], r[2], r[3] || "", r[4] || ""].map(String)));
+    return rows.length;
   });
 }
