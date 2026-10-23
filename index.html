@@ -1191,7 +1191,7 @@ $("logout").onclick = () => {
 };
 
 const SECTIONS = ["curr", "ach", "min", "vis", "subs", "swap", "stu", "lv"];
-const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والضعاف", lv: "الاستئذانات" };
+const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والمتعثرين", lv: "الاستئذانات" };
 // noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
 function go(sec, noHist) {
   if (sec !== "home" && SECTIONS.indexOf(sec) === -1) sec = "home";
@@ -2698,7 +2698,7 @@ $("st-all-doc").onclick = async () => {
   const m = $("st-admin-msg"), list = (STU || []).filter(s => !s.demo);
   if (!list.length) { m.textContent = "لا توجد تقارير."; return; }
   m.textContent = "جارٍ إنشاء الملف…";
-  try { await deliver(await stuBlob(list), `تقارير الفائقين والضعاف - ${todayISO()}.docx`, m); } catch (e) { m.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
+  try { await deliver(await stuBlob(list), `تقارير الفائقين والمتعثرين - ${todayISO()}.docx`, m); } catch (e) { m.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
 };
 $("st-wipe").onclick = () => {
   const m = $("st-admin-msg");
