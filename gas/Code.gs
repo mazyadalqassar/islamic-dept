@@ -16,6 +16,7 @@ const SHEET_SUBS = "الاحتياط";
 const SHEET_PLAN = "خطة الزيارات";
 const SHEET_SCHOOL = "جدول المدرسة";
 const SHEET_SWAP = "التبديلات";
+const SHEET_STU = "متابعة الطلاب";
 // نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
 
@@ -61,7 +62,8 @@ function doGet() {
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
-  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap };
+  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
+  listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, deleteStudent, wipeStudents };
 
 function doPost(e) {
   let out;
@@ -102,6 +104,7 @@ function setup() {
   sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل"], true);
   sheet_(SHEET_SCHOOL, ["المعلم", "الشعبة", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
   sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true);
+  sheet_(SHEET_STU, STU_HEAD_, true);
   sheet_(SHEET_PLAN, ["الأسبوع", "التاريخ", "اليوم", "الحصة", "المعلم", "الفصل", "ملاحظة"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
@@ -755,5 +758,144 @@ function deleteSwap(code, id) {
     if (!me.isHead && owner !== me.name) throw new Error("لا يمكن حذف هذا الطلب.");
     sh.deleteRow(row);
     return true;
+  });
+}
+
+
+// ======================= متابعة الطلاب (المتعثرون والفائقون) =======================
+// الخصوصية: المعلم يرى تقاريره فقط، ورئيس الشعبة يرى الكل. لا صلاحية خاصة لنائب رئيس الشعبة هنا.
+// البيانات: اسم الطالب وفصله ودرجاته فقط (لا رقم مدني ولا هاتف ولا بيانات صحية أو أسرية).
+// الأعمدة: 0 المعرف | 1 النوع (weak|top) | 2 المعلم | 3 الطالب | 4 الفصل | 5 المادة | 6 تاريخ التقرير | 7 الدرجات JSON [ق1، ف1، ق2، ف2]
+// 8 المظاهر JSON | 9 الوصف | 10 الإجراءات JSON | 11 التوصيات | 12 المتابعة JSON [{sem,date,action,result,by,at}] | 13 الحالة | 14 وقت الإنشاء | 15 آخر تحديث
+const STU_HEAD_ = ["المعرف", "النوع", "المعلم", "الطالب", "الفصل", "المادة", "تاريخ التقرير", "الدرجات", "المظاهر", "الوصف", "الإجراءات", "التوصيات", "المتابعة", "الحالة", "وقت الإنشاء", "آخر تحديث"];
+const STU_STATUS_ = ["قيد المتابعة", "تحسّن", "لم يتحسّن", "مغلق"];
+function stuSheet_() { return sh_(SHEET_STU) || sheet_(SHEET_STU, STU_HEAD_, true); }
+function json_(s, d) { try { const v = JSON.parse(s); return v == null ? d : v; } catch (e) { return d; } }
+function stuObj_(r) {
+  return { id: r[0], kind: r[1], teacher: r[2], student: r[3], classId: r[4], subject: r[5], date: r[6], grades: json_(r[7], ["", "", "", ""]),
+    signs: json_(r[8], []), desc: r[9], actions: json_(r[10], []), rec: r[11], follow: json_(r[12], []), status: r[13], createdAt: r[14], updatedAt: r[15], demo: isDemo_(r[2]) };
+}
+function stuRows_() { const sh = sh_(SHEET_STU); return sh ? rows_(SHEET_STU).slice(1).filter(r => r[0]) : []; }
+function canSee_(me, o) { return me.isHead || o.teacher === me.name; }
+/** يعيد الصف (رقمه وكائنه) بعد التحقق من الصلاحية */
+function stuGet_(me, sh, id) {
+  const row = findRow_(sh, 1, String(id));
+  if (row < 0) throw new Error("التقرير غير موجود.");
+  const o = stuObj_(sh.getRange(row, 1, 1, STU_HEAD_.length).getDisplayValues()[0]);
+  if (!canSee_(me, o)) throw new Error("لا يمكنك الوصول إلى هذا التقرير.");
+  return { row, o };
+}
+function stuWrite_(sh, row, o) {
+  const v = [o.id, o.kind, o.teacher, o.student, o.classId, o.subject, o.date, JSON.stringify(o.grades), JSON.stringify(o.signs), o.desc, JSON.stringify(o.actions), o.rec,
+    JSON.stringify(o.follow), o.status, o.createdAt, nowText_()];
+  const rg = sh.getRange(row, 1, 1, v.length); rg.setNumberFormat("@"); rg.setValues([v.map(String)]);
+}
+
+/** رئيس الشعبة: كل التقارير (التجريبية معلّمة) · المعلم: تقاريره فقط */
+function listStudents(code) {
+  const me = who_(code);
+  return stuRows_().map(stuObj_).filter(o => canSee_(me, o)).reverse();
+}
+
+/** إنشاء تقرير أو تعديله (صاحب التقرير فقط). عند الإنشاء يصل رئيس الشعبة إيميل مرفق فيه التقرير وورد */
+function saveStudent(code, s, docB64) {
+  const me = who_(code);
+  s = s || {};
+  const clip = (v, n) => String(v == null ? "" : v).trim().slice(0, n);
+  const list = (a, n) => (Array.isArray(a) ? a : []).slice(0, 20).map(x => clip(x, n)).filter(Boolean);
+  const kind = s.kind === "top" ? "top" : s.kind === "weak" ? "weak" : "";
+  if (!kind) throw new Error("اختر نوع التقرير.");
+  const student = clip(s.student, 80);
+  if (student.length < 3) throw new Error("اكتب اسم الطالب.");
+  if (me.classes.indexOf(s.classId) === -1) throw new Error("هذا الفصل ليس من فصولك.");
+  if (["ie", "qr"].indexOf(s.subject) === -1) throw new Error("اختر المادة.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s.date || ""))) throw new Error("التاريخ غير صحيح.");
+  const grades = [0, 1, 2, 3].map(i => clip((s.grades || [])[i], 20));
+  const o = { kind, teacher: me.name, student, classId: s.classId, subject: s.subject, date: s.date, grades, signs: list(s.signs, 120), desc: clip(s.desc, 2000),
+    actions: list(s.actions, 160), rec: clip(s.rec, 1500) };
+  const isNew = !s.id;
+  const saved = withLock_(() => {
+    const sh = stuSheet_();
+    if (isNew) {
+      Object.assign(o, { id: newId_(), follow: [], status: kind === "weak" ? STU_STATUS_[0] : "", createdAt: nowText_() });
+      stuWrite_(sh, sh.getLastRow() + 1, o);
+      return o;
+    }
+    const cur = stuGet_(me, sh, s.id);
+    if (cur.o.teacher !== me.name) throw new Error("يعدّل التقرير معلم المادة فقط.");
+    const merged = Object.assign({}, cur.o, o, { id: cur.o.id, teacher: cur.o.teacher, follow: cur.o.follow, status: cur.o.status, createdAt: cur.o.createdAt });
+    if (merged.kind !== "weak") merged.status = "";
+    else if (!merged.status) merged.status = STU_STATUS_[0];
+    stuWrite_(sh, cur.row, merged);
+    return merged;
+  });
+  if (isNew) {
+    let att = [];
+    if (docB64 && String(docB64).length < 4000000) {
+      try { att = [Utilities.newBlob(Utilities.base64Decode(String(docB64).replace(/^data:[^,]+,/, "")), "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        `${kind === "weak" ? "تقرير طالب متعثر" : "تقرير طالب فائق"} - ${student}.docx`)]; } catch (e) {}
+    }
+    notify_(me, `${kind === "weak" ? "تقرير طالب متعثر" : "تقرير طالب فائق"}: ${student}`, `
+      <p>رفع <b>أ. ${esc_(me.name)}</b> ${kind === "weak" ? "تقرير متابعة طالب متعثر" : "تقرير طالب فائق"}:</p>
+      <p>الطالب: <b>${esc_(student)}</b><br>الفصل: ${esc_(clip(s.classLabel, 40) || s.classId)} · المادة: ${s.subject === "qr" ? "القرآن الكريم" : "التربية الإسلامية"}</p>
+      <p>التقرير مرفق بصيغة وورد للطباعة والحفظ في السجل، وتتابعه في الموقع: متابعة الطلاب.</p>
+      <p style="color:#77736e;font-size:12px">سري · لأغراض المتابعة التربوية فقط.</p>`, att);
+  }
+  return saved;
+}
+
+/** إضافة متابعة في أحد الفصلين الدراسيين (رئيس الشعبة أو معلم المادة) */
+function addFollow(code, id, f) {
+  const me = who_(code);
+  f = f || {};
+  const sem = Number(f.sem) === 2 ? 2 : 1;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f.date || ""))) throw new Error("التاريخ غير صحيح.");
+  const action = String(f.action || "").trim().slice(0, 400), result = String(f.result || "").trim().slice(0, 300);
+  if (!action) throw new Error("اكتب الإجراء.");
+  return withLock_(() => {
+    const sh = stuSheet_(), cur = stuGet_(me, sh, id);
+    cur.o.follow.push({ sem, date: f.date, action, result, by: me.name, head: me.isHead, at: nowText_() });
+    if (f.status && STU_STATUS_.indexOf(f.status) !== -1 && cur.o.kind === "weak") cur.o.status = f.status;
+    stuWrite_(sh, cur.row, cur.o);
+    return cur.o;
+  });
+}
+function deleteFollow(code, id, idx) {
+  const me = who_(code);
+  return withLock_(() => {
+    const sh = stuSheet_(), cur = stuGet_(me, sh, id), e = cur.o.follow[Number(idx)];
+    if (!e) throw new Error("المتابعة غير موجودة.");
+    if (!me.isHead && e.by !== me.name) throw new Error("يحذف المتابعة من كتبها فقط.");
+    cur.o.follow.splice(Number(idx), 1);
+    stuWrite_(sh, cur.row, cur.o);
+    return cur.o;
+  });
+}
+function setStudentStatus(code, id, status) {
+  const me = who_(code);
+  if (STU_STATUS_.indexOf(status) === -1) throw new Error("الحالة غير معروفة.");
+  return withLock_(() => {
+    const sh = stuSheet_(), cur = stuGet_(me, sh, id);
+    if (cur.o.kind !== "weak") throw new Error("الحالة لتقارير المتعثرين فقط.");
+    cur.o.status = status; stuWrite_(sh, cur.row, cur.o);
+    return cur.o;
+  });
+}
+function deleteStudent(code, id) {
+  const me = who_(code);
+  return withLock_(() => {
+    const sh = stuSheet_(), cur = stuGet_(me, sh, id);
+    sh.deleteRow(cur.row);
+    return true;
+  });
+}
+/** رئيس الشعبة: مسح كل تقارير الطلاب نهاية العام (لا رجعة فيه) */
+function wipeStudents(code, confirm) {
+  head_(code);
+  if (String(confirm || "").trim() !== "مسح") throw new Error("اكتب كلمة «مسح» للتأكيد.");
+  return withLock_(() => {
+    const sh = stuSheet_(), n = sh.getLastRow() - 1;
+    if (n > 0) sh.deleteRows(2, n);
+    return Math.max(n, 0);
   });
 }
