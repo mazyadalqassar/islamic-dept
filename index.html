@@ -1881,15 +1881,20 @@ function weekOf(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); 
 function staffNames() { return TEACHERS.map(t => t[0]); }
 
 // المتاحون لحصة معينة، مرتبون: الأقل أخذًا للاحتياط أولًا، ثم الأخف نصابًا في ذلك اليوم
-function availableFor(date, d, p, absent) {
+// ترتيب الأولوية: المعلمون قبل رئيس القسم (لا يُقترح إلا إذا لم يوجد غيره)، ثم من يدرّس المرحلة نفسها،
+// ثم الأقل نصابًا في ذلك اليوم، ثم الأقل أخذًا للاحتياط في الفصل كله
+function gradeOf(cls) { try { return classInfo(cls).grade; } catch (e) { return 0; } }
+function teachesGrade(name, g) { return teacherClasses(name).some(c => gradeOf(c) === g); }
+function availableFor(date, d, p, absent, cls) {
+  const g = gradeOf(cls);
   const recs = SUBS || [], id = date + "|" + absent;
   const absentToday = new Set(recs.filter(r => r.date === date).map(r => r.teacher));
   const taken = {}; recs.forEach(r => { if (r.sub) taken[r.sub] = (taken[r.sub] || 0) + 1; });
   return staffNames().filter(n => n !== absent && !absentToday.has(n) && !teachingAt(n, d, p) && !busyAt(n, d, p)
       && !recs.some(r => r.date === date && r.period === p && r.sub === n && r.absence !== id))
-    .map(n => ({ name: n, taken: taken[n] || 0,
+    .map(n => ({ name: n, taken: taken[n] || 0, head: n === HEAD_NAME, same: !!g && teachesGrade(n, g),
       load: Object.keys((TT[n] || {})[d] || {}).length + recs.filter(r => r.date === date && r.sub === n && r.absence !== id).length }))
-    .sort((a, b) => a.taken - b.taken || a.load - b.load || a.name.localeCompare(b.name, "ar"));
+    .sort((a, b) => (a.head - b.head) || (b.same - a.same) || a.load - b.load || a.taken - b.taken || a.name.localeCompare(b.name, "ar"));
 }
 
 async function loadSubs(force) {
@@ -1925,14 +1930,14 @@ function renderSubsForm() {
   if (!periods.length) { box.innerHTML = `<div class="sf-none">لا توجد حصص لأ. ${esc(name)} يوم ${DAYS[d]}.</div>`; $("sf-save").hidden = true; return; }
   $("sf-save").hidden = false;
   box.innerHTML = `<h3 class="list-title">حصص أ. ${esc(name)} يوم ${DAYS[d]} ${fmtDate(date)}</h3>` + periods.map(p => {
-    const cls = TT[name][d][p], cur = existing.find(r => r.period === p), list = availableFor(date, d, p, name);
+    const cls = TT[name][d][p], cur = existing.find(r => r.period === p), list = availableFor(date, d, p, name, cls);
     const sel = cur ? cur.sub : "";
     const opts = '<option value="">— بلا بديل —</option>' + list.map((x, i) =>
-      `<option value="${esc(x.name)}"${x.name === sel ? " selected" : ""}>${i === 0 ? "★ مقترح: " : ""}أ. ${esc(x.name)} · احتياط ${ar(x.taken)}</option>`).join("")
+      `<option value="${esc(x.name)}"${x.name === sel ? " selected" : ""}>${i === 0 ? "★ مقترح: " : ""}أ. ${esc(x.name)}${x.head ? " (رئيس القسم)" : ""} · ${x.same ? "نفس المرحلة · " : ""}نصابه اليوم ${ar(x.load)} · احتياط ${ar(x.taken)}</option>`).join("")
       + (sel && !list.some(x => x.name === sel) ? `<option value="${esc(sel)}" selected>أ. ${esc(sel)}</option>` : "");
     return `<div class="sf-row" data-p="${p}" data-c="${esc(cls)}"><div><b>الحصة ${ar(p)}</b><span class="sub">${esc(classLabel(cls))}</span></div>
       <select aria-label="البديل للحصة ${ar(p)}">${opts}</select></div>`;
-  }).join("") + (existing.length ? "" : '<div class="sub" style="margin-top:8px">★ المقترح هو الأقل أخذًا لحصص الاحتياط حتى الآن، ثم الأخف نصابًا في هذا اليوم.</div>');
+  }).join("") + (existing.length ? "" : '<div class="sub" style="margin-top:8px">★ المقترح: معلم يدرّس المرحلة نفسها، الأخف نصابًا في هذا اليوم، والأقل أخذًا للاحتياط. ورئيس القسم لا يُقترح إلا إذا لم يتوفر غيره.</div>');
 }
 function renderSubsDay(date) {
   const recs = (SUBS || []).filter(r => r.date === date), box = $("sf-day");
