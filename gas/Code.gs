@@ -21,6 +21,7 @@ const SHEET_ROSTER = "كشوف الطلاب";
 const SHEET_LEAVE = "الاستئذانات";
 const SHEET_EMAIL = "إيميلات المعلمين";
 const SHEET_DUTY = "المراقبة";
+const SHEET_GRADES = "درجات الأعمال";
 // نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
 
@@ -68,7 +69,8 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
-  setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf };
+  setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf,
+  gradesGet, gradesSave, gradesApprove, gradesOverview };
 
 function doPost(e) {
   let out;
@@ -1187,4 +1189,94 @@ function installDailyLeaves() {
   ScriptApp.getProjectTriggers().filter(tr => tr.getHandlerFunction() === "dailyLeavesReport").forEach(tr => ScriptApp.deleteTrigger(tr));
   ScriptApp.newTrigger("dailyLeavesReport").timeBased().everyDays(1).atHour(14).nearMinute(0).inTimezone("Asia/Kuwait").create();
   return "تم";
+}
+
+
+// ======================= كشف درجات الأعمال (التقييم البنائي ٤٠) =======================
+// كشف لكل (فصل دراسي، فصل، مادة). المعلم يرى فصوله فقط، ورئيس الشعبة يرى الكل. الاعتماد الورقي هو الفيصل،
+// والاعتماد في الموقع للمتابعة: يمكن التعديل بعده، ويُنبَّه رئيس الشعبة بأول تعديل بعد الاعتماد.
+// الأعمدة: 0 المفتاح (sem|class|subject) | 1 المعلم | 2 الفصل الدراسي | 3 الفصل | 4 المادة | 5 الدرجات JSON {اسم الطالب: {...}} | 6 وقت الاعتماد | 7 اعتمده | 8 عُدّل بعد الاعتماد | 9 آخر تحديث
+const GRADES_HEAD_ = ["المفتاح", "المعلم", "الفصل الدراسي", "الفصل", "المادة", "الدرجات", "وقت الاعتماد", "اعتمده", "عُدّل بعد الاعتماد", "آخر تحديث"];
+// البنود: السلوك ٣ · تسميع ½ + ½ · مشاركة ٢ · واجبات ٣ · مشروع ٣٫٥ (لكل قسم) · الاختبار القصير ١٥
+const GR_MAX_ = { b1: 3, r11: .5, r12: .5, p1: 2, h1: 3, j1: 3.5, b2: 3, r21: .5, r22: .5, p2: 2, h2: 3, j2: 3.5, q: 15 };
+function gradesSheet_() { return sh_(SHEET_GRADES) || sheet_(SHEET_GRADES, GRADES_HEAD_, true); }
+function grKey_(sem, cls, subj) { return `${sem}|${cls}|${subj}`; }
+function grCheck_(me, sem, cls, subj) {
+  if (["1", "2"].indexOf(String(sem)) === -1) throw new Error("الفصل الدراسي غير صحيح.");
+  if (["ie", "qr"].indexOf(subj) === -1) throw new Error("المادة غير صحيحة.");
+  if (!me.isHead && me.classes.indexOf(cls) === -1) throw new Error("هذا الفصل ليس من فصولك.");
+  if (me.isHead && !me.isDemo && !TEACHERS.some(t => t[1].indexOf(cls) !== -1)) throw new Error("الفصل غير معروف.");
+}
+function grLabel_(id) { const m = String(id).match(/^(\d+)([sl]?)-(\d+)$/); return !m ? id : m[2] ? `${m[1]} ${m[2] === "s" ? "علمي" : "أدبي"} ${m[3]}` : `${m[1]}/${m[3]}`; }
+function grTeacherOf_(cls) { const t = TEACHERS.find(x => x[1].indexOf(cls) !== -1); return t ? t[0] : ""; }
+function grNames_(me, cls) {
+  if (me.isDemo) return [1, 2, 3, 4, 5, 6].map(i => "طالب تجريبي " + i);
+  const sh = sh_(SHEET_ROSTER); if (!sh) return [];
+  return rows_(SHEET_ROSTER).slice(1).filter(r => r[0] === cls && r[2]).sort((a, b) => Number(a[1]) - Number(b[1])).map(r => r[2]);
+}
+function grRow_(sh, key) { const row = findRow_(sh, 1, key); return row > 0 ? { row, r: sh.getRange(row, 1, 1, GRADES_HEAD_.length).getDisplayValues()[0] } : null; }
+function grObj_(r) { return r ? { grades: json_(r[5], {}), approvedAt: r[6], approvedBy: r[7], editedAfter: r[8] === "نعم", updatedAt: r[9] } : { grades: {}, approvedAt: "", approvedBy: "", editedAfter: false, updatedAt: "" }; }
+
+function gradesGet(code, sem, cls, subj) {
+  const me = who_(code); sem = String(sem); grCheck_(me, sem, cls, subj);
+  const key = (me.isDemo ? "DEMO:" + me.name + "|" : "") + grKey_(sem, cls, subj);
+  const sh = sh_(SHEET_GRADES), cur = sh ? grRow_(sh, key) : null;
+  return Object.assign({ names: grNames_(me, cls), teacher: me.isDemo ? me.name : grTeacherOf_(cls) }, grObj_(cur && cur.r));
+}
+
+/** حفظ درجات طالب واحد (قيم فارغة = لم تُرصد) */
+function gradesSave(code, sem, cls, subj, student, vals) {
+  const me = who_(code); sem = String(sem); grCheck_(me, sem, cls, subj);
+  student = String(student || "");
+  if (grNames_(me, cls).indexOf(student) === -1) throw new Error("الطالب غير موجود في كشف الفصل.");
+  const clean = {};
+  Object.keys(GR_MAX_).forEach(k => {
+    const v = vals && vals[k];
+    if (v === "" || v == null) return;
+    const n = Number(v);
+    if (!(n >= 0 && n <= GR_MAX_[k] && Math.round(n * 2) === n * 2)) throw new Error("درجة غير صحيحة.");
+    clean[k] = n;
+  });
+  const key = (me.isDemo ? "DEMO:" + me.name + "|" : "") + grKey_(sem, cls, subj);
+  let notify = false;
+  const res = withLock_(() => {
+    const sh = gradesSheet_(), cur = grRow_(sh, key);
+    const o = grObj_(cur && cur.r);
+    if (Object.keys(clean).length) o.grades[student] = clean; else delete o.grades[student];
+    if (o.approvedAt && !me.isHead && !o.editedAfter) { o.editedAfter = true; notify = true; }
+    const row = [key, me.isDemo ? me.name : grTeacherOf_(cls), sem, cls, subj, JSON.stringify(o.grades), o.approvedAt, o.approvedBy, o.editedAfter ? "نعم" : "", nowText_()];
+    writeRow_(sh, cur ? cur.row : sh.getLastRow() + 1, row);
+    return o;
+  });
+  if (notify) notify_(me, `تعديل بعد الاعتماد: كشف درجات ${subj === "qr" ? "القرآن الكريم" : "التربية الإسلامية"} · ${grLabel_(cls)}`, `
+    <p>عدّل <b>أ. ${esc_(me.name)}</b> درجات في كشف معتمد:</p>
+    <p>الفصل: ${esc_(grLabel_(cls))} · المادة: ${subj === "qr" ? "القرآن الكريم" : "التربية الإسلامية"} · الفصل الدراسي ${sem === "1" ? "الأول" : "الثاني"}<br>الطالب: ${esc_(student)}</p>
+    <p>يصلك هذا التنبيه مرة واحدة بعد الاعتماد. يمكنك مراجعة الكشف من الموقع: كشف درجات الأعمال.</p>`);
+  return res;
+}
+
+/** رئيس الشعبة: اعتماد الكشف أو إلغاء اعتماده (الاعتماد الورقي هو الفيصل النهائي) */
+function gradesApprove(code, sem, cls, subj, on) {
+  const me = head_(code); sem = String(sem); grCheck_(me, sem, cls, subj);
+  const key = grKey_(sem, cls, subj);
+  return withLock_(() => {
+    const sh = gradesSheet_(), cur = grRow_(sh, key), o = grObj_(cur && cur.r);
+    o.approvedAt = on ? nowText_() : ""; o.approvedBy = on ? me.name : ""; o.editedAfter = false;
+    writeRow_(sh, cur ? cur.row : sh.getLastRow() + 1, [key, grTeacherOf_(cls), sem, cls, subj, JSON.stringify(o.grades), o.approvedAt, o.approvedBy, "", nowText_()]);
+    return o;
+  });
+}
+
+/** رئيس الشعبة: ملخص كل الكشوف لفصل دراسي: [{classId, subject, teacher, filled, total, approvedAt, editedAfter}] */
+function gradesOverview(code, sem) {
+  head_(code); sem = String(sem);
+  const sh = sh_(SHEET_GRADES), rows = sh ? rows_(SHEET_GRADES).slice(1) : [];
+  const counts = {}; if (sh_(SHEET_ROSTER)) rows_(SHEET_ROSTER).slice(1).forEach(r => { if (r[0]) counts[r[0]] = (counts[r[0]] || 0) + 1; });
+  const out = [];
+  TEACHERS.forEach(t => t[1].forEach(cls => ["ie", "qr"].forEach(subj => {
+    const r = rows.find(x => x[0] === grKey_(sem, cls, subj)), g = r ? json_(r[5], {}) : {};
+    const full = Object.values(g).filter(v => Object.keys(GR_MAX_).every(k => v[k] !== undefined)).length;
+    out.push({ classId: cls, subject: subj, teacher: t[0], filled: full, started: Object.keys(g).length, total: counts[cls] || 0, approvedAt: r ? r[6] : "", editedAfter: r ? r[8] === "نعم" : false });
+  })));
+  return out;
 }
