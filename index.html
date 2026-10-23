@@ -305,6 +305,7 @@ input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var
 .lv-warn b { display: block; margin-bottom: 4px; }
 .lv-need { margin-top: 12px; background: var(--c-lv-s); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 1.8; }
 .lv-need b { color: var(--c-lv); }
+.lv-need.has-hit { border: 2px solid var(--late); }
 .lv-need li.hit { color: var(--late); font-weight: 700; background: var(--late-soft); border-radius: 8px; padding: 2px 8px; margin: 3px 0; list-style-position: inside; }
 .lv-commits { margin-top: 10px; display: grid; gap: 6px; }
 .lv-c { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface); }
@@ -2914,7 +2915,7 @@ function lvRender() {
   const hits = err ? [] : list.filter(c => lvHits(c, from, to)), mhits = err ? [] : meets.filter(c => lvHits(c, from, to));
   const flex = morning ? "الحضور المرن من ٧:١٠ إلى ٧:٥٥، وما بعده يُحسب تأخيرًا." : leave ? "الانصراف المرن: من حضر ٧:١٠ ينصرف ١:٣٠، ومن حضر ٧:٥٥ ينصرف ٢:٠٥." : "";
   const all = [...list, ...meets].sort((a, b) => a.from < b.from ? -1 : 1);
-  box.innerHTML = `<div class="lv-need"><b>التزاماتك في هذا اليوم:</b>${all.length ? `<ul class="stu-ul">${all.map(c => { const hit = hits.includes(c) || mhits.includes(c); return `<li${hit ? ' class="hit"' : ""}>${esc(c.label)} · ${hm12(c.from)} – ${hm12(c.to)}${hit ? " ← في وقت استئذانك" : ""}</li>`; }).join("")}</ul>` : " ما عندك حصص ولا مراقبة."}
+  box.innerHTML = `<div class="lv-need${hits.length || mhits.length ? " has-hit" : ""}"><b>التزاماتك في هذا اليوم:</b>${all.length ? `<ul class="stu-ul">${all.map(c => { const hit = hits.includes(c) || mhits.includes(c); return `<li${hit ? ' class="hit"' : ""}>${esc(c.label)} · ${hm12(c.from)} – ${hm12(c.to)}${hit ? " ← في وقت استئذانك" : ""}</li>`; }).join("")}</ul>` : " ما عندك حصص ولا مراقبة."}
       ${flex ? `<div class="sub" style="margin-top:6px">${flex}</div>` : ""}</div>
     ${err ? `<div class="lv-warn"><b>${err}</b></div>` : ""}
     ${mhits.length ? `<div class="lv-warn" style="background:var(--c-lv-s);border-color:var(--line);color:var(--ink)">تنبيه: عندك ${mhits.map(c => `<b>${esc(c.label)}</b> (${hm12(c.from)})`).join("، ")} في وقت الاستئذان.</div>` : ""}
