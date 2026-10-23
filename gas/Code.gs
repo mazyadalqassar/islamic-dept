@@ -1184,9 +1184,4 @@ function dailyLeavesReport() {
       <p>${list.map(o => `أ. ${esc_(o.teacher)} · ${esc_(o.type)}`).join("<br>")}</p></div>`,
     attachments: [leavesPdfBlob_(date, list)] });
 }
-/** يُشغَّل مرة واحدة من المحرر: ينشئ المهمة اليومية الساعة ٢ ظهرًا بتوقيت الكويت */
-function installDailyLeaves() {
-  ScriptApp.getProjectTriggers().filter(tr => tr.getHandlerFunction() === "dailyLeavesReport").forEach(tr => ScriptApp.deleteTrigger(tr));
-  ScriptApp.newTrigger("dailyLeavesReport").timeBased().everyDays(1).atHour(14).nearMinute(0).inTimezone("Asia/Kuwait").create();
-  return "تم";
-}
+// المهمة اليومية: مُشغِّل زمني (Triggers) على dailyLeavesReport، يوميًا بين ٢ و٣ ظهرًا بتوقيت الكويت، أُنشئ من صفحة Triggers في المشروع.
