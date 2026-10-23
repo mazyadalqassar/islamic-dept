@@ -64,7 +64,7 @@ function doGet() {
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
-  listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, deleteStudent, wipeStudents, myRoster, importRoster };
+  listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster };
 
 function doPost(e) {
   let out;
@@ -814,18 +814,20 @@ function saveStudent(code, s, docB64) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s.date || ""))) throw new Error("التاريخ غير صحيح.");
   const grades = [0, 1, 2, 3].map(i => clip((s.grades || [])[i], 20));
   const o = { kind, teacher: me.name, student, classId: s.classId, subject: s.subject, date: s.date, grades, signs: list(s.signs, 120), desc: clip(s.desc, 2000),
-    actions: list(s.actions, 160), rec: clip(s.rec, 1500) };
+    actions: list(s.actions, 160) };
+  if (!o.signs.length) throw new Error(kind === "weak" ? "اختر مظهرًا واحدًا على الأقل من مظاهر التعثر." : "اختر مظهرًا واحدًا على الأقل من مظاهر التفوق.");
+  if (!o.actions.length) throw new Error(kind === "weak" ? "اختر إجراءً علاجيًا واحدًا على الأقل." : "اختر نشاطًا إثرائيًا واحدًا على الأقل.");
   const isNew = !s.id;
   const saved = withLock_(() => {
     const sh = stuSheet_();
     if (isNew) {
-      Object.assign(o, { id: newId_(), follow: [], status: kind === "weak" ? STU_STATUS_[0] : "", createdAt: nowText_() });
+      Object.assign(o, { id: newId_(), rec: "", follow: [], status: kind === "weak" ? STU_STATUS_[0] : "", createdAt: nowText_() });
       stuWrite_(sh, sh.getLastRow() + 1, o);
       return o;
     }
     const cur = stuGet_(me, sh, s.id);
     if (cur.o.teacher !== me.name) throw new Error("يعدّل التقرير معلم المادة فقط.");
-    const merged = Object.assign({}, cur.o, o, { id: cur.o.id, teacher: cur.o.teacher, follow: cur.o.follow, status: cur.o.status, createdAt: cur.o.createdAt });
+    const merged = Object.assign({}, cur.o, o, { id: cur.o.id, teacher: cur.o.teacher, rec: cur.o.rec, follow: cur.o.follow, status: cur.o.status, createdAt: cur.o.createdAt });
     if (merged.kind !== "weak") merged.status = "";
     else if (!merged.status) merged.status = STU_STATUS_[0];
     stuWrite_(sh, cur.row, merged);
@@ -870,6 +872,15 @@ function deleteFollow(code, id, idx) {
     if (!me.isHead && e.by !== me.name) throw new Error("يحذف المتابعة من كتبها فقط.");
     cur.o.follow.splice(Number(idx), 1);
     stuWrite_(sh, cur.row, cur.o);
+    return cur.o;
+  });
+}
+/** توصيات رئيس الشعبة: يكتبها رئيس الشعبة فقط، وتظهر في التقرير للجميع */
+function setStudentRec(code, id, rec) {
+  const me = head_(code);
+  return withLock_(() => {
+    const sh = stuSheet_(), cur = stuGet_(me, sh, id);
+    cur.o.rec = String(rec || "").trim().slice(0, 1500); stuWrite_(sh, cur.row, cur.o);
     return cur.o;
   });
 }

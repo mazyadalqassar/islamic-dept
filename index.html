@@ -616,21 +616,19 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
               <div><label class="f" for="st-subject">المادة</label><select id="st-subject"><option value="ie">التربية الإسلامية</option><option value="qr">القرآن الكريم</option></select></div>
               <div><label class="f" for="st-date">تاريخ التقرير</label><input type="date" id="st-date"></div>
             </div>
-            <label class="f">الدرجات</label>
+            <label class="f">الدرجات <span class="sub">(اختياري)</span></label>
             <table class="grades"><thead><tr><th></th><th>الاختبار القصير</th><th>اختبار الفترة</th></tr></thead><tbody>
               <tr><th>الفصل الأول</th><td><input type="text" id="st-g0" maxlength="20" placeholder="مثال: 6 من 15"></td><td><input type="text" id="st-g1" maxlength="20"></td></tr>
               <tr><th>الفصل الثاني</th><td><input type="text" id="st-g2" maxlength="20"></td><td><input type="text" id="st-g3" maxlength="20"></td></tr>
             </tbody></table>
-            <label class="f" id="st-signs-label">مظاهر التعثر</label>
+            <label class="f" id="st-signs-label">مظاهر التعثر</label><div class="sub">اختر بندًا واحدًا على الأقل.</div>
             <div class="stu-checks" id="st-signs"></div>
             <input type="text" id="st-signs-other" maxlength="120" placeholder="أخرى (اختياري)" style="margin-top:8px">
-            <label class="f" for="st-desc" id="st-desc-label">وصف الحالة</label>
+            <label class="f" for="st-desc"><span id="st-desc-label">وصف الحالة</span> <span class="sub">(اختياري)</span></label>
             <textarea id="st-desc" rows="4" maxlength="2000"></textarea>
-            <label class="f" id="st-actions-label">الإجراءات العلاجية المتخذة</label>
+            <label class="f" id="st-actions-label">الإجراءات العلاجية المتخذة</label><div class="sub">اختر بندًا واحدًا على الأقل.</div>
             <div class="stu-checks" id="st-actions"></div>
             <input type="text" id="st-actions-other" maxlength="160" placeholder="إجراء آخر، أو تفاصيل التواصل مع ولي الأمر (التاريخ والوسيلة)" style="margin-top:8px">
-            <label class="f" for="st-rec">التوصيات والمطلوب من رئيس الشعبة</label>
-            <textarea id="st-rec" rows="3" maxlength="1500"></textarea>
             <div class="privacy">سري: يرى التقرير معلم المادة ورئيس الشعبة فقط. اكتب اسم الطالب وفصله ودرجاته فقط، بلا رقم مدني ولا هاتف ولا ظروف صحية أو أسرية.</div>
             <div class="row-actions" style="margin-top:14px"><button class="btn" id="st-submit" type="submit">رفع التقرير</button><button class="btn ghost" id="st-cancel" type="button" hidden>إلغاء التعديل</button></div>
           </div>
@@ -2469,7 +2467,7 @@ function stuForm(r) {
   if (r) { $("st-class").value = r.classId; $("st-subject").value = r.subject; }
   fillPick(r ? r.student : "");
   [0, 1, 2, 3].forEach(i => $("st-g" + i).value = r ? (r.grades[i] || "") : "");
-  $("st-desc").value = r ? r.desc : ""; $("st-rec").value = r ? r.rec : "";
+  $("st-desc").value = r ? r.desc : "";
   document.querySelectorAll("#st-form .stype").forEach(b => b.disabled = !!r);
   setStuKind(r ? r.kind : "", r);
   $("st-msg").textContent = "";
@@ -2487,7 +2485,9 @@ $("st-form").addEventListener("submit", async e => {
   if ($("st-student").value.trim().length < 3) { msg.textContent = "اختر الطالب من الكشف أو اكتب اسمه."; ($("st-student").hidden ? $("st-pick") : $("st-student")).focus(); return; }
   const r = { id: stuEditId || undefined, kind: stuKind, student: $("st-student").value.trim(), classId: $("st-class").value, classLabel: classLabel($("st-class").value), subject: $("st-subject").value,
     date: $("st-date").value || todayISO(), grades: [0, 1, 2, 3].map(i => $("st-g" + i).value.trim()), signs: stuPicked("st-signs", "st-signs-other"),
-    desc: $("st-desc").value.trim(), actions: stuPicked("st-actions", "st-actions-other"), rec: $("st-rec").value.trim() };
+    desc: $("st-desc").value.trim(), actions: stuPicked("st-actions", "st-actions-other") };
+  if (!r.signs.length) { msg.textContent = `اختر بندًا واحدًا على الأقل من «${STU_LISTS[stuKind].signsH}».`; $("st-signs").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+  if (!r.actions.length) { msg.textContent = `اختر بندًا واحدًا على الأقل من «${STU_LISTS[stuKind].actH}».`; $("st-actions").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
   btn.disabled = true; msg.textContent = stuEditId ? "جارٍ الحفظ…" : "جارٍ رفع التقرير وإنشاء ملف الوورد…";
   try {
     if (stuEditId) {
@@ -2552,7 +2552,8 @@ function openStu(id) {
       <label class="f">${L.signsH}</label>${ul(s.signs)}
       <label class="f">${L.descH}</label><div style="white-space:pre-wrap">${esc(s.desc) || "—"}</div>
       <label class="f">${L.actH}</label>${ul(s.actions)}
-      <label class="f">التوصيات والمطلوب من رئيس الشعبة</label><div style="white-space:pre-wrap">${esc(s.rec) || "—"}</div>
+      <label class="f" for="st-rec">توصيات رئيس الشعبة</label>${ME.isHead ? `<textarea id="st-rec" rows="3" maxlength="1500" placeholder="توصياتك لمعلم المادة، وتظهر في التقرير">${esc(s.rec || "")}</textarea>
+        <div class="row-actions" style="margin-top:8px"><button class="btn sm" type="button" id="st-rec-save">حفظ التوصيات</button></div>` : `<div style="white-space:pre-wrap">${esc(s.rec) || '<span class="sub">لم يكتب رئيس الشعبة توصيات بعد.</span>'}</div>`}
       ${s.kind === "weak" ? `<label class="f" for="st-status">حالة الطالب</label><select id="st-status" style="max-width:220px">${STU_STATUS.map(x => `<option${x === s.status ? " selected" : ""}>${x}</option>`).join("")}</select>` : ""}
       <div class="row-actions" style="margin-top:14px"><button class="btn" type="button" id="st-doc">تنزيل التقرير وورد</button>${mine ? '<button class="btn ghost" type="button" id="st-edit">تعديل التقرير والدرجات</button>' : ""}<button class="btn ghost" type="button" id="st-del">حذف</button></div>
       <div class="saved" id="st-dmsg"></div>
@@ -2574,6 +2575,7 @@ function openStu(id) {
   window.scrollTo(0, 0);
   const upd = o => { const i = STU.findIndex(x => x.id === o.id); if (i !== -1) STU[i] = Object.assign({ demo: s.demo }, o); openStu(o.id); };
   $("st-back").onclick = closeStu;
+  if ($("st-rec-save")) $("st-rec-save").onclick = async () => { const m = $("st-dmsg"); m.textContent = "جارٍ الحفظ…"; try { upd(await run("setStudentRec", CODE, s.id, $("st-rec").value)); $("st-dmsg").textContent = "حُفظت التوصيات."; } catch (e) { m.textContent = cleanErr(e); } };
   $("st-doc").onclick = async () => { const m = $("st-dmsg"); m.textContent = "جارٍ إنشاء الملف…"; try { await deliver(await stuBlob([s]), stuFile(s), m); } catch (e) { m.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); } };
   if (mine) $("st-edit").onclick = () => { stuTab("new"); stuForm(s); stuSub = "new"; };
   $("st-del").onclick = () => confirmInline($("st-del"), "اضغط مرة ثانية للحذف النهائي", async () => {
@@ -2694,7 +2696,7 @@ function buildStudentDoc(D, list, fonts) {
       heading("أولًا: " + L.signsH, col), checks(pick(L.signs, s.signs || [], true)),
       heading("ثانيًا: " + L.descH, col), textBox(s.desc, 520),
       heading("ثالثًا: " + L.actH, col), checks(pick(L.actions, s.actions || [])),
-      heading("رابعًا: التوصيات والمطلوب من رئيس الشعبة", col), textBox(s.rec, 400),
+      heading("رابعًا: توصيات رئيس الشعبة", col), textBox(s.rec, 400),
       heading("خامسًا: متابعة رئيس الشعبة (الفصلان الدراسيان)", col), followTable(s, col),
       P("", { after: 40 }), signs(s)];
   };
