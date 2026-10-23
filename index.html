@@ -2064,16 +2064,19 @@ function buildAchievementDoc(D, a, imgs) {
   const h = H(D);
   const titleLine = (String(a.report || "").match(/^\s*العنوان\s*:\s*(.+)$/m) || [])[1] || a.title;
   const byHead = a.teacher === HEAD_NAME; // إنجاز رئيس الشعبة نفسه
+  // عنوان التقرير بحسب نوعه: إنجاز، ورشة، محاضرة…، وإلا «نشاط»
+  const KIND = { "مبادرة": ["إنجاز", "الإنجاز"], "ورشة عمل": ["ورشة عمل", "الورشة"], "محاضرة أو ندوة": ["محاضرة", "المحاضرة"], "تكريم": ["تكريم", "التكريم"],
+    "مسابقة": ["مسابقة", "المسابقة"], "معرض": ["معرض", "المعرض"], "زيارة أو رحلة": ["زيارة", "الزيارة"], "درس نموذجي": ["درس نموذجي", "الدرس"], "إذاعة مدرسية": ["إذاعة مدرسية", "الإذاعة"] }[a.type] || ["نشاط", "النشاط"];
   const info = h.table([
     [h.cell(byHead ? "رئيس الشعبة" : "المعلم", { bold: true, fill: "FBEEE3", w: 1600 }), h.cell("أ. " + a.teacher, { w: 3200 }), h.cell("التاريخ", { bold: true, fill: "FBEEE3", w: 1600 }), h.cell(fmtDate(a.date, true), { w: 3200 })],
-    [h.cell("نوع النشاط", { bold: true, fill: "FBEEE3" }), h.cell(a.type), h.cell("الفئة المستهدفة", { bold: true, fill: "FBEEE3" }), h.cell(a.target || "طلاب المدرسة")]
+    [h.cell("النوع", { bold: true, fill: "FBEEE3" }), h.cell(a.type), h.cell("الفئة المستهدفة", { bold: true, fill: "FBEEE3" }), h.cell(a.target || "طلاب المدرسة")]
   ], [1600, 3200, 1600, 3200]);
   const children = [h.letterhead(), h.para("", { after: 120 }),
-    h.para("تقرير نشاط", { size: 22, color: h.ORANGE, bold: true, align: h.C, after: 40 }),
+    h.para("تقرير " + KIND[0], { size: 22, color: h.ORANGE, bold: true, align: h.C, after: 40 }),
     h.para(titleLine, { size: 36, bold: true, align: h.C, after: 200 }), info, h.para("", { after: 160 }),
     ...reportBody(h, a.report)];
   if (imgs.length) {
-    children.push(h.heading("صور من النشاط"));
+    children.push(h.heading("صور من " + KIND[1]));
     const rows = [];
     for (let i = 0; i < imgs.length; i += 2) {
       rows.push(imgs.slice(i, i + 2).map(im => { const w = 280, hh = Math.min(220, w * im.h / im.w), ww = hh * im.w / im.h;
