@@ -16,12 +16,12 @@ const SHEET_SUBS = "الاحتياط";
 const SHEET_PLAN = "خطة الزيارات";
 const SHEET_SCHOOL = "جدول المدرسة";
 const SHEET_SWAP = "التبديلات";
-// نائب رئيس القسم: له صلاحية ركن الاحتياط مع رئيس القسم
+// نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
 
 const ST_PENDING = "بانتظار الصياغة";
 
-// التنبيهات بالإيميل (تصل لرئيس القسم فقط)
+// التنبيهات بالإيميل (تصل لرئيس الشعبة فقط)
 const HEAD_EMAIL = "mazyadalqassar@gmail.com";
 const SITE_URL = "https://mazyadalqassar.github.io/islamic-dept/";
 const ST_READY = "جاهز";
@@ -84,7 +84,7 @@ function setup() {
   let codes = ss.getSheetByName(SHEET_CODES);
   if (!codes) {
     codes = ss.insertSheet(SHEET_CODES);
-    codes.appendRow(["المعلم", "الرمز", "رئيس القسم", "ملاحظة"]);
+    codes.appendRow(["المعلم", "الرمز", "رئيس الشعبة", "ملاحظة"]);
     TEACHERS.forEach(t => codes.appendRow([t[0], newCode_(), t[2] ? "نعم" : "", ""]));
     codes.setRightToLeft(true);
     codes.getRange("B:B").setNumberFormat("@");
@@ -98,7 +98,7 @@ function setup() {
   sheet_(SHEET_SIG, ["المحضر", "المعلم", "وقت التوقيع", "التوقيع"], true);
   sheet_(SHEET_MYSIG, ["المعلم", "التوقيع", "آخر تحديث"], true);
   sheet_(SHEET_VIS, ["المعرف", "المعلم", "الفصل", "البطاقة", "التاريخ", "الحصة", "رقم الوحدة", "المجال", "رقم الدرس", "عنوان الدرس / السورة والآيات",
-    "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس القسم", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم", "نوع الزيارة", "الملاحظات"], true);
+    "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس الشعبة", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم", "نوع الزيارة", "الملاحظات"], true);
   sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل"], true);
   sheet_(SHEET_SCHOOL, ["المعلم", "القسم", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
   sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "قسمه", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true);
@@ -186,7 +186,7 @@ function who_(code) {
 }
 function head_(code) {
   const me = who_(code);
-  if (!me.isHead) throw new Error("هذه الصلاحية لرئيس القسم فقط.");
+  if (!me.isHead) throw new Error("هذه الصلاحية لرئيس الشعبة فقط.");
   return me;
 }
 
@@ -302,7 +302,7 @@ function deleteAchievement(code, id) {
   });
 }
 
-/** لرئيس القسم: كل الإنجازات مع التقارير */
+/** لرئيس الشعبة: كل الإنجازات مع التقارير */
 function allAchievements(code) {
   head_(code);
   return rows_(SHEET_ACH).slice(1).filter(r => r[0] && !isDemo_(r[1])).map(r => achObj_(r, true)).reverse();
@@ -321,7 +321,7 @@ function saveReport(code, id, text) {
   });
 }
 
-/** يعيد صورة إنجاز: لصاحب الإنجاز أو رئيس القسم فقط */
+/** يعيد صورة إنجاز: لصاحب الإنجاز أو رئيس الشعبة فقط */
 function getPhoto(code, fileId) {
   const me = who_(code);
   const r = rows_(SHEET_ACH).slice(1).find(x => (x[7] || "").split(",").indexOf(fileId) !== -1);
@@ -352,7 +352,7 @@ function listMinutes(code) {
   }).reverse();
 }
 
-/** المحضر كاملًا. رئيس القسم يرى صور كل التواقيع، والمعلم يرى توقيعه فقط */
+/** المحضر كاملًا. رئيس الشعبة يرى صور كل التواقيع، والمعلم يرى توقيعه فقط */
 function getMinute(code, id) {
   const me = who_(code);
   const r = rows_(SHEET_MIN).slice(1).find(x => x[0] === id);
@@ -406,7 +406,7 @@ function signMinute(code, id, image) {
     // يحفظ التوقيع ليستخدمه المعلم لاحقًا بضغطة زر
     const my = sh_(SHEET_MYSIG), row = findRow_(my, 1, me.name);
     if (row > 0) writeRow_(my, row, [me.name, image, at]); else appendText_(my, [me.name, image, at]);
-    // عند اكتمال توقيع جميع الحضور يصل إيميل لرئيس القسم
+    // عند اكتمال توقيع جميع الحضور يصل إيميل لرئيس الشعبة
     const m = minObj_(r), signed = vals.slice(1).filter(v => v[0] === id).map(v => [v[1], v[2]]).concat([[me.name, at]]);
     if (m.attendees.every(n => signed.some(x => x[0] === n))) {
       notify_(me, `اكتمل التوقيع على محضر: ${m.title}`, `
@@ -445,7 +445,7 @@ function ensureDemoMinute_() {
     "هذا محضر تجريبي يوضح طريقة الاطلاع على المحاضر والتوقيع عليها إلكترونيًا.", "مثال على توصية\nمثال على توصية ثانية", nowText_()]);
 }
 
-/** لرئيس القسم: حالة الحسابات التجريبية */
+/** لرئيس الشعبة: حالة الحسابات التجريبية */
 function demoAccounts(code) {
   head_(code);
   const rows = sh_(SHEET_CODES).getDataRange().getDisplayValues();
@@ -494,7 +494,7 @@ function demoAction(code, name, action) {
 
 function esc_(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
-/** يرسل تنبيهًا لرئيس القسم. الحسابات التجريبية تصل بعلامة [تجريبي]. لا يوقف العملية إن فشل الإرسال */
+/** يرسل تنبيهًا لرئيس الشعبة. الحسابات التجريبية تصل بعلامة [تجريبي]. لا يوقف العملية إن فشل الإرسال */
 function notify_(me, subject, html, attachments) {
   try {
     const demo = me && me.isDemo;
@@ -517,7 +517,7 @@ function testEmail() { notify_(null, "تجربة تنبيهات موقع الق�
 // ======================= الزيارات الصفية =======================
 // أعمدة الزيارات: 0 المعرف | 1 المعلم | 2 الفصل | 3 البطاقة (ie | qr | tl) | 4 التاريخ | 5 الحصة | 6 رقم الوحدة | 7 المجال
 // 8 رقم الدرس | 9 عنوان الدرس أو السورة والآيات | 10 رقم الزيارة | 11 التقييمات (JSON: [[المستوى، الملاحظة], ...])
-// 12 التوصيات | 13 توقيع رئيس القسم | 14 تاريخ الإنشاء | 15 توقيع المعلم | 16 وقت توقيع المعلم
+// 12 التوصيات | 13 توقيع رئيس الشعبة | 14 تاريخ الإنشاء | 15 توقيع المعلم | 16 وقت توقيع المعلم
 const VISIT_CARDS = { ie: "التربية الإسلامية", qr: "القرآن الكريم", tl: "حصة تلاوة" };
 const VISIT_TYPES = ["استطلاعية", "توجيهية", "تقويمية"];
 const VIS_COLS = 19; // 17 نوع الزيارة | 18 الملاحظات
@@ -533,7 +533,7 @@ function visObj_(r, withImages) {
 function visRows_() { return rows_(SHEET_VIS).slice(1).filter(r => r[0]); }
 function validSig_(img) { return /^data:image\/png;base64,/.test(img) && img.length <= 48000; }
 
-/** لرئيس القسم: إنشاء زيارة أو تعديلها (قبل توقيع المعلم) */
+/** لرئيس الشعبة: إنشاء زيارة أو تعديلها (قبل توقيع المعلم) */
 function saveVisit(code, v) {
   const me = head_(code);
   const teacher = String(v.teacher || "");
@@ -569,7 +569,7 @@ function saveVisit(code, v) {
   });
 }
 
-/** رئيس القسم يرى كل الزيارات، والمعلم يرى زياراته فقط */
+/** رئيس الشعبة يرى كل الزيارات، والمعلم يرى زياراته فقط */
 function listVisits(code) {
   const me = who_(code);
   return visRows_().filter(r => me.isHead || r[1] === me.name).map(r => visObj_(r, false)).reverse();
@@ -615,10 +615,10 @@ function deleteVisit(code, id) {
 }
 
 
-// ======================= الاحتياط (رئيس القسم ونائبه) =======================
+// ======================= الاحتياط (رئيس الشعبة ونائبه) =======================
 function staff_(code) {
   const me = who_(code);
-  if (me.isDemo || !(me.isHead || me.name === DEPUTY)) throw new Error("هذه الصلاحية لرئيس القسم ونائبه فقط.");
+  if (me.isDemo || !(me.isHead || me.name === DEPUTY)) throw new Error("هذه الصلاحية لرئيس الشعبة ونائبه فقط.");
   return me;
 }
 function subsRows_() { const sh = sh_(SHEET_SUBS); return sh ? rows_(SHEET_SUBS).slice(1).filter(r => r[0]) : []; }
@@ -669,7 +669,7 @@ function deleteAbsence(code, date, teacher) {
   });
 }
 
-// ======================= خطة الزيارات (رئيس القسم) =======================
+// ======================= خطة الزيارات (رئيس الشعبة) =======================
 function visitPlan(code) {
   head_(code);
   const sh = sh_(SHEET_PLAN);
@@ -689,7 +689,7 @@ function schoolTable(code) {
   });
 }
 
-/** لرئيس القسم: استيراد جدول المدرسة (JSON مضغوط gzip بترميز base64: [[المعلم، القسم، الجدول]]) */
+/** لرئيس الشعبة: استيراد جدول المدرسة (JSON مضغوط gzip بترميز base64: [[المعلم، القسم، الجدول]]) */
 function importSchool(code, b64) {
   head_(code);
   const json = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(b64), "application/x-gzip")).getDataAsString("UTF-8");
@@ -714,7 +714,7 @@ function swapSheet_() { return sh_(SHEET_SWAP) || sheet_(SHEET_SWAP, ["المع�
 function dayOf_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? DAYS_[new Date(+m[1], +m[2] - 1, +m[3]).getDay()] : ""; }
 function dmy_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[3]}/${+m[2]}/${m[1]}` : iso; }
 
-/** يسجّل طلب تبديل ويرسل إيميلًا لرئيس القسم مع النموذج (وورد) */
+/** يسجّل طلب تبديل ويرسل إيميلًا لرئيس الشعبة مع النموذج (وورد) */
 function saveSwap(code, s, docB64) {
   const me = who_(code);
   s = s || {};
@@ -740,7 +740,7 @@ function saveSwap(code, s, docB64) {
   return o;
 }
 
-/** رئيس القسم: كل التبديلات (التجريبية معلّمة) · المعلم: تبديلاته فقط */
+/** رئيس الشعبة: كل التبديلات (التجريبية معلّمة) · المعلم: تبديلاته فقط */
 function listSwaps(code) {
   const me = who_(code);
   const sh = sh_(SHEET_SWAP); if (!sh) return [];
