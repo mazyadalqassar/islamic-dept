@@ -22,6 +22,8 @@ const SHEET_LEAVE = "الاستئذانات";
 const SHEET_EMAIL = "إيميلات المعلمين";
 const SHEET_DUTY = "المراقبة";
 const SHEET_GRADES = "درجات الأعمال";
+const SHEET_CIRC = "التعاميم";
+const SHEET_CIRC_SIG = "تواقيع التعاميم";
 // نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
 
@@ -70,7 +72,8 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
   setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf,
-  gradesGet, gradesSave, gradesApprove, gradesOverview };
+  gradesGet, gradesSave, gradesApprove, gradesOverview,
+  listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular };
 
 function doPost(e) {
   let out;
@@ -1279,4 +1282,144 @@ function gradesOverview(code, sem) {
     out.push({ classId: cls, subject: subj, teacher: t[0], filled: full, started: Object.keys(g).length, total: counts[cls] || 0, approvedAt: r ? r[6] : "", editedAfter: r ? r[8] === "نعم" : false });
   })));
   return out;
+}
+
+
+// ======================= النشرات والتعاميم =======================
+// رئيس الشعبة ينشر التعميم (عنوان ونص و/أو ملف PDF أو صورة)، فيصل كل معلم تنبيه بالإيميل،
+// ويطّلع عليه في الموقع ويوقّع بالعلم. رئيس الشعبة يتابع من وقّع ومن لم يوقّع.
+// التعاميم: 0 المعرف | 1 العنوان | 2 الرقم | 3 التاريخ | 4 جهة الإصدار | 5 النص | 6 معرف الملف | 7 اسم الملف | 8 نوع الملف | 9 تاريخ النشر | 10 المطلوب توقيعهم JSON
+const CIRC_HEAD_ = ["المعرف", "العنوان", "الرقم", "التاريخ", "جهة الإصدار", "النص", "معرف الملف", "اسم الملف", "نوع الملف", "تاريخ النشر", "المطلوب توقيعهم"];
+const DEMO_CIRC_ = "DEMO-CIRC";
+const CIRC_HEAD_NAME_ = (TEACHERS.find(t => t[2]) || [""])[0];
+function circSheet_() { return sh_(SHEET_CIRC) || sheet_(SHEET_CIRC, CIRC_HEAD_, true); }
+function circSigSheet_() { return sh_(SHEET_CIRC_SIG) || sheet_(SHEET_CIRC_SIG, ["المعرف", "المعلم", "وقت التوقيع", "التوقيع"], true); }
+function circObj_(r) { return { id: r[0], title: r[1], number: r[2], date: r[3], source: r[4], text: r[5], fileId: r[6], fileName: r[7], mime: r[8], createdAt: r[9], targets: json_(r[10], []) }; }
+function circSigs_() { const sh = sh_(SHEET_CIRC_SIG); return sh ? rows_(SHEET_CIRC_SIG).slice(1).filter(r => r[0]) : []; }
+function circTargets_() { return TEACHERS.filter(t => !t[2]).map(t => t[0]); }
+function ensureDemoCirc_() {
+  const sh = circSheet_(); if (findRow_(sh, 1, DEMO_CIRC_) > 0) return;
+  appendText_(sh, [DEMO_CIRC_, "تعميم تجريبي للعرض", "١/٢٠٢٦", Utilities.formatDate(new Date(), "Asia/Kuwait", "yyyy-MM-dd"), "رئيس الشعبة",
+    "هذا تعميم تجريبي يوضح طريقة الاطلاع على التعاميم والتوقيع بالعلم إلكترونيًا.", "", "", "", nowText_(), JSON.stringify(Object.keys(DEMOS))]);
+}
+function circVisible_(me, c) { return me.isDemo ? c.id === DEMO_CIRC_ : c.id !== DEMO_CIRC_; }
+function circFind_(me, id) {
+  if (me.isDemo) ensureDemoCirc_();
+  const sh = sh_(SHEET_CIRC); const r = sh ? rows_(SHEET_CIRC).slice(1).find(x => x[0] === id) : null;
+  const c = r && circObj_(r);
+  if (!c || !circVisible_(me, c)) throw new Error("التعميم غير موجود.");
+  return c;
+}
+
+function listCirculars(code) {
+  const me = who_(code);
+  if (me.isDemo) ensureDemoCirc_();
+  const sh = sh_(SHEET_CIRC); if (!sh) return [];
+  const sigs = circSigs_();
+  return rows_(SHEET_CIRC).slice(1).filter(r => r[0]).map(circObj_).filter(c => circVisible_(me, c)).map(c => {
+    const mine = sigs.find(s => s[0] === c.id && s[1] === me.name);
+    return { id: c.id, title: c.title, number: c.number, date: c.date, source: c.source, createdAt: c.createdAt, hasFile: !!c.fileId,
+      mustSign: c.targets.indexOf(me.name) !== -1, mySignedAt: mine ? mine[2] : "",
+      signedCount: sigs.filter(s => s[0] === c.id && c.targets.indexOf(s[1]) !== -1).length, total: c.targets.length };
+  }).reverse();
+}
+
+/** التعميم كاملًا. رئيس الشعبة يرى حالة توقيع الجميع، والمعلم يرى توقيعه فقط */
+function getCircular(code, id) {
+  const me = who_(code), c = circFind_(me, id), sigs = circSigs_().filter(s => s[0] === id);
+  const out = { id: c.id, title: c.title, number: c.number, date: c.date, source: c.source, text: c.text, fileName: c.fileName, mime: c.mime, hasFile: !!c.fileId, createdAt: c.createdAt,
+    mustSign: c.targets.indexOf(me.name) !== -1 };
+  const mine = sigs.find(s => s[1] === me.name);
+  out.mine = mine ? { signedAt: mine[2], image: mine[3] } : null;
+  if (me.isHead || me.isDemo) out.status = c.targets.map(n => { const s = sigs.find(x => x[1] === n); return { teacher: n, signedAt: s ? s[2] : "", image: me.isHead && s ? s[3] : "" }; });
+  return out;
+}
+
+function circularFile(code, id) {
+  const me = who_(code), c = circFind_(me, id);
+  if (!c.fileId) throw new Error("لا يوجد ملف مرفق بهذا التعميم.");
+  const b = DriveApp.getFileById(c.fileId).getBlob();
+  return { name: c.fileName, mime: c.mime || b.getContentType(), b64: Utilities.base64Encode(b.getBytes()) };
+}
+
+/** رئيس الشعبة: نشر تعميم جديد وإرسال تنبيه لكل معلم */
+function saveCircular(code, c) {
+  const me = head_(code);
+  const title = String(c.title || "").trim().slice(0, 200);
+  if (!title) throw new Error("اكتب عنوان التعميم.");
+  const text = String(c.text || "").trim().slice(0, 8000);
+  const file = String(c.file || "");
+  if (!file && text.length < 5) throw new Error("أرفق ملف التعميم أو اكتب نصه.");
+  let fileId = "", fileName = "", mime = "";
+  const id = newId_();
+  if (file) {
+    const m = file.match(/^data:(application\/pdf|image\/jpeg|image\/png);base64,(.+)$/);
+    if (!m) throw new Error("الملف يجب أن يكون PDF أو صورة.");
+    if (m[2].length > 11000000) throw new Error("حجم الملف كبير (الحد ٨ ميجابايت).");
+    mime = m[1];
+    fileName = String(c.fileName || "").replace(/[\\/:*?"<>|]/g, "-").slice(0, 120) || ("تعميم." + (mime === "application/pdf" ? "pdf" : "jpg"));
+    fileId = folder_().createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), mime, `تعميم-${id}-${fileName}`)).getId();
+  }
+  const targets = circTargets_();
+  const row = [id, title, String(c.number || "").trim().slice(0, 60), String(c.date || "").slice(0, 10), String(c.source || "").trim().slice(0, 80), text,
+    fileId, fileName, mime, nowText_(), JSON.stringify(targets)];
+  withLock_(() => appendText_(circSheet_(), row));
+  let sent = 0, noEmail = [];
+  targets.forEach(n => {
+    const ok = notifyTeacher_(n, `تعميم مهم: ${title}`, `
+      <p>الأستاذ الفاضل/ ${esc_(n)} المحترم،</p>
+      <p>وصل <b>تعميم مهم</b> في موقع شعبة التربية الإسلامية، <b>يرجى الاطلاع عليه والتوقيع بالعلم</b>.</p>
+      <p style="background:#fbeee3;padding:8px 12px;border-radius:8px"><b>${esc_(title)}</b>${row[2] ? `<br>رقم التعميم: ${esc_(row[2])}` : ""}${row[4] ? `<br>جهة الإصدار: ${esc_(row[4])}` : ""}</p>
+      <p>تجده في ركن «النشرات والتعاميم».</p><p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`);
+    if (ok) sent++; else noEmail.push(n);
+  });
+  return { id, sent, noEmail };
+}
+
+function deleteCircular(code, id) {
+  head_(code);
+  return withLock_(() => {
+    const sh = sh_(SHEET_CIRC), row = sh ? findRow_(sh, 1, id) : -1;
+    if (row > 0) {
+      const fid = sh.getRange(row, 7).getDisplayValue();
+      if (fid) { try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {} }
+      sh.deleteRow(row);
+    }
+    const sig = sh_(SHEET_CIRC_SIG);
+    if (sig) { const vals = sig.getDataRange().getDisplayValues(); for (let i = vals.length - 1; i >= 1; i--) if (vals[i][0] === id) sig.deleteRow(i + 1); }
+    return true;
+  });
+}
+
+function signCircular(code, id, image) {
+  const me = who_(code);
+  image = String(image || "");
+  if (!/^data:image\/png;base64,/.test(image) || image.length > 48000) throw new Error("التوقيع غير صالح، ارسمه مرة أخرى.");
+  const c = circFind_(me, id);
+  if (c.targets.indexOf(me.name) === -1) throw new Error("هذا التعميم لا يتطلب توقيعك.");
+  return withLock_(() => {
+    const sh = circSigSheet_(), vals = sh.getDataRange().getDisplayValues();
+    for (let i = 1; i < vals.length; i++) if (vals[i][0] === id && vals[i][1] === me.name) throw new Error("وقّعت على هذا التعميم من قبل.");
+    const at = nowText_();
+    appendText_(sh, [id, me.name, at, image]);
+    if (!me.isDemo) {
+      const my = sh_(SHEET_MYSIG), row = findRow_(my, 1, me.name);
+      if (row > 0) writeRow_(my, row, [me.name, image, at]); else appendText_(my, [me.name, image, at]);
+    }
+    const signed = vals.slice(1).filter(v => v[0] === id).map(v => v[1]).concat([me.name]);
+    if (c.targets.every(n => signed.indexOf(n) !== -1))
+      notify_(me, `اكتمل التوقيع بالعلم على تعميم: ${c.title}`, `<p>وقّع جميع المعلمين (${c.targets.length}) بالعلم على تعميم <b>${esc_(c.title)}</b>.</p>`);
+    return { signedAt: at };
+  });
+}
+
+/** رئيس الشعبة: تذكير من لم يوقّع */
+function remindCircular(code, id) {
+  const me = head_(code), c = circFind_(me, id), sigs = circSigs_().filter(s => s[0] === id).map(s => s[1]);
+  const left = c.targets.filter(n => sigs.indexOf(n) === -1);
+  let sent = 0;
+  left.forEach(n => { if (notifyTeacher_(n, `تذكير: تعميم بانتظار توقيعك — ${c.title}`, `
+    <p>الأستاذ الفاضل/ ${esc_(n)} المحترم،</p><p>نذكّركم بالاطلاع على تعميم <b>${esc_(c.title)}</b> والتوقيع بالعلم في موقع الشعبة (ركن «النشرات والتعاميم»).</p>
+    <p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`)) sent++; });
+  return { left: left.length, sent };
 }
