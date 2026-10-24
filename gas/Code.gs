@@ -77,7 +77,8 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf,
   gradesGet, gradesSave, gradesApprove, gradesOverview,
   listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular,
-  listDevices, resetDevice, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent };
+  listDevices, resetDevice, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent,
+  notifyAbsence, subsOpen, claimSub, unclaimSub, headNews, markSeen };
 
 function doPost(e) {
   let out;
@@ -1622,4 +1623,115 @@ function markInviteSent(code, teacher) {
     const row = findRow_(sh, 1, teacher); if (row < 0) throw new Error("لا يوجد رقم لهذا المعلم.");
     const at = nowText_(); sh.getRange(row, 3).setNumberFormat("@").setValue(at); return at;
   });
+}
+
+
+// ======================= الاحتياط: يختار المعلمون الحصص بأنفسهم =======================
+// جدول حصص معلمي الشعبة (نسخة من جدول الموقع): اليوم (0 الأحد … 4 الخميس) ← الحصة ← الفصل
+const TT_ = {"مزيد حمد خليفة القصار": {"0": {"4": "11s-1"}, "1": {"2": "11s-1"}, "2": {"4": "11s-1"}}, "عبدالله طارق محمد الخليفي": {"0": {"2": "10-1"}, "1": {"4": "11s-4"}, "2": {"7": "10-1"}, "3": {"1": "10-1", "7": "11s-4"}, "4": {"5": "11s-4"}}, "عبدالمحسن عايض عبدالله المطيري": {"0": {"7": "10-2"}, "1": {"5": "10-9"}, "2": {"2": "10-2"}, "3": {"7": "10-9"}, "4": {"3": "10-2", "6": "10-9"}}, "خالد أحمد علي الخالدي": {"0": {"4": "10-5", "7": "10-6"}, "1": {"4": "10-5"}, "2": {"6": "10-6"}, "3": {"7": "10-5"}, "4": {"3": "10-6"}}, "سعد عبدالله سعد الحربي": {"0": {"2": "10-3"}, "1": {"7": "10-4"}, "2": {"7": "10-3"}, "3": {"4": "10-3", "6": "10-4"}, "4": {"2": "10-4"}}, "عبدالرحمن خالد عبدالكريم الاصقه": {"0": {"2": "10-7"}, "1": {"7": "10-8"}, "2": {"5": "10-7"}, "3": {"5": "10-8", "7": "10-7"}, "4": {"6": "10-8"}}, "عبدالله جاسم محمد المجيبل": {"0": {"6": "11s-2"}, "1": {"7": "11s-3"}, "2": {"2": "11s-3"}, "3": {"2": "11s-2"}, "4": {"3": "11s-3", "7": "11s-2"}}, "سعد احمد سعد العازمي": {"0": {"6": "11l-1"}, "1": {"2": "11l-1", "7": "11s-5"}, "2": {"6": "11s-5"}, "3": {"1": "11s-5"}, "4": {"7": "11l-1"}}, "عثمان حسين علي الاثري": {"0": {"1": "11s-6"}, "1": {"4": "11l-2"}, "2": {"4": "11l-2"}, "3": {"5": "11l-2", "7": "11s-6"}, "4": {"7": "11s-6"}}, "أحمد ياسر إبراهيم الشطي": {"0": {"4": "11s-7", "6": "11s-8"}, "1": {"1": "11s-7", "2": "12s-6"}, "2": {"7": "11s-8"}, "3": {"2": "11s-8", "6": "12s-6"}, "4": {"5": "12s-6", "7": "11s-7"}}, "مصطفى احمد ابراهيم على": {"0": {"1": "12s-1", "3": "12s-3"}, "1": {"5": "12s-3"}, "2": {"7": "12s-3"}, "3": {"7": "12s-1"}, "4": {"1": "12s-1"}}, "محمد فهد محمد فيلكاوي": {"0": {"2": "12l-1", "7": "12s-7"}, "1": {"7": "12s-2"}, "2": {"1": "12s-2"}, "3": {"2": "12l-1", "3": "12s-7"}, "4": {"1": "12l-1", "4": "12s-7", "6": "12s-2"}}, "حمد عماد حمد العون": {"0": {"1": "12s-5", "3": "12s-4"}, "1": {"1": "12s-4"}, "2": {"6": "12s-5"}, "3": {"1": "12s-5"}, "4": {"2": "12s-4"}}, "ممدوح صديق ابوالحسن": {"1": {"2": "12l-2"}, "2": {"5": "12l-2"}, "4": {"2": "12l-2"}}};
+const TT_BUSY_ = {"*": {"0": {"5": "اجتماع الشعبة"}}, "مزيد حمد خليفة القصار": {"0": {"3": "اجتماع مجلس الإدارة"}}};
+function ttAt_(name, d, p) { return ((TT_[name] || {})[d] || {})[p] || ((TT_BUSY_["*"] || {})[d] || {})[p] || ((TT_BUSY_[name] || {})[d] || {})[p] || ""; }
+function dayIdx_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(+m[1], +m[2] - 1, +m[3], 12).getDay() : -1; }
+function todayISO_() { return Utilities.formatDate(new Date(), "Asia/Kuwait", "yyyy-MM-dd"); }
+const AR_ORD_ = ["", "الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة"];
+function arLabel_(id) { const m = String(id).match(/^(\d+)([sl]?)-(\d+)$/); if (!m) return id; const a = s => String(s).replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]); return m[2] ? `${a(m[1])} ${m[2] === "s" ? "علمي" : "أدبي"} ${a(m[3])}` : `${a(m[1])}/${a(m[3])}`; }
+const DAYS_AR_ = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+/** رئيس الشعبة: إرسال حصص الغائب لكل معلمي الشعبة ليختاروا */
+function notifyAbsence(code, date, teacher) {
+  staff_(code);
+  const rs = subsRows_().map(subObj_).filter(r => r.date === date && r.teacher === teacher && !r.sub).sort((a, b) => a.period - b.period);
+  if (!rs.length) throw new Error("لا توجد حصص بلا بديل لهذا الغياب.");
+  const d = dayIdx_(date), list = rs.map(r => `<li>الحصة ${AR_ORD_[r.period]} · ${esc_(arLabel_(r.classId))}</li>`).join("");
+  let sent = 0;
+  TEACHERS.filter(t => !t[2] && t[0] !== teacher).forEach(t => {
+    if (notifyTeacher_(t[0], `احتياط: أ. ${teacher} غائب يوم ${DAYS_AR_[d]}`, `
+      <p>الأستاذ الفاضل/ ${esc_(t[0])} المحترم،</p>
+      <p><b>أ. ${esc_(teacher)}</b> غائب يوم <b>${DAYS_AR_[d]} ${esc_(date)}</b>، وحصصه:</p><ul>${list}</ul>
+      <p>ادخل الموقع ← ركن «الاحتياط»، واختر الحصة التي تستطيع أخذها. تُحجز الحصة لأول من يختارها.</p>
+      <p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`)) sent++;
+  });
+  return { sent };
+}
+/** المعلم: حصص الاحتياط المفتوحة من اليوم فصاعدًا */
+function subsOpen(code) {
+  const me = who_(code);
+  if (me.isDemo) return [];
+  const today = todayISO_(), all = subsRows_().map(subObj_);
+  const absentOn = {}; all.forEach(r => { (absentOn[r.date] = absentOn[r.date] || {})[r.teacher] = 1; });
+  const by = {};
+  all.filter(r => r.date >= today).forEach(r => { (by[r.absence] = by[r.absence] || { absence: r.absence, date: r.date, teacher: r.teacher, periods: [] }).periods.push(r); });
+  return Object.values(by).sort((a, b) => a.date < b.date ? -1 : 1).map(g => {
+    const d = dayIdx_(g.date);
+    return { absence: g.absence, date: g.date, teacher: g.teacher, mineAbsent: g.teacher === me.name,
+      periods: g.periods.sort((a, b) => a.period - b.period).map(r => ({ period: r.period, classId: r.classId, sub: r.sub, mine: r.sub === me.name,
+        free: !r.sub && g.teacher !== me.name && !(absentOn[g.date] || {})[me.name] && !ttAt_(me.name, d, r.period) && !all.some(x => x.date === g.date && x.period === r.period && x.sub === me.name) })) };
+  });
+}
+function claimSub(code, absence, period) {
+  const me = who_(code);
+  if (me.isDemo) throw new Error("غير متاح للحساب التجريبي.");
+  period = Number(period);
+  let covered = null;
+  withLock_(() => {
+    const sh = sh_(SHEET_SUBS), all = sh.getDataRange().getDisplayValues();
+    const i = all.findIndex((r, k) => k > 0 && r[0] === absence && Number(r[3]) === period);
+    if (i < 1) throw new Error("الحصة غير موجودة.");
+    const r = all[i], d = dayIdx_(r[1]);
+    if (r[1] < todayISO_()) throw new Error("انتهى يوم هذه الحصة.");
+    if (r[5]) throw new Error(r[5] === me.name ? "أخذت هذه الحصة من قبل." : `سبقك إليها أ. ${r[5]}.`);
+    if (r[2] === me.name) throw new Error("هذه حصتك.");
+    if (all.some((x, k) => k > 0 && x[1] === r[1] && x[2] === me.name)) throw new Error("أنت مسجّل غائبًا في هذا اليوم.");
+    if (ttAt_(me.name, d, period)) throw new Error("لديك حصة أو التزام في هذا الوقت.");
+    if (all.some((x, k) => k > 0 && x[1] === r[1] && Number(x[3]) === period && x[5] === me.name)) throw new Error("أخذت احتياطًا آخر في الوقت نفسه.");
+    sh.getRange(i + 1, 6, 1, 3).setNumberFormat("@").setValues([[me.name, me.name, nowText_()]]);
+    const rest = all.filter((x, k) => k > 0 && k !== i && x[0] === absence && !x[5]);
+    if (!rest.length) covered = { teacher: r[2], date: r[1], rows: all.filter((x, k) => k > 0 && x[0] === absence).map(x => x === r ? [x[3], me.name] : [x[3], x[5]]) };
+  });
+  if (covered) notify_(me, `تمت تغطية احتياط أ. ${covered.teacher}`, `<p>تمت تغطية جميع حصص <b>أ. ${esc_(covered.teacher)}</b> يوم ${DAYS_AR_[dayIdx_(covered.date)]} ${esc_(covered.date)}:</p>
+    <ul>${covered.rows.sort((a, b) => a[0] - b[0]).map(x => `<li>الحصة ${AR_ORD_[Number(x[0])]}: أ. ${esc_(x[1])}</li>`).join("")}</ul>`);
+  return subsOpen(code);
+}
+function unclaimSub(code, absence, period) {
+  const me = who_(code);
+  period = Number(period);
+  withLock_(() => {
+    const sh = sh_(SHEET_SUBS), all = sh.getDataRange().getDisplayValues();
+    const i = all.findIndex((r, k) => k > 0 && r[0] === absence && Number(r[3]) === period);
+    if (i < 1 || all[i][5] !== me.name) throw new Error("هذه الحصة ليست محجوزة باسمك.");
+    if (all[i][1] < todayISO_()) throw new Error("انتهى يوم هذه الحصة.");
+    sh.getRange(i + 1, 6, 1, 3).setNumberFormat("@").setValues([["", me.name, nowText_()]]);
+  });
+  return subsOpen(code);
+}
+
+// ======================= الجديد لرئيس الشعبة (اللمبات الحمراء) =======================
+function seenKey_(me) { return "seen:" + me.name; }
+function headNews(code) {
+  const me = head_(code), props = PropertiesService.getScriptProperties();
+  let seen = json_(props.getProperty(seenKey_(me)), null);
+  const now = nowText_();
+  const SECS = ["min", "circ", "vis", "curr", "ach", "lv", "swap", "stu", "subs", "grd"];
+  if (!seen) { seen = {}; SECS.forEach(s => seen[s] = now); props.setProperty(seenKey_(me), JSON.stringify(seen)); }
+  const items = {}; SECS.forEach(s => items[s] = []);
+  const add = (s, at, id, tch) => { if (at && at > (seen[s] || "") && tch !== me.name && !isDemo_(tch)) items[s].push({ id, t: tch, at }); };
+  if (sh_(SHEET_SIG)) rows_(SHEET_SIG).slice(1).forEach(r => { if (r[0] !== DEMO_MINUTE) add("min", r[2], r[0], r[1]); });
+  if (sh_(SHEET_CIRC_SIG)) rows_(SHEET_CIRC_SIG).slice(1).forEach(r => { if (r[0] !== DEMO_CIRC_) add("circ", r[2], r[0], r[1]); });
+  if (sh_(SHEET_VIS)) rows_(SHEET_VIS).slice(1).forEach(r => add("vis", r[16], r[0], r[1]));
+  const dsh = sh_(SHEET_DATA);
+  if (dsh && dsh.getLastRow() > 1) dsh.getRange(2, 1, dsh.getLastRow() - 1, 8).getValues().forEach(r => {
+    if (String(r[0]).indexOf("DEMO|") === 0 || !(r[7] instanceof Date)) return;
+    add("curr", Utilities.formatDate(r[7], "Asia/Kuwait", "yyyy-MM-dd HH:mm"), String(r[0]), r[3]); });
+  if (sh_(SHEET_ACH)) rows_(SHEET_ACH).slice(1).forEach(r => add("ach", r[10], r[0], r[1]));
+  if (sh_(SHEET_LEAVE)) rows_(SHEET_LEAVE).slice(1).forEach(r => add("lv", [r[10], r[14]].sort().pop(), r[0], r[1]));
+  if (sh_(SHEET_SWAP)) rows_(SHEET_SWAP).slice(1).forEach(r => add("swap", r[1], r[0], r[2]));
+  if (sh_(SHEET_STU)) rows_(SHEET_STU).slice(1).forEach(r => add("stu", [r[14], r[15]].sort().pop(), r[0], r[2]));
+  if (sh_(SHEET_SUBS)) rows_(SHEET_SUBS).slice(1).forEach(r => { if (r[5] && r[6] === r[5]) add("subs", r[7], r[0], r[5]); });
+  if (sh_(SHEET_GRADES)) rows_(SHEET_GRADES).slice(1).forEach(r => { if (String(r[0]).indexOf("DEMO:") !== 0) add("grd", r[9], r[3] + "|" + r[4], r[1]); });
+  return items;
+}
+function markSeen(code, sec) {
+  const me = head_(code), props = PropertiesService.getScriptProperties();
+  const seen = json_(props.getProperty(seenKey_(me)), {}); seen[String(sec)] = nowText_();
+  props.setProperty(seenKey_(me), JSON.stringify(seen)); return true;
 }
