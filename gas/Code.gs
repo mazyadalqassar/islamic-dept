@@ -1188,10 +1188,32 @@ function dailyLeavesReport() {
     attachments: [leavesPdfBlob_(date, list)] });
 }
 /** يُشغَّل مرة واحدة من المحرر (بعد موافقة رئيس الشعبة على الصلاحية): ينشئ المهمة اليومية الساعة ٢ ظهرًا بتوقيت الكويت */
-function installDailyLeaves() {
-  ScriptApp.getProjectTriggers().filter(tr => tr.getHandlerFunction() === "dailyLeavesReport").forEach(tr => ScriptApp.deleteTrigger(tr));
+function installDailyLeaves() { return installTriggers(); }
+/** يثبّت المهام التلقائية: كشف الاستئذانات يوميًا الساعة ٢ ظهرًا، والنسخة الاحتياطية كل خميس الساعة ١٠ مساءً */
+function installTriggers() {
+  ScriptApp.getProjectTriggers().filter(tr => ["dailyLeavesReport", "weeklyBackup"].indexOf(tr.getHandlerFunction()) !== -1).forEach(tr => ScriptApp.deleteTrigger(tr));
   ScriptApp.newTrigger("dailyLeavesReport").timeBased().everyDays(1).atHour(14).nearMinute(0).inTimezone("Asia/Kuwait").create();
+  ScriptApp.newTrigger("weeklyBackup").timeBased().onWeekDay(ScriptApp.WeekDay.THURSDAY).atHour(22).inTimezone("Asia/Kuwait").create();
   return "تم";
+}
+
+// ======================= النسخة الاحتياطية الأسبوعية =======================
+// كل خميس تُحفظ نسخة كاملة من ملف البيانات في مجلد «نسخ احتياطية - موقع الشعبة»، ويُحتفظ بآخر ٣٠ نسخة.
+const BACKUP_KEEP_ = 30;
+function backupFolder_() {
+  const props = PropertiesService.getScriptProperties(), id = props.getProperty("BACKUP_FOLDER_ID");
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
+  const f = DriveApp.createFolder("نسخ احتياطية - موقع الشعبة");
+  props.setProperty("BACKUP_FOLDER_ID", f.getId());
+  return f;
+}
+function weeklyBackup() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), folder = backupFolder_();
+  const name = "نسخة احتياطية - " + Utilities.formatDate(new Date(), "Asia/Kuwait", "yyyy-MM-dd HH:mm");
+  DriveApp.getFileById(ss.getId()).makeCopy(name, folder);
+  const files = []; const it = folder.getFiles(); while (it.hasNext()) files.push(it.next());
+  files.sort((a, b) => b.getDateCreated() - a.getDateCreated()).slice(BACKUP_KEEP_).forEach(f => { try { f.setTrashed(true); } catch (e) {} });
+  return name;
 }
 
 
@@ -1202,6 +1224,16 @@ function installDailyLeaves() {
 const GRADES_HEAD_ = ["المفتاح", "المعلم", "الفصل الدراسي", "الفصل", "المادة", "الدرجات", "وقت الاعتماد", "اعتمده", "عُدّل بعد الاعتماد", "آخر تحديث"];
 // البنود: السلوك ٣ · تسميع ½ + ½ · مشاركة ٢ · واجبات ٣ · مشروع ٣٫٥ (لكل قسم) · الاختبار القصير ١٥
 const GR_MAX_ = { b1: 3, r11: .5, r12: .5, p1: 2, h1: 3, j1: 3.5, b2: 3, r21: .5, r22: .5, p2: 2, h2: 3, j2: 3.5, q: 15 };
+const SHEET_GRLOG = "سجل تعديلات الدرجات";
+const GR_LBL_ = { b1: "السلوك ق١", r11: "تسميع ١ ق١", r12: "تسميع ٢ ق١", p1: "المشاركة ق١", h1: "الواجبات ق١", j1: "المشروع ق١",
+  b2: "السلوك ق٢", r21: "تسميع ١ ق٢", r22: "تسميع ٢ ق٢", p2: "المشاركة ق٢", h2: "الواجبات ق٢", j2: "المشروع ق٢", q: "الاختبار القصير" };
+/** يسجّل كل تغيير في الدرجات: من عدّل ومتى، والدرجة قبل وبعد */
+function grLog_(me, sem, cls, subj, student, before, after) {
+  const ch = Object.keys(GR_MAX_).filter(k => before[k] !== after[k]).map(k => `${GR_LBL_[k]}: ${before[k] === undefined ? "–" : before[k]} ← ${after[k] === undefined ? "–" : after[k]}`);
+  if (!ch.length) return;
+  const sh = sh_(SHEET_GRLOG) || sheet_(SHEET_GRLOG, ["الوقت", "المعلم", "الفصل الدراسي", "الفصل", "المادة", "الطالب", "التغييرات"], true);
+  appendText_(sh, [nowText_(), me.name, sem, grLabel_(cls), subj === "qr" ? "القرآن الكريم" : "التربية الإسلامية", student, ch.join(" · ")]);
+}
 function gradesSheet_() { return sh_(SHEET_GRADES) || sheet_(SHEET_GRADES, GRADES_HEAD_, true); }
 function grKey_(sem, cls, subj) { return `${sem}|${cls}|${subj}`; }
 function grCheck_(me, sem, cls, subj) {
@@ -1230,6 +1262,7 @@ function gradesGet(code, sem, cls, subj) {
 /** حفظ درجات طالب واحد (قيم فارغة = لم تُرصد) */
 function gradesSave(code, sem, cls, subj, student, vals) {
   const me = who_(code); sem = String(sem); grCheck_(me, sem, cls, subj);
+  if (me.classes.indexOf(cls) === -1) throw new Error("رصد الدرجات وتعديلها لمعلم الفصل فقط.");
   student = String(student || "");
   if (grNames_(me, cls).indexOf(student) === -1) throw new Error("الطالب غير موجود في كشف الفصل.");
   const clean = {};
@@ -1245,7 +1278,9 @@ function gradesSave(code, sem, cls, subj, student, vals) {
   const res = withLock_(() => {
     const sh = gradesSheet_(), cur = grRow_(sh, key);
     const o = grObj_(cur && cur.r);
+    const before = o.grades[student] || {};
     if (Object.keys(clean).length) o.grades[student] = clean; else delete o.grades[student];
+    if (!me.isDemo) grLog_(me, sem, cls, subj, student, before, clean);
     if (o.approvedAt && !me.isHead && !o.editedAfter) { o.editedAfter = true; notify = true; }
     const row = [key, me.isDemo ? me.name : grTeacherOf_(cls), sem, cls, subj, JSON.stringify(o.grades), o.approvedAt, o.approvedBy, o.editedAfter ? "نعم" : "", nowText_()];
     writeRow_(sh, cur ? cur.row : sh.getLastRow() + 1, row);
