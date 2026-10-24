@@ -23,6 +23,8 @@ const SHEET_EMAIL = "إيميلات المعلمين";
 const SHEET_DUTY = "المراقبة";
 const SHEET_GRADES = "درجات الأعمال";
 const SHEET_CIRC = "التعاميم";
+const SHEET_DEV = "الأجهزة";
+const SHEET_PLEDGE = "التعهدات";
 const SHEET_CIRC_SIG = "تواقيع التعاميم";
 // نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
@@ -73,7 +75,8 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
   setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf,
   gradesGet, gradesSave, gradesApprove, gradesOverview,
-  listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular };
+  listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular,
+  listDevices, resetDevice, signPledge, listPledges, requestDeviceCode, verifyDeviceCode };
 
 function doPost(e) {
   let out;
@@ -183,6 +186,12 @@ function withLock_(fn) {
 
 /** يتحقق من الرمز ويعيد المعلم، أو يرمي خطأ */
 function who_(code) {
+  const parts = String(code || "").trim().toUpperCase().split("~");
+  const me = whoCode_(parts[0]);
+  if (!me.isDemo) checkDevice_(me, parts[1] || "");
+  return me;
+}
+function whoCode_(code) {
   code = String(code || "").trim().toUpperCase();
   if (code.length < 6) throw new Error("الرمز غير صحيح.");
   const rows = sh_(SHEET_CODES).getDataRange().getValues();
@@ -229,7 +238,7 @@ function login(code) {
   const all = readEntries_(demoPrefix_(me));
   const mine = {};
   me.classes.forEach(c => ["ie", "qr"].forEach(s => { const k = c + "__" + s; if (all[k]) mine[k] = all[k]; }));
-  return { name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, canSubs: !me.isDemo && me.isHead, email: me.isDemo ? "" : (emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "")), entries: mine, all: me.isHead ? all : null };
+  return { pledged: me.isHead || !!pledgeMap_()[me.name], name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, canSubs: !me.isDemo && me.isHead, email: me.isDemo ? "" : (emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "")), entries: mine, all: me.isHead ? all : null };
 }
 
 function saveEntry(code, classId, subject, done, note, label) {
@@ -1460,4 +1469,111 @@ function remindCircular(code, id) {
     <p>الأستاذ الفاضل/ ${esc_(n)} المحترم،</p><p>نذكّركم بالاطلاع على تعميم <b>${esc_(c.title)}</b> والتوقيع بالعلم في موقع الشعبة (ركن «النشرات والتعاميم»).</p>
     <p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`)) sent++; });
   return { left: left.length, sent };
+}
+
+
+// ======================= ربط الحساب بجهاز واحد =======================
+// كل معلم يُربط حسابه بأول جهاز يدخل منه، ويُرفض أي جهاز آخر (ويصل رئيس الشعبة تنبيه).
+// رئيس الشعبة: حتى ٣ أجهزة. إعادة التعيين من لوحة «الأجهزة والتعهدات».
+const DEV_MAX_HEAD_ = 3;
+function devCache_() { try { return CacheService.getScriptCache(); } catch (e) { return null; } }
+function devMap_() {
+  const c = devCache_(), hit = c && c.get("devmap");
+  if (hit) return JSON.parse(hit);
+  const sh = sh_(SHEET_DEV), map = {};
+  if (sh) rows_(SHEET_DEV).slice(1).forEach(r => { if (r[0]) map[r[0]] = json_(r[1], []); });
+  if (c) c.put("devmap", JSON.stringify(map), 600);
+  return map;
+}
+function devSave_(name, list) {
+  const sh = sh_(SHEET_DEV) || sheet_(SHEET_DEV, ["المعلم", "الأجهزة", "آخر تحديث"], true);
+  const row = findRow_(sh, 1, name);
+  writeRow_(sh, row > 0 ? row : sh.getLastRow() + 1, [name, JSON.stringify(list), nowText_()]);
+  const c = devCache_(); if (c) c.remove("devmap");
+}
+function checkDevice_(me, dev) {
+  if (!/^[A-Z0-9]{16,40}$/.test(dev)) throw new Error("حدّث الصفحة ثم ادخل مرة أخرى.");
+  const list = devMap_()[me.name] || [];
+  if (list.some(d => d.id === dev)) return;
+  const max = me.isHead ? DEV_MAX_HEAD_ : 1;
+  if (list.length < max) {
+    withLock_(() => { const cur = (devMap_()[me.name] || []); if (!cur.some(d => d.id === dev) && cur.length < max) devSave_(me.name, cur.concat([{ id: dev, at: nowText_() }])); });
+    return;
+  }
+  // جهاز جديد: يتحقق المعلم بكود يصله على إيميله (requestDeviceCode ثم verifyDeviceCode)
+  throw new Error("DEVICE_NEW|هذا جهاز جديد لحسابك. للتحقق نرسل كودًا إلى إيميلك.");
+}
+/** رئيس الشعبة: حالة الأجهزة والتعهدات لكل معلم */
+function listDevices(code) {
+  head_(code);
+  const map = devMap_(), pl = pledgeMap_();
+  return TEACHERS.map(t => ({ teacher: t[0], isHead: !!t[2], devices: (map[t[0]] || []).length, boundAt: ((map[t[0]] || [])[0] || {}).at || "", pledgeAt: (pl[t[0]] || {}).at || "" }));
+}
+function resetDevice(code, teacher) {
+  head_(code);
+  if (!TEACHERS.some(t => t[0] === teacher)) throw new Error("المعلم غير موجود.");
+  withLock_(() => devSave_(teacher, []));
+  return true;
+}
+
+// ======================= تعهد المحافظة على السرية =======================
+function pledgeMap_() {
+  const sh = sh_(SHEET_PLEDGE), map = {};
+  if (sh) rows_(SHEET_PLEDGE).slice(1).forEach(r => { if (r[0]) map[r[0]] = { at: r[2], image: r[1] }; });
+  return map;
+}
+function signPledge(code, image) {
+  const me = who_(code);
+  image = String(image || "");
+  if (!/^data:image\/png;base64,/.test(image) || image.length > 48000) throw new Error("التوقيع غير صالح، ارسمه مرة أخرى.");
+  if (me.isDemo) return { at: nowText_() }; // الحساب التجريبي لا يُحفظ له تعهد
+  return withLock_(() => {
+    const sh = sh_(SHEET_PLEDGE) || sheet_(SHEET_PLEDGE, ["المعلم", "التوقيع", "وقت التوقيع"], true);
+    const row = findRow_(sh, 1, me.name), at = nowText_();
+    writeRow_(sh, row > 0 ? row : sh.getLastRow() + 1, [me.name, image, at]);
+    const my = sh_(SHEET_MYSIG), r2 = findRow_(my, 1, me.name);
+    if (r2 > 0) writeRow_(my, r2, [me.name, image, at]); else appendText_(my, [me.name, image, at]);
+    return { at };
+  });
+}
+/** رئيس الشعبة: التعهدات الموقّعة مع صور التواقيع (لتنزيلها PDF) */
+function listPledges(code) {
+  head_(code);
+  const pl = pledgeMap_();
+  return TEACHERS.filter(t => !t[2]).map(t => ({ teacher: t[0], at: (pl[t[0]] || {}).at || "", image: (pl[t[0]] || {}).image || "" }));
+}
+
+// ---------- نقل الحساب إلى جهاز جديد بكود على الإيميل ----------
+function devStore_() { const c = devCache_(); return { get: k => c ? c.get(k) : PropertiesService.getScriptProperties().getProperty(k), put: (k, v, s) => c ? c.put(k, v, s) : PropertiesService.getScriptProperties().setProperty(k, v), del: k => c ? c.remove(k) : PropertiesService.getScriptProperties().setProperty(k, "") }; }
+function devParts_(code) { const p = String(code || "").trim().toUpperCase().split("~"); const me = whoCode_(p[0]); const dev = p[1] || "";
+  if (!/^[A-Z0-9]{16,40}$/.test(dev)) throw new Error("حدّث الصفحة ثم ادخل مرة أخرى."); return { me, dev }; }
+function requestDeviceCode(code) {
+  const { me, dev } = devParts_(code);
+  if (me.isDemo) throw new Error("الحساب التجريبي لا يحتاج تحققًا.");
+  const st = devStore_(), key = "devcode:" + me.name, old = json_(st.get(key), null);
+  if (old && old.dev === dev && Date.now() - old.sent < 60000) throw new Error("أُرسل الكود قبل قليل، تفقّد إيميلك (وصندوق الرسائل غير المرغوب فيها).");
+  const to = emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "");
+  if (!to) throw new Error("لا يوجد إيميل مسجّل لك. راجع رئيس الشعبة.");
+  const pin = String(Math.floor(100000 + Math.random() * 900000));
+  st.put(key, JSON.stringify({ pin, dev, tries: 0, sent: Date.now(), exp: Date.now() + 600000 }), 600);
+  MailApp.sendEmail({ to, subject: `كود التحقق: ${pin} · موقع شعبة التربية الإسلامية`, name: "موقع شعبة التربية الإسلامية",
+    htmlBody: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.8;color:#2b2b2b">
+      <p>أ. ${esc_(me.name)}،</p><p>كود التحقق لنقل حسابك إلى جهاز جديد:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:6px;color:#c8641c">${pin}</p>
+      <p>الكود صالح لمدة ١٠ دقائق. بعد إدخاله يخرج حسابك من جهازك السابق.</p>
+      <p style="color:#b23a22">إذا لم تطلب هذا الكود فلا تشاركه مع أحد، وأبلغ رئيس الشعبة؛ فهناك من يحاول الدخول برمزك.</p></div>` });
+  return { sentTo: to.replace(/^(.{2}).*(@.*)$/, "$1•••$2") };
+}
+function verifyDeviceCode(code, pin) {
+  const { me, dev } = devParts_(code);
+  const st = devStore_(), key = "devcode:" + me.name, o = json_(st.get(key), null);
+  if (!o || o.dev !== dev || Date.now() > o.exp) throw new Error("انتهت صلاحية الكود، اطلب كودًا جديدًا.");
+  if (String(pin || "").replace(/\D/g, "") !== o.pin) {
+    o.tries++; if (o.tries >= 5) { st.del(key); throw new Error("محاولات كثيرة خاطئة. اطلب كودًا جديدًا."); }
+    st.put(key, JSON.stringify(o), 600); throw new Error("الكود غير صحيح.");
+  }
+  st.del(key);
+  withLock_(() => { const cur = devMap_()[me.name] || [], max = me.isHead ? DEV_MAX_HEAD_ : 1;
+    devSave_(me.name, cur.filter(d => d.id !== dev).concat([{ id: dev, at: nowText_() }]).slice(-max)); });
+  return true;
 }
