@@ -199,7 +199,7 @@ function who_(code) {
 function whoBase_(code) {
   const parts = String(code || "").trim().toUpperCase().split("~");
   const me = whoCode_(parts[0]);
-  if (!me.isDemo) checkDevice_(me, parts[1] || "");
+  if (!me.isDemo) checkDevice_(me, parts[1] || "", parts[2] === "C" ? "C" : "M");
   return me;
 }
 /** من سجّل إيميله ومن وقّع التعهد (مخزّن مؤقتًا لتسريع الطلبات) */
@@ -1516,17 +1516,22 @@ function devSave_(name, list) {
   writeRow_(sh, row > 0 ? row : sh.getLastRow() + 1, [name, JSON.stringify(list), nowText_()]);
   const c = devCache_(); if (c) c.remove("devmap");
 }
-function checkDevice_(me, dev) {
+// المعلم: جوال واحد + كمبيوتر واحد (kind: M جوال/جهاز لوحي، C كمبيوتر). رئيس الشعبة: حتى ٣ أجهزة من أي نوع.
+function devAllowed_(me, list, kind) {
+  if (me.isHead) return list.length < DEV_MAX_HEAD_;
+  return list.length < 2 && !list.some(d => d.kind === kind);
+}
+function checkDevice_(me, dev, kind) {
   if (!/^[A-Z0-9]{16,40}$/.test(dev)) throw new Error("حدّث الصفحة ثم ادخل مرة أخرى.");
   const list = devMap_()[me.name] || [];
-  if (list.some(d => d.id === dev)) return;
-  const max = me.isHead ? DEV_MAX_HEAD_ : 1;
-  if (list.length < max) {
-    withLock_(() => { const cur = (devMap_()[me.name] || []); if (!cur.some(d => d.id === dev) && cur.length < max) devSave_(me.name, cur.concat([{ id: dev, at: nowText_() }])); });
+  const hit = list.find(d => d.id === dev);
+  if (hit) { if (!hit.kind) withLock_(() => devSave_(me.name, (devMap_()[me.name] || []).map(d => d.id === dev ? Object.assign({}, d, { kind }) : d))); return; }
+  if (devAllowed_(me, list, kind)) {
+    withLock_(() => { const cur = (devMap_()[me.name] || []); if (!cur.some(d => d.id === dev) && devAllowed_(me, cur, kind)) devSave_(me.name, cur.concat([{ id: dev, kind, at: nowText_() }])); });
     return;
   }
   // جهاز جديد: يتحقق المعلم بكود يصله على إيميله (requestDeviceCode ثم verifyDeviceCode)
-  throw new Error("DEVICE_NEW|هذا جهاز جديد لحسابك. للتحقق نرسل كودًا إلى إيميلك.");
+  throw new Error(`DEVICE_NEW|هذا ${kind === "C" ? "كمبيوتر" : "جوال"} جديد لحسابك. للتحقق نرسل كودًا إلى إيميلك.`);
 }
 /** رئيس الشعبة: حالة الأجهزة والتعهدات لكل معلم */
 function listDevices(code) {
@@ -1534,7 +1539,7 @@ function listDevices(code) {
   const map = devMap_(), pl = pledgeMap_(), ph = {}, codes = {};
   if (sh_(SHEET_PHONES)) rows_(SHEET_PHONES).slice(1).forEach(r => { if (r[0]) ph[r[0]] = { phone: String(r[1] || "").replace(/\D/g, ""), sent: r[2] }; });
   rows_(SHEET_CODES).slice(1).forEach(r => { if (r[0]) codes[String(r[0]).trim()] = String(r[1]).trim(); });
-  return TEACHERS.map(t => ({ teacher: t[0], isHead: !!t[2], devices: (map[t[0]] || []).length, boundAt: ((map[t[0]] || [])[0] || {}).at || "", pledgeAt: (pl[t[0]] || {}).at || "",
+  return TEACHERS.map(t => ({ teacher: t[0], isHead: !!t[2], devices: (map[t[0]] || []).length, kinds: (map[t[0]] || []).map(d => d.kind || ""), boundAt: ((map[t[0]] || [])[0] || {}).at || "", pledgeAt: (pl[t[0]] || {}).at || "",
     phone: t[2] ? "" : ((ph[t[0]] || {}).phone || ""), code: t[2] ? "" : (codes[t[0]] || ""), sentAt: (ph[t[0]] || {}).sent || "" }));
 }
 function resetDevice(code, teacher) {
@@ -1574,10 +1579,10 @@ function listPledges(code) {
 
 // ---------- نقل الحساب إلى جهاز جديد بكود على الإيميل ----------
 function devStore_() { const c = devCache_(); return { get: k => c ? c.get(k) : PropertiesService.getScriptProperties().getProperty(k), put: (k, v, s) => c ? c.put(k, v, s) : PropertiesService.getScriptProperties().setProperty(k, v), del: k => c ? c.remove(k) : PropertiesService.getScriptProperties().setProperty(k, "") }; }
-function devParts_(code) { const p = String(code || "").trim().toUpperCase().split("~"); const me = whoCode_(p[0]); const dev = p[1] || "";
-  if (!/^[A-Z0-9]{16,40}$/.test(dev)) throw new Error("حدّث الصفحة ثم ادخل مرة أخرى."); return { me, dev }; }
+function devParts_(code) { const p = String(code || "").trim().toUpperCase().split("~"); const me = whoCode_(p[0]); const dev = p[1] || "", kind = p[2] === "C" ? "C" : "M";
+  if (!/^[A-Z0-9]{16,40}$/.test(dev)) throw new Error("حدّث الصفحة ثم ادخل مرة أخرى."); return { me, dev, kind }; }
 function requestDeviceCode(code) {
-  const { me, dev } = devParts_(code);
+  const { me, dev, kind } = devParts_(code);
   if (me.isDemo) throw new Error("الحساب التجريبي لا يحتاج تحققًا.");
   const st = devStore_(), key = "devcode:" + me.name, old = json_(st.get(key), null);
   if (old && old.dev === dev && Date.now() - old.sent < 60000) throw new Error("أُرسل الكود قبل قليل، تفقّد إيميلك (وصندوق الرسائل غير المرغوب فيها).");
@@ -1589,12 +1594,12 @@ function requestDeviceCode(code) {
     htmlBody: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.8;color:#2b2b2b">
       <p>أ. ${esc_(me.name)}،</p><p>كود التحقق لنقل حسابك إلى جهاز جديد:</p>
       <p style="font-size:28px;font-weight:bold;letter-spacing:6px;color:#c8641c">${pin}</p>
-      <p>الكود صالح لمدة ١٠ دقائق. بعد إدخاله يخرج حسابك من جهازك السابق.</p>
+      <p>الكود صالح لمدة ١٠ دقائق. بعد إدخاله يخرج حسابك من ${kind === "C" ? "الكمبيوتر" : "الجوال"} السابق، ويبقى ${kind === "C" ? "جوالك" : "كمبيوترك"} كما هو.</p>
       <p style="color:#b23a22">إذا لم تطلب هذا الكود فلا تشاركه مع أحد، وأبلغ رئيس الشعبة؛ فهناك من يحاول الدخول برمزك.</p></div>` });
   return { sentTo: to.replace(/^(.{2}).*(@.*)$/, "$1•••$2") };
 }
 function verifyDeviceCode(code, pin) {
-  const { me, dev } = devParts_(code);
+  const { me, dev, kind } = devParts_(code);
   const st = devStore_(), key = "devcode:" + me.name, o = json_(st.get(key), null);
   if (!o || o.dev !== dev || Date.now() > o.exp) throw new Error("انتهت صلاحية الكود، اطلب كودًا جديدًا.");
   if (String(pin || "").replace(/\D/g, "") !== o.pin) {
@@ -1602,8 +1607,10 @@ function verifyDeviceCode(code, pin) {
     st.put(key, JSON.stringify(o), 600); throw new Error("الكود غير صحيح.");
   }
   st.del(key);
-  withLock_(() => { const cur = devMap_()[me.name] || [], max = me.isHead ? DEV_MAX_HEAD_ : 1;
-    devSave_(me.name, cur.filter(d => d.id !== dev).concat([{ id: dev, at: nowText_() }]).slice(-max)); });
+  withLock_(() => { const cur = (devMap_()[me.name] || []).filter(d => d.id !== dev);
+    // يحلّ الجهاز الجديد محل الجهاز القديم من النوع نفسه فقط (الجوال بدل الجوال، والكمبيوتر بدل الكمبيوتر)
+    let keep = me.isHead ? cur.slice(-(DEV_MAX_HEAD_ - 1)) : cur.filter(d => d.kind && d.kind !== kind).slice(-1);
+    devSave_(me.name, keep.concat([{ id: dev, kind, at: nowText_() }])); });
   return true;
 }
 
