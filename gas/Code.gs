@@ -185,12 +185,35 @@ function withLock_(fn) {
 }
 
 /** يتحقق من الرمز ويعيد المعلم، أو يرمي خطأ */
+/** هوية المستخدم مع التحقق من الجهاز، ثم اشتراط الإيميل والتعهد لكل العمليات */
 function who_(code) {
+  const me = whoBase_(code);
+  if (!me.isDemo && !me.isHead) {
+    if (!gateInfo_().emails[me.name]) throw new Error("EMAIL_REQ|سجّل إيميلك أولًا ثم أعد المحاولة.");
+    if (!gateInfo_().pledged[me.name]) throw new Error("PLEDGE_REQ|وقّع تعهد المحافظة على السرية أولًا.");
+  }
+  return me;
+}
+/** الهوية مع التحقق من الجهاز فقط (للدخول وتسجيل الإيميل وتوقيع التعهد) */
+function whoBase_(code) {
   const parts = String(code || "").trim().toUpperCase().split("~");
   const me = whoCode_(parts[0]);
   if (!me.isDemo) checkDevice_(me, parts[1] || "");
   return me;
 }
+/** من سجّل إيميله ومن وقّع التعهد (مخزّن مؤقتًا لتسريع الطلبات) */
+function gateInfo_() {
+  const c = devCache_(), hit = c && c.get("gate");
+  if (hit) return JSON.parse(hit);
+  const emails = {}, pledged = {};
+  if (sh_(SHEET_EMAIL)) rows_(SHEET_EMAIL).slice(1).forEach(r => { if (r[0] && r[1]) emails[r[0]] = 1; });
+  const ps = sh_(SHEET_PLEDGE);
+  if (ps && ps.getLastRow() > 1) ps.getRange(2, 1, ps.getLastRow() - 1, 1).getDisplayValues().forEach(r => { if (r[0]) pledged[r[0]] = 1; });
+  const o = { emails, pledged };
+  if (c) c.put("gate", JSON.stringify(o), 600);
+  return o;
+}
+function gateReset_() { const c = devCache_(); if (c) c.remove("gate"); }
 function whoCode_(code) {
   code = String(code || "").trim().toUpperCase();
   if (code.length < 6) throw new Error("الرمز غير صحيح.");
@@ -234,7 +257,7 @@ function readEntries_(prefix) {
 }
 
 function login(code) {
-  const me = who_(code);
+  const me = whoBase_(code);
   const all = readEntries_(demoPrefix_(me));
   const mine = {};
   me.classes.forEach(c => ["ie", "qr"].forEach(s => { const k = c + "__" + s; if (all[k]) mine[k] = all[k]; }));
@@ -446,7 +469,7 @@ function signMinute(code, id, image) {
 }
 
 function mySignature(code) {
-  const me = who_(code);
+  const me = whoBase_(code);
   const r = rows_(SHEET_MYSIG).slice(1).find(x => x[0] === me.name);
   return r ? r[1] : "";
 }
@@ -977,7 +1000,7 @@ function emailOf_(name) {
   return r ? String(r[1] || "") : "";
 }
 function setMyEmail(code, email) {
-  const me = who_(code);
+  const me = whoBase_(code);
   if (me.isDemo) throw new Error("الحساب التجريبي لا يحتاج إيميلًا.");
   email = String(email || "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 120) throw new Error("اكتب إيميلًا صحيحًا.");
@@ -986,6 +1009,7 @@ function setMyEmail(code, email) {
     const row = findRow_(sh, 1, me.name);
     writeRow_(sh, row > 0 ? row : sh.getLastRow() + 1, [me.name, email, nowText_()]);
   });
+  gateReset_();
   return email;
 }
 /** يرسل إشعارًا لمعلم على إيميله المسجّل (لا يُرسل للحسابات التجريبية ولا لمن لم يسجّل إيميله) */
@@ -1523,7 +1547,7 @@ function pledgeMap_() {
   return map;
 }
 function signPledge(code, image) {
-  const me = who_(code);
+  const me = whoBase_(code);
   image = String(image || "");
   if (!/^data:image\/png;base64,/.test(image) || image.length > 48000) throw new Error("التوقيع غير صالح، ارسمه مرة أخرى.");
   if (me.isDemo) return { at: nowText_() }; // الحساب التجريبي لا يُحفظ له تعهد
@@ -1533,6 +1557,7 @@ function signPledge(code, image) {
     writeRow_(sh, row > 0 ? row : sh.getLastRow() + 1, [me.name, image, at]);
     const my = sh_(SHEET_MYSIG), r2 = findRow_(my, 1, me.name);
     if (r2 > 0) writeRow_(my, r2, [me.name, image, at]); else appendText_(my, [me.name, image, at]);
+    gateReset_();
     return { at };
   });
 }
