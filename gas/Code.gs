@@ -337,7 +337,7 @@ function submitAchievement(code, a) {
 /** إنجازات المعلم نفسه — بدون نص التقرير */
 function myAchievements(code) {
   const me = who_(code);
-  return rows_(SHEET_ACH).slice(1).filter(r => r[0] && r[1] === me.name).map(r => achObj_(r, false)).reverse();
+  return rows_(SHEET_ACH).slice(1).filter(r => r[0] && r[1] === me.name).map(r => achObj_(r, true)).reverse();
 }
 
 function deleteAchievement(code, id) {
