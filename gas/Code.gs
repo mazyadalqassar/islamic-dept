@@ -354,7 +354,8 @@ function getPhoto(code, fileId) {
 function minObj_(r) {
   let att = [];
   try { att = JSON.parse(r[5] || "[]"); } catch (e) {}
-  return { id: r[0], title: r[1], date: r[2], time: r[3], place: r[4], attendees: att, agenda: r[6], discussion: r[7], decisions: r[8], createdAt: r[9] };
+  const required = r[0] === DEMO_MINUTE ? Object.keys(DEMOS) : TEACHERS.filter(t => !t[2]).map(t => t[0]);
+  return { id: r[0], title: r[1], date: r[2], time: r[3], place: r[4], attendees: att, required, agenda: r[6], discussion: r[7], decisions: r[8], createdAt: r[9] };
 }
 function sigRows_() { return rows_(SHEET_SIG).slice(1).filter(r => r[0]); }
 
@@ -364,8 +365,8 @@ function listMinutes(code) {
   return rows_(SHEET_MIN).slice(1).filter(r => r[0] && (me.isDemo ? r[0] === DEMO_MINUTE : r[0] !== DEMO_MINUTE)).map(r => {
     const m = minObj_(r);
     const mine = sigs.find(s => s[0] === m.id && s[1] === me.name);
-    return { id: m.id, title: m.title, date: m.date, attendees: m.attendees,
-      signedCount: sigs.filter(s => s[0] === m.id).length, mySignedAt: mine ? mine[2] : "" };
+    return { id: m.id, title: m.title, date: m.date, attendees: m.attendees, required: m.required,
+      signedCount: sigs.filter(s => s[0] === m.id && m.required.indexOf(s[1]) !== -1).length, mySignedAt: mine ? mine[2] : "" };
   }).reverse();
 }
 
@@ -414,7 +415,7 @@ function signMinute(code, id, image) {
   if (!/^data:image\/png;base64,/.test(image) || image.length > 48000) throw new Error("التوقيع غير صالح، ارسمه مرة أخرى.");
   const r = rows_(SHEET_MIN).slice(1).find(x => x[0] === id);
   if (!r) throw new Error("المحضر غير موجود.");
-  if (minObj_(r).attendees.indexOf(me.name) === -1) throw new Error("اسمك ليس ضمن حضور هذا الاجتماع.");
+  if (minObj_(r).required.indexOf(me.name) === -1) throw new Error("هذا المحضر لا يتطلب توقيعك.");
   return withLock_(() => {
     const sh = sh_(SHEET_SIG), vals = sh.getDataRange().getDisplayValues();
     for (let i = 1; i < vals.length; i++) if (vals[i][0] === id && vals[i][1] === me.name) throw new Error("وقّعت على هذا المحضر من قبل.");
@@ -425,11 +426,11 @@ function signMinute(code, id, image) {
     if (row > 0) writeRow_(my, row, [me.name, image, at]); else appendText_(my, [me.name, image, at]);
     // عند اكتمال توقيع جميع الحضور يصل إيميل لرئيس الشعبة
     const m = minObj_(r), signed = vals.slice(1).filter(v => v[0] === id).map(v => [v[1], v[2]]).concat([[me.name, at]]);
-    if (m.attendees.every(n => signed.some(x => x[0] === n))) {
+    if (m.required.every(n => signed.some(x => x[0] === n))) {
       notify_(me, `اكتمل التوقيع على محضر: ${m.title}`, `
-        <p>وقّع جميع الحضور (${m.attendees.length}) على محضر <b>${esc_(m.title)}</b> بتاريخ ${esc_(m.date)}.</p>
+        <p>وقّع جميع المعلمين (${m.required.length}) على محضر <b>${esc_(m.title)}</b> بتاريخ ${esc_(m.date)}، من حضر منهم ومن وقّع بالعلم.</p>
         <ul>${signed.map(x => `<li>${esc_(x[0])} — ${esc_(x[1])}</li>`).join("")}</ul>
-        <p>يمكنك الآن تنزيل المحضر وورد بالتواقيع من ركن «محاضر الاجتماعات».</p>`);
+        <p>يمكنك الآن تنزيل المحضر PDF بالتواقيع من ركن «محاضر الاجتماعات».</p>`);
     }
     return { signedAt: at };
   });
@@ -443,11 +444,13 @@ function mySignature(code) {
 
 // ======================= حفظ الملفات في Drive =======================
 
+const DOCX_MIME_ = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+function docMime_(d) { return /^data:application\/pdf/.test(String(d)) ? "application/pdf" : DOCX_MIME_; }
+function docExt_(d) { return docMime_(d) === "application/pdf" ? "pdf" : "docx"; }
 function saveFileToDrive(code, name, b64) {
   head_(code);
-  name = String(name || "ملف.docx").replace(/[\\/:*?"<>|]/g, "-").slice(0, 150);
-  const blob = Utilities.newBlob(Utilities.base64Decode(String(b64).replace(/^data:[^,]+,/, "")),
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", name);
+  name = String(name || "ملف.pdf").replace(/[\\/:*?"<>|]/g, "-").slice(0, 150);
+  const blob = Utilities.newBlob(Utilities.base64Decode(String(b64).replace(/^data:[^,]+,/, "")), docMime_(b64), name);
   const f = folder_().createFile(blob);
   return f.getUrl();
 }
@@ -731,7 +734,7 @@ function swapSheet_() { return sh_(SHEET_SWAP) || sheet_(SHEET_SWAP, ["المع�
 function dayOf_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? DAYS_[new Date(+m[1], +m[2] - 1, +m[3]).getDay()] : ""; }
 function dmy_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[3]}/${+m[2]}/${m[1]}` : iso; }
 
-/** يسجّل طلب تبديل ويرسل إيميلًا لرئيس الشعبة مع النموذج (وورد) */
+/** يسجّل طلب تبديل ويرسل إيميلًا لرئيس الشعبة مع النموذج (PDF) */
 function saveSwap(code, s, docB64) {
   const me = who_(code);
   s = s || {};
@@ -745,7 +748,7 @@ function saveSwap(code, s, docB64) {
   const o = swapObj_(row.map(String));
   let att = [];
   if (docB64 && String(docB64).length < 2000000) {
-    try { att = [Utilities.newBlob(Utilities.base64Decode(String(docB64).replace(/^data:[^,]+,/, "")), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", `نموذج طلب تبديل الحصة - ${me.name}.docx`)]; } catch (e) {}
+    try { att = [Utilities.newBlob(Utilities.base64Decode(String(docB64).replace(/^data:[^,]+,/, "")), docMime_(docB64), `نموذج طلب تبديل الحصة - ${me.name}.${docExt_(docB64)}`)]; } catch (e) {}
   }
   notify_(me, `طلب تبديل حصة: أ. ${me.name} مع أ. ${o.other}`, `
     <p>سجّل <b>أ. ${esc_(me.name)}</b> طلب تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${esc_(clip(s.classLabel, 60) || o.classes)}:</p>
@@ -753,7 +756,7 @@ function saveSwap(code, s, docB64) {
       <tr style="background:#fbeee3"><th>المعلم</th><th>المادة</th><th>من الحصة</th><th>إلى الحصة</th><th>اليوم والتاريخ</th></tr>
       <tr><td>أ. ${esc_(me.name)}</td><td>${esc_(o.subject)}</td><td>${ORD_[p1]}</td><td>${ORD_[p2]}</td><td>${dayOf_(o.date)} ${dmy_(o.date)}${o.date !== o.otherDate ? " ← " + dayOf_(o.otherDate) + " " + dmy_(o.otherDate) : ""}</td></tr>
       <tr><td>أ. ${esc_(o.other)}</td><td>${esc_(o.otherSubject)}</td><td>${ORD_[p2]}</td><td>${ORD_[p1]}</td><td>${dayOf_(o.otherDate)} ${dmy_(o.otherDate)}${o.date !== o.otherDate ? " ← " + dayOf_(o.date) + " " + dmy_(o.date) : ""}</td></tr>
-    </table><p>النموذج مرفق بصيغة وورد للطباعة والتوقيع، وتجده أيضًا في الموقع: بدّل حصتي ← سجل التبديلات.</p>`, att);
+    </table><p>النموذج مرفق بصيغة PDF للطباعة والتوقيع، وتجده أيضًا في الموقع: بدّل حصتي ← سجل التبديلات.</p>`, att);
   return o;
 }
 
@@ -811,7 +814,7 @@ function listStudents(code) {
   return stuRows_().map(stuObj_).filter(o => canSee_(me, o)).reverse();
 }
 
-/** إنشاء تقرير أو تعديله (صاحب التقرير فقط). عند الإنشاء يصل رئيس الشعبة إيميل مرفق فيه التقرير وورد */
+/** إنشاء تقرير أو تعديله (صاحب التقرير فقط). عند الإنشاء يصل رئيس الشعبة إيميل مرفق فيه التقرير PDF */
 function saveStudent(code, s, docB64) {
   const me = who_(code);
   s = s || {};
@@ -848,13 +851,13 @@ function saveStudent(code, s, docB64) {
   if (isNew) {
     let att = [];
     if (docB64 && String(docB64).length < 4000000) {
-      try { att = [Utilities.newBlob(Utilities.base64Decode(String(docB64).replace(/^data:[^,]+,/, "")), "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        `${kind === "weak" ? "تقرير طالب متعثر" : "تقرير طالب فائق"} - ${student}.docx`)]; } catch (e) {}
+      try { att = [Utilities.newBlob(Utilities.base64Decode(String(docB64).replace(/^data:[^,]+,/, "")), docMime_(docB64),
+        `${kind === "weak" ? "تقرير طالب متعثر" : "تقرير طالب فائق"} - ${student}.${docExt_(docB64)}`)]; } catch (e) {}
     }
     notify_(me, `${kind === "weak" ? "تقرير طالب متعثر" : "تقرير طالب فائق"}: ${student}`, `
       <p>رفع <b>أ. ${esc_(me.name)}</b> ${kind === "weak" ? "تقرير متابعة طالب متعثر" : "تقرير طالب فائق"}:</p>
       <p>الطالب: <b>${esc_(student)}</b><br>الفصل: ${esc_(clip(s.classLabel, 40) || s.classId)} · المادة: ${s.subject === "qr" ? "القرآن الكريم" : "التربية الإسلامية"}</p>
-      <p>التقرير مرفق بصيغة وورد للطباعة والحفظ في السجل، وتتابعه في الموقع: متابعة الفائقين والمتعثرين.</p>
+      <p>التقرير مرفق بصيغة PDF للطباعة والحفظ في السجل، وتتابعه في الموقع: متابعة الفائقين والمتعثرين.</p>
       <p style="color:#77736e;font-size:12px">سري · لأغراض المتابعة التربوية فقط.</p>`, att);
   }
   return saved;
@@ -1162,7 +1165,7 @@ function leavesDayHtml_(date, list) {
   <h1>كشف استئذانات المعلمين</h1><div class="sub">${dayOf_(date)} ${dmy_(date)}</div>
   <table class="t"><tr><th style="width:8%">م</th><th>اسم المعلم</th><th style="width:28%">نوع الإذن</th></tr>${rows}</table>
   <div class="sum">العدد: ${list.length} · بداية الدوام: ${list.filter(o => o.type === LV_TYPES_[0]).length} · أثناء الدوام: ${list.filter(o => o.type === LV_TYPES_[1]).length} · نهاية الدوام: ${list.filter(o => o.type === LV_TYPES_[2]).length}</div>
-  <table class="sig"><tr><td><b>رئيس شعبة التربية الإسلامية</b><br>أ. مزيد حمد خليفة القصار<br><br>التوقيع: ....................</td><td><b>مدير المدرسة</b><br>أ. فيصل المحمد<br><br>التوقيع: ....................</td></tr></table>
+  <table class="sig"><tr><td><b>رئيس شعبة التربية الإسلامية</b><br>أ. مزيد حمد القصار<br><br>التوقيع: ....................</td><td><b>مدير المدرسة</b><br>أ. فيصل عبدالله المحمد<br><br>التوقيع: ....................</td></tr></table>
   </body></html>`;
 }
 function leavesPdfBlob_(date, list) {
