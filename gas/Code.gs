@@ -25,6 +25,7 @@ const SHEET_GRADES = "درجات الأعمال";
 const SHEET_CIRC = "التعاميم";
 const SHEET_DEV = "الأجهزة";
 const SHEET_PLEDGE = "التعهدات";
+const SHEET_PHONES = "جوالات المعلمين"; // لا تُرفع إلى GitHub؛ لرئيس الشعبة فقط
 const SHEET_CIRC_SIG = "تواقيع التعاميم";
 // نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
@@ -76,7 +77,7 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf,
   gradesGet, gradesSave, gradesApprove, gradesOverview,
   listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular,
-  listDevices, resetDevice, signPledge, listPledges, requestDeviceCode, verifyDeviceCode };
+  listDevices, resetDevice, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent };
 
 function doPost(e) {
   let out;
@@ -1530,8 +1531,11 @@ function checkDevice_(me, dev) {
 /** رئيس الشعبة: حالة الأجهزة والتعهدات لكل معلم */
 function listDevices(code) {
   head_(code);
-  const map = devMap_(), pl = pledgeMap_();
-  return TEACHERS.map(t => ({ teacher: t[0], isHead: !!t[2], devices: (map[t[0]] || []).length, boundAt: ((map[t[0]] || [])[0] || {}).at || "", pledgeAt: (pl[t[0]] || {}).at || "" }));
+  const map = devMap_(), pl = pledgeMap_(), ph = {}, codes = {};
+  if (sh_(SHEET_PHONES)) rows_(SHEET_PHONES).slice(1).forEach(r => { if (r[0]) ph[r[0]] = { phone: String(r[1] || "").replace(/\D/g, ""), sent: r[2] }; });
+  rows_(SHEET_CODES).slice(1).forEach(r => { if (r[0]) codes[String(r[0]).trim()] = String(r[1]).trim(); });
+  return TEACHERS.map(t => ({ teacher: t[0], isHead: !!t[2], devices: (map[t[0]] || []).length, boundAt: ((map[t[0]] || [])[0] || {}).at || "", pledgeAt: (pl[t[0]] || {}).at || "",
+    phone: t[2] ? "" : ((ph[t[0]] || {}).phone || ""), code: t[2] ? "" : (codes[t[0]] || ""), sentAt: (ph[t[0]] || {}).sent || "" }));
 }
 function resetDevice(code, teacher) {
   head_(code);
@@ -1601,4 +1605,14 @@ function verifyDeviceCode(code, pin) {
   withLock_(() => { const cur = devMap_()[me.name] || [], max = me.isHead ? DEV_MAX_HEAD_ : 1;
     devSave_(me.name, cur.filter(d => d.id !== dev).concat([{ id: dev, at: nowText_() }]).slice(-max)); });
   return true;
+}
+
+/** رئيس الشعبة: تسجيل أن رمز المعلم أُرسل بالواتساب */
+function markInviteSent(code, teacher) {
+  head_(code);
+  return withLock_(() => {
+    const sh = sh_(SHEET_PHONES); if (!sh) throw new Error("ورقة الجوالات غير موجودة.");
+    const row = findRow_(sh, 1, teacher); if (row < 0) throw new Error("لا يوجد رقم لهذا المعلم.");
+    const at = nowText_(); sh.getRange(row, 3).setNumberFormat("@").setValue(at); return at;
+  });
 }
