@@ -2427,12 +2427,19 @@ function renderSubsForm() {
       `<option value="${esc(x.name)}"${x.name === sel ? " selected" : ""}>${i === 0 ? "★ مقترح: " : ""}أ. ${esc(x.name)}${x.head ? " (رئيس الشعبة)" : ""} · ${x.same ? "نفس المرحلة · " : ""}نصابه اليوم ${ar(x.load)} · احتياط ${ar(x.taken)}</option>`).join("")
       + (sel && !list.some(x => x.name === sel) ? `<option value="${esc(sel)}" selected>أ. ${esc(sel)}</option>` : "");
     return `<div class="sf-row" data-p="${p}" data-c="${esc(cls)}"><div><b>الحصة ${ar(p)}</b>${r.x ? ' <span class="pill ahead">حصة مبدّلة</span>' : ""}<span class="sub">${esc(classLabel(cls))}</span>
-      <button class="sf-x" type="button" data-rm="${p}" data-x="${r.x ? 1 : ""}">${r.x ? "حذف الحصة المبدّلة" : "إزالة (أُبدلت إلى يوم آخر)"}</button></div>
+      <button class="sf-x" type="button" data-rm="${p}" data-x="${r.x ? 1 : ""}">${r.x ? "حذف الحصة المبدّلة" : "إزالة (أُبدلت إلى يوم آخر)"}</button>
+      ${cur && cur.sub ? `<button class="btn ghost sm" type="button" data-unsub="${p}" style="margin-top:6px">إلغاء أ. ${esc(cur.sub.split(" ")[0])} من هذه الحصة</button>` : ""}</div>
       <select aria-label="البديل للحصة ${ar(p)}" data-sel="${p}">${opts}</select></div>`;
   }).join("") + addBox + (existing.length || !rows.length ? "" : '<div class="sub" style="margin-top:8px">★ المقترح: معلم يدرّس المرحلة نفسها، الأخف نصابًا في هذا اليوم، والأقل أخذًا للاحتياط. ورئيس الشعبة لا يُقترح إلا إذا لم يتوفر غيره.</div>');
   box.querySelectorAll("[data-sel]").forEach(x => x.onchange = () => { SF.sel[x.dataset.sel] = x.value; });
   box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { const p = +b.dataset.rm;
     if (b.dataset.x) SF.extra = SF.extra.filter(e => e.p !== p); else SF.removed.add(p); delete SF.sel[p]; renderSubsForm(); });
+  box.querySelectorAll("[data-unsub]").forEach(b => b.onclick = () => confirmInline(b, "اضغط للتأكيد", async () => {
+    const p = +b.dataset.unsub, m = $("sf-msg"); b.disabled = true; m.textContent = "جارٍ الإلغاء…";
+    try { SUBS = await run("removeSub", CODE, key, p); delete SF.sel[p]; DASH = null; renderSubsForm();
+      $("sf-msg").textContent = `أُلغي المعلم من الحصة ${AR_ORD[p]}، ووصله إيميل بذلك. صارت الحصة مفتوحة للمعلمين يختارونها من ركن الاحتياط، أو اختر لها بديلًا واحفظ.`; }
+    catch (e) { m.textContent = cleanErr(e); b.disabled = false; }
+  }));
   box.querySelectorAll("[data-back]").forEach(b => b.onclick = () => { SF.removed.delete(+b.dataset.back); renderSubsForm(); });
   const ab = $("sf-addbtn"); if (ab) ab.onclick = () => { SF.extra.push({ p: +$("sf-ap").value, c: $("sf-ac").value }); renderSubsForm(); };
 }

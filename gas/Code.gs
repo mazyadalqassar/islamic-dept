@@ -78,7 +78,7 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   gradesGet, gradesSave, gradesApprove, gradesOverview,
   listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular,
   listDevices, resetDevice, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent,
-  notifyAbsence, subsOpen, claimSub, unclaimSub, headNews, markSeen };
+  notifyAbsence, subsOpen, claimSub, unclaimSub, removeSub, headNews, markSeen };
 
 function doPost(e) {
   let out;
@@ -1689,6 +1689,26 @@ function claimSub(code, absence, period) {
   if (covered) notify_(me, `تمت تغطية احتياط أ. ${covered.teacher}`, `<p>تمت تغطية جميع حصص <b>أ. ${esc_(covered.teacher)}</b> يوم ${DAYS_AR_[dayIdx_(covered.date)]} ${esc_(covered.date)}:</p>
     <ul>${covered.rows.sort((a, b) => a[0] - b[0]).map(x => `<li>الحصة ${AR_ORD_[Number(x[0])]}: أ. ${esc_(x[1])}</li>`).join("")}</ul>`);
   return subsOpen(code);
+}
+/** رئيس الشعبة: إلغاء معلم من حصة احتياط أخذها، فتعود الحصة مفتوحة للمعلمين، ويصل المعلم إيميل بذلك */
+function removeSub(code, absence, period) {
+  const me = staff_(code);
+  period = Number(period);
+  const r = withLock_(() => {
+    const sh = sh_(SHEET_SUBS), all = sh.getDataRange().getDisplayValues();
+    const i = all.findIndex((x, k) => k > 0 && x[0] === absence && Number(x[3]) === period);
+    if (i < 1) throw new Error("الحصة غير موجودة.");
+    if (!all[i][5]) throw new Error("لا يوجد معلم في هذه الحصة.");
+    const row = all[i].slice();
+    sh.getRange(i + 1, 6, 1, 3).setNumberFormat("@").setValues([["", me.name, nowText_()]]);
+    return row;
+  });
+  const d = dayIdx_(r[1]);
+  notifyTeacher_(r[5], `أُلغيت حصة احتياط · ${DAYS_AR_[d]} ${r[1]}`, `
+    <p>الأستاذ الفاضل/ ${esc_(r[5])} المحترم،</p>
+    <p>نعتذر إليكم، فقد أُلغي تكليفكم بحصة الاحتياط <b>الحصة ${AR_ORD_[period]} · ${esc_(arLabel_(r[4]))}</b> يوم ${DAYS_AR_[d]} ${esc_(r[1])} (بدلًا من أ. ${esc_(r[2])})، لتغيير في ترتيب الاحتياط. شكرًا لتعاونكم.</p>
+    <p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`);
+  return subsRows_().map(subObj_);
 }
 function unclaimSub(code, absence, period) {
   const me = who_(code);
