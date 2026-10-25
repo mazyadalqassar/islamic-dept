@@ -360,6 +360,10 @@ input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var
 .lv-card .nextstep { margin-top: 8px; background: #fff4d6; color: #6b4a00; border-radius: 10px; padding: 8px 12px; font-size: 13.5px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lv-card .nextstep { background: #3a3016; color: #f0d58a; } }
 .lv-card .acts { display: grid; gap: 8px; margin-top: 10px; }
+.lv-diwan { background: #fff4d6; color: #6b4a00; border: 1.5px solid #e9c46a; border-radius: 12px; padding: 10px 14px; font-size: 14px; line-height: 1.8; }
+.lv-diwan b { display: block; font-family: var(--f-display); font-size: 15.5px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lv-diwan { background: #3a3016; color: #f0d58a; border-color: #6b5a26; } }
+:root[data-theme="dark"] .lv-diwan { background: #3a3016; color: #f0d58a; border-color: #6b5a26; }
 @media (max-width: 340px) { .ltype { font-size: 12.5px; } }
 /* دائرة الانتظار */
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -631,7 +635,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
       <section id="ach-mine">
         <form id="ach-form" class="card">
           <h2>إضافة إنجاز</h2>
-          <div class="sub">ارفع صور النشاط واكتب وصفًا مختصرًا، ويتولى رئيس الشعبة إعداد التقرير الرسمي.</div>
+          <div class="sub">اختر نوع النشاط، وارفع صوره واكتب وصفه، ثم احفظ التقرير ونزّله PDF مباشرة.</div>
           <div class="grid2">
             <div><label class="f" for="ach-type">نوع النشاط</label><select id="ach-type"></select></div>
             <div><label class="f" for="ach-date">تاريخ النشاط</label><input type="date" id="ach-date" required></div>
@@ -645,7 +649,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <label class="f" for="ach-photos">صور النشاط</label>
           <label class="upload" for="ach-photos"><span id="ach-photo-label">أضف صورًا</span><input type="file" id="ach-photos" accept="image/*" multiple></label>
           <div class="thumbs" id="ach-previews"></div>
-          <div class="row-actions" style="margin-top:14px"><button class="btn" id="ach-submit" type="submit">رفع الإنجاز</button></div>
+          <div class="row-actions" style="margin-top:14px"><button class="btn" id="ach-submit" type="submit">حفظ التقرير</button></div>
           <div class="saved" id="ach-msg"></div>
         </form>
         <h3 class="list-title">إنجازاتي السابقة</h3>
@@ -867,9 +871,9 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
         <form class="card" id="lv-form" autocomplete="off">
           <h2>طلب استئذان</h2>
           <ol class="lv-steps">
-            <li>قدّم الاستئذان هنا أولًا لرئيس الشعبة.</li>
-            <li>بعد <b>الموافقة المبدئية</b> يصلك إيميل، فقدّم الإذن عن طريق <b>الديوان</b>.</li>
-            <li>بعد البصمة وقرار المدير سجّلهما هنا في «استئذاناتي».</li>
+            <li>قدّم الاستئذان هنا لرئيس الشعبة، ويصلك إيميل عند <b>موافقة رئيس الشعبة</b>.</li>
+            <li>لا تنسَ تقديم الإذن عن طريق <b>الديوان</b>.</li>
+            <li>بعد البصمة سجّل وقتها هنا في «استئذاناتي».</li>
           </ol>
           <label class="f">نوع الاستئذان</label>
           <div class="ltypes" role="radiogroup" aria-label="نوع الاستئذان">
@@ -1606,12 +1610,14 @@ $("ach-form").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("ach-msg"), btn = $("ach-submit");
   if (!PHOTOS.length) { msg.textContent = "أضف صورة واحدة على الأقل للنشاط."; return; }
-  btn.disabled = true; msg.textContent = "جارٍ رفع الإنجاز والصور…";
+  btn.disabled = true; msg.textContent = "جارٍ حفظ التقرير ورفع الصور…";
   try {
-    await run("submitAchievement", CODE, { type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS });
+    const r = await run("submitAchievement", CODE, { type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS });
     PHOTOS = []; renderPreviews(); $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
-    msg.textContent = "تم رفع الإنجاز. سيُعدّ رئيس الشعبة التقرير الرسمي.";
-    ACH = null; ACH_ALL = null; loadMyAch();
+    ACH = null; ACH_ALL = null; await loadMyAch();
+    msg.innerHTML = `حُفظ التقرير. <button class="btn sm" type="button" id="ach-new-pdf">تنزيل التقرير PDF</button>`;
+    const a = (ACH || []).find(x => x.id === r.id);
+    if (a) $("ach-new-pdf").onclick = () => achDownload(a, msg); else $("ach-new-pdf").remove();
   } catch (x) { msg.textContent = cleanErr(x); }
   finally { btn.disabled = false; }
 });
@@ -1622,7 +1628,7 @@ async function loadMyAch() {
   if (!ACH.length) { box.innerHTML = '<div class="empty">لم ترفع أي إنجاز بعد. استخدم النموذج أعلاه لإضافة أول إنجاز.</div>'; return; }
   box.innerHTML = ACH.map(a => `<div class="li">
       <div class="li-main"><b>${esc(a.title)}</b><span class="sub">${esc(a.type)} · ${fmtDate(a.date)}${a.photos.length ? " · " + ar(a.photos.length) + " صور" : ""}</span></div>
-      <div class="row-actions"><span class="pill ${a.status === ST_READY ? "ok" : "none"}">${a.status === ST_READY ? "تمت المراجعة" : "قيد المراجعة"}</span>
+      <div class="row-actions">${a.status === ST_READY ? '<span class="pill ok">عدّل رئيس الشعبة الصياغة</span>' : ""}
       <button class="btn sm" data-pdf="${a.id}">تقرير PDF</button>${a.status === ST_READY ? "" : `<button class="btn ghost sm" data-del="${a.id}">حذف</button>`}</div><div class="saved" data-pmsg="${a.id}"></div></div>`).join("");
   box.querySelectorAll("[data-pdf]").forEach(b => b.onclick = () => achDownload(ACH.find(a => a.id === b.dataset.pdf), box.querySelector(`[data-pmsg="${b.dataset.pdf}"]`)));
   box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => confirmInline(b, "تأكيد الحذف", async () => {
@@ -1656,19 +1662,19 @@ function confirmInline(btn, label, fn) {
 }
 
 // ---- عرض رئيس الشعبة ----
-let achFilter = "pending";
+let achFilter = "";
 async function loadAllAch(force) {
   const box = $("ach-all-list");
   if (!ACH_ALL || force) { box.innerHTML = '<div class="empty">جارٍ التحميل…</div>'; try { ACH_ALL = await run("allAchievements", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; } }
   const pend = ACH_ALL.filter(a => a.status !== ST_READY).length, ready = ACH_ALL.length - pend;
-  $("ach-filter").innerHTML = [["pending", "بانتظار الصياغة", pend], ["ready", "جاهزة", ready], ["", "الكل", ACH_ALL.length]]
+  $("ach-filter").innerHTML = [["", "الكل", ACH_ALL.length], ["pending", "بصياغة المعلم", pend], ["ready", "عدّلتَ صياغتها", ready]]
     .map(([k, t, n]) => `<button data-k="${k}" aria-pressed="${achFilter === k}"><b>${ar(n)}</b><span>${t}</span></button>`).join("");
   $("ach-filter").querySelectorAll("button").forEach(b => b.onclick = () => { achFilter = b.dataset.k; loadAllAch(); });
   const list = ACH_ALL.filter(a => !achFilter || (achFilter === "ready" ? a.status === ST_READY : a.status !== ST_READY));
-  if (!list.length) { box.innerHTML = `<div class="empty">${achFilter === "pending" ? "لا توجد إنجازات بانتظار الصياغة." : "لا توجد إنجازات."}</div>`; return; }
+  if (!list.length) { box.innerHTML = `<div class="empty">لا توجد إنجازات.</div>`; return; }
   box.innerHTML = list.map(a => `<button class="li li-btn" data-open="${a.id}">
       <div class="li-main"><b>${esc(a.title)}</b><span class="sub">أ. ${esc(a.teacher)} · ${esc(a.type)} · ${fmtDate(a.date)}</span></div>
-      <span class="pill ${a.status === ST_READY ? "ok" : "late"}">${a.status === ST_READY ? "جاهز" : "بانتظار الصياغة"}</span></button>`).join("");
+      ${a.status === ST_READY ? '<span class="pill ok">عدّلتَ صياغته</span>' : '<span class="pill none">بصياغة المعلم</span>'}</button>`).join("");
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openAch(b.dataset.open));
 }
 $("ach-reload").onclick = () => loadAllAch(true);
@@ -1686,11 +1692,10 @@ async function openAch(id) {
     <div class="sub">أ. ${esc(a.teacher)} · ${esc(a.type)} · ${fmtDate(a.date, true)}${a.target ? " · " + esc(a.target) : ""} · رُفع ${fmtStamp(a.createdAt)}</div>
     <div class="gallery" id="ach-gallery">${a.photos.map(p => `<div class="ph" data-ph="${p}"><span class="sub">جارٍ تحميل الصورة…</span></div>`).join("")}</div>
     <h3>وصف المعلم</h3><p class="teacher-desc">${esc(a.desc)}</p>
-    <h3>التقرير الرسمي</h3>
-    <div class="sub">${a.status === ST_READY ? "صيغ في " + fmtStamp(a.reportedAt) + ". يمكنك تعديل النص ثم الحفظ." : "لم يُصغ بعد. اطلب من Claude: «صغ الإنجازات الجديدة»، أو اكتب التقرير بنفسك هنا. وإلى أن يُصاغ يُنزَّل تقرير تلقائي بكلام المعلم."}</div>
+    <h3>صياغة التقرير (اختياري)</h3>
+    <div class="sub">${a.status === ST_READY ? "عدّلتَ الصياغة في " + fmtStamp(a.reportedAt) + "، وصار المعلم ينزّل التقرير بها." : "المعلم ينزّل التقرير بكلامه. إذا كتبت صياغة هنا وحفظتها، ينزّل المعلم تقريره بصياغتك. اتركه فارغًا ليبقى بكلام المعلم."}</div>
     <textarea id="ach-report" rows="14" placeholder="## مقدمة&#10;نص الفقرة…&#10;## تفاصيل النشاط&#10;- نقطة&#10;- نقطة">${esc(a.report || "")}</textarea>
     <div class="row-actions" style="margin-top:10px">
-      <button class="btn" id="ach-approve" type="button">اعتماد بكلام المعلم</button>
       <button class="btn" id="ach-save">حفظ التقرير</button>
       <button class="btn" id="ach-word">تنزيل PDF</button>
       <button class="btn ghost" id="ach-delete">حذف الإنجاز</button>
@@ -1706,13 +1711,6 @@ async function openAch(id) {
     $("ach-save").disabled = true; m.textContent = "جارٍ الحفظ…";
     try { const r = await run("saveReport", CODE, a.id, t); a.report = t; a.status = r.status; a.reportedAt = r.reportedAt; m.textContent = "تم الحفظ."; }
     catch (e) { m.textContent = cleanErr(e); } finally { $("ach-save").disabled = false; }
-  };
-  // اعتماد وصف المعلم كما هو تقريرًا رسميًا
-  $("ach-approve").onclick = async () => {
-    const m = $("ach-dmsg"), t = `## وصف ${achKind(a.type)[1]}\n${String(a.desc || "").trim().replace(/([^.!؟?])$/, "$1.")}`;
-    $("ach-approve").disabled = true; m.textContent = "جارٍ الاعتماد…";
-    try { const r = await run("saveReport", CODE, a.id, t); a.report = t; a.status = r.status; a.reportedAt = r.reportedAt; $("ach-report").value = t; m.textContent = "تم اعتماد الإنجاز بكلام المعلم."; }
-    catch (e) { m.textContent = cleanErr(e); } finally { $("ach-approve").disabled = false; }
   };
   $("ach-word").onclick = () => achDownload({ ...a, report: $("ach-report").value }, $("ach-dmsg"));
   $("ach-delete").onclick = () => confirmInline($("ach-delete"), "اضغط مرة ثانية للتأكيد", async () => {
@@ -3063,8 +3061,8 @@ function buildStudentDoc(D, list, fonts) {
 // الخادم يرسل للمعلم استئذاناته فقط، ولرئيس الشعبة الكل.
 // المعلم لا يحدد الدقيقة: الموقع يحسب الوقت المطلوب من التزاماته (الحصص والمراقبات)، وبعد البصمة يسجّل وقته الفعلي.
 const LV_TYPES = ["بداية الدوام", "أثناء الدوام", "نهاية الدوام"];
-const LV_ST = { pending: "بانتظار موافقة رئيس الشعبة", ok: "موافقة مبدئية · بانتظار اعتماد المدير", no: "غير موافق عليه", done: "معتمد من المدير", nodone: "لم يعتمده المدير" };
-const LV_PILL = { [LV_ST.pending]: "late", [LV_ST.ok]: "ahead", [LV_ST.no]: "none", [LV_ST.done]: "ok", [LV_ST.nodone]: "none" };
+const LV_ST = { pending: "بانتظار موافقة رئيس الشعبة", ok: "موافقة رئيس الشعبة", no: "غير موافق عليه" };
+const LV_PILL = { [LV_ST.pending]: "late", [LV_ST.ok]: "ok", [LV_ST.no]: "none" };
 const DAY_MIN = "07:10", DAY_MAX = "14:05", FLEX_LATEST = "07:55", TEACH_END = "13:55";
 let LEAVES = null, DUTIES = null, lvSub = "new", lvType = "";
 function lvMe() { return ME.isDemo ? ($("lv-who").value || TEACHERS[0][0]) : ME.name; }
@@ -3078,10 +3076,11 @@ $("lvtab-new").onclick = () => lvTab("new");
 $("lvtab-list").onclick = () => lvTab("list");
 $("lv-reload").onclick = () => loadLeaves(true);
 // كشف استئذانات اليوم PDF (يصل أيضًا تلقائيًا بالإيميل الساعة ٢ ظهرًا)
+// يشمل الاستئذانات المقدَّمة اليوم، أيًّا كان يوم الإذن نفسه
 $("lv-daypdf").onclick = async () => {
   const m = $("lv-list-msg"); m.textContent = "جارٍ إنشاء الكشف…";
   try { const r = await run("leavesDayPdf", CODE, todayISO()); await deliver(new Blob([b64ToBytes(r.b64)], { type: "application/pdf" }), r.name, m);
-    if (!r.count) m.insertAdjacentHTML("afterbegin", "لا توجد استئذانات اليوم. "); }
+    if (!r.count) m.insertAdjacentHTML("afterbegin", "لم يُقدَّم أي استئذان اليوم. "); }
   catch (e) { m.textContent = cleanErr(e); }
 };
 document.querySelectorAll('input[name="lvf"]').forEach(x => x.onchange = () => renderLeaves());
@@ -3201,8 +3200,7 @@ $("lv-form").addEventListener("submit", async e => {
   try {
     await run("saveLeave", CODE, { type: lvType, date: $("lv-date").value, from, to, reason: $("lv-reason").value.trim(), periods, contacted: !!periods.length });
     LEAVES = null; $("lv-reason").value = ""; $("lv-from").value = ""; $("lv-to").value = ""; $("lv-periods").innerHTML = ""; lvShowPicks(); lvSetType("");
-    msg.textContent = ME.isHead ? "سُجّل استئذانك. قدّمه عن طريق الديوان، وبعد البصمة سجّل وقتك في «الاستئذانات»."
-      : "أُرسل الاستئذان لرئيس الشعبة، ويصلك إيميل عند الموافقة. بعد الموافقة المبدئية قدّم الإذن عن طريق الديوان.";
+    msg.innerHTML = `<div class="lv-diwan"><b>لا تنسَ تقديم الإذن عن طريق الديوان.</b>${ME.isHead ? "سُجّل استئذانك، وبعد البصمة سجّل وقتك في «الاستئذانات»." : "أُرسل الاستئذان لرئيس الشعبة، ويصلك إيميل عند موافقته."}</div>`;
   } catch (x) { msg.textContent = "لم يُرسل: " + cleanErr(x); }
   finally { btn.disabled = false; }
 });
@@ -3228,7 +3226,7 @@ function renderLeaves() {
   const list = LEAVES.filter(l => !f || (f === "pending" ? l.status === LV_ST.pending : l.teacher === ME.name));
   $("lv-list-msg").textContent = ME.isHead ? `بانتظار موافقتك: ${ar(LEAVES.filter(l => l.status === LV_ST.pending).length)}` : "";
   $("lv-cards").innerHTML = list.length ? list.map(l => {
-    const mine = l.teacher === ME.name, canFinal = l.status === LV_ST.ok && (mine || ME.isHead), late = lvLate(l);
+    const mine = l.teacher === ME.name, late = lvLate(l);
     const canActual = (mine || ME.isHead) && l.status !== LV_ST.no;
     return `<div class="card lv-card" data-id="${esc(l.id)}">
       <h3>${ME.isHead ? "أ. " + esc(l.teacher) + " · " : ""}${esc(l.type)} <span class="pill ${LV_PILL[l.status] || "none"}">${esc(l.status)}</span>${l.demo ? ' <span class="pill none">تجريبي</span>' : ""}</h3>
@@ -3236,13 +3234,11 @@ function renderLeaves() {
         ${l.periods.length ? "<br>بيفوّت: " + l.periods.map(x => `${esc(x.label)} ← البديل ${esc(x.sub)}`).join("، ") + (l.contacted ? " · <span class=\"sub\">تواصل مع البدلاء</span>" : "") : ""}
         ${l.actual ? `<br>${ACTUAL_LABEL[l.type]}: <b>${hm12(l.actual)}</b>` : ""}
         ${l.note ? `<br>ملاحظة رئيس الشعبة: ${esc(l.note)}` : ""}
-        <br><span class="sub">طُلب ${fmtStamp(l.createdAt)}${l.finalBy ? " · سجّل قرار المدير أ. " + esc(l.finalBy) : ""}</span></div>
+        <br><span class="sub">طُلب ${fmtStamp(l.createdAt)}</span></div>
       ${late ? `<div class="lv-late">⚠ ${late}.</div>` : ""}
-      ${l.status === LV_ST.ok && mine ? '<div class="nextstep">الخطوة التالية: قدّم الإذن عن طريق الديوان لاعتماد المدير، ثم سجّل قراره ووقت البصمة هنا.</div>' : ""}
       <div class="acts">
         ${ME.isHead && l.status === LV_ST.pending ? `<input type="text" data-note placeholder="ملاحظة للمعلم (اختياري)" maxlength="400">
-          <div class="row-actions"><button class="btn sm" type="button" data-act="ok">موافقة مبدئية</button><button class="btn ghost sm" type="button" data-act="no">عدم الموافقة</button></div>` : ""}
-        ${canFinal ? `<div class="row-actions"><button class="btn sm" type="button" data-act="done">اعتمده المدير</button><button class="btn ghost sm" type="button" data-act="nodone">لم يعتمده المدير</button></div>` : ""}
+          <div class="row-actions"><button class="btn sm" type="button" data-act="ok">موافقة</button><button class="btn ghost sm" type="button" data-act="no">عدم الموافقة</button></div>` : ""}
         ${canActual ? `<div class="row-actions"><label class="sub" style="flex:1 1 100%">${ACTUAL_LABEL[l.type]}</label><input type="time" data-actual min="${DAY_MIN}" max="${DAY_MAX}" value="${esc(l.actual || "")}" style="max-width:150px"><button class="btn ghost sm" type="button" data-act="actual">حفظ وقت البصمة</button></div>` : ""}
         ${(mine && l.status === LV_ST.pending) || ME.isHead ? `<div class="row-actions"><button class="btn ghost sm" type="button" data-act="del">${mine && l.status === LV_ST.pending ? "إلغاء الطلب" : "حذف"}</button></div>` : ""}
       </div><div class="saved" data-msg></div></div>`; }).join("")
@@ -3256,12 +3252,11 @@ function renderLeaves() {
       m.textContent = "جارٍ الحفظ…"; card.querySelectorAll("button").forEach(x => x.disabled = true);
       try {
         if (act === "ok" || act === "no") upd(await run("decideLeave", CODE, id, act === "ok", (card.querySelector("[data-note]") || {}).value || ""));
-        else if (act === "done" || act === "nodone") upd(await run("finalLeave", CODE, id, act === "done"));
         else if (act === "actual") upd(await run("setLeaveActual", CODE, id, card.querySelector("[data-actual]").value));
         else { await run("deleteLeave", CODE, id); LEAVES = LEAVES.filter(x => x.id !== id); renderLeaves(); }
       } catch (e) { m.textContent = cleanErr(e); card.querySelectorAll("button").forEach(x => x.disabled = false); }
     };
-    b.onclick = act === "del" || act === "no" || act === "nodone" ? () => confirmInline(b, "اضغط للتأكيد", go_) : go_;
+    b.onclick = act === "del" || act === "no" ? () => confirmInline(b, "اضغط للتأكيد", go_) : go_;
   });
 }
 
@@ -3426,7 +3421,7 @@ function dashData() {
     const p = ALL[docId(c.id, s)], st = status(planKey(s, c.grade), p ? p.done : null, WEEK);
     if (st.kind === "late") late.push(c); if (st.kind === "none") none.push(c);
   }
-  const pendAch = (ACH_ALL || []).filter(a => a.status !== ST_READY);
+  const pendAch = [];
   const openMin = (MIN || []).filter(m => m.signedCount < m.attendees.length);
   const visReal = (VIS || []).filter(v => !v.demo);
   const unvisited = realTeachers().filter(n => !visReal.some(v => v.teacher === n));
@@ -3437,7 +3432,7 @@ function dashData() {
 function renderDash() {
   const d = dashData();
   setSub("curr", d.late.length ? `متأخر عن الخطة: ${ar(d.late.length)}` : d.none.length ? `لم يُحدَّث: ${ar(d.none.length)}` : "كل الفصول مطابقة أو متقدمة", d.late.length > 0);
-  setSub("ach", d.pendAch.length ? `بانتظار الصياغة: ${ar(d.pendAch.length)}` : "لا جديد", d.pendAch.length > 0);
+  setSub("ach", (ACH_ALL || []).length ? `الإنجازات: ${ar(ACH_ALL.length)}` : "لا جديد", false);
   setSub("min", d.openMin.length ? `توقيع ناقص في ${ar(d.openMin.length)} ${d.openMin.length === 1 ? "محضر" : "محاضر"}` : (MIN || []).length ? "التواقيع مكتملة" : "لا توجد محاضر بعد", d.openMin.length > 0);
   setSub("vis", d.unvisited.length ? `لم يُزَر بعد: ${ar(d.unvisited.length)}` : "زرت جميع المعلمين", d.unvisited.length > 0);
   $("dt-tasks").setAttribute("aria-selected", dashTab === "tasks");
@@ -3620,15 +3615,14 @@ async function grLoad() {
   try { const d = await run("gradesGet", CODE, GR.sem, GR.cls, GR.subj); if (want === GR.sem + GR.cls + GR.subj) { GR.data = d; grRender(); } }
   catch (e) { $("gr-list").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; }
 }
-function grCanEdit() { return (ME.classes || []).indexOf(GR.cls) !== -1; }
+function grCanEdit() { return (ME.classes || []).indexOf(GR.cls) !== -1 && !(GR.data && GR.data.approvedAt); }
 function grRender() {
   const d = GR.data; if (!d) return;
   const g = d.grades || {}, n = d.names.length, full = d.names.filter(x => grCount(g[x]) === GR_KEYS.length).length;
   let st = `<span class="gr-badge">رُصد ${ar(full)} من ${ar(n)}</span>`;
   if (d.approvedAt) st += `<span class="gr-badge ok">معتمد من رئيس الشعبة · ${esc(relTime(parseStamp(d.approvedAt), true))}</span>`;
-  if (d.approvedAt && d.editedAfter) st += `<span class="gr-badge warn">عُدّل بعد الاعتماد</span>`;
-  if (d.approvedAt && !ME.isHead) st += `<span class="sub">يمكنك التعديل، ويصل تنبيه لرئيس الشعبة بأي تعديل بعد الاعتماد.</span>`;
-  if (!grCanEdit()) st += `<span class="sub">للاطلاع فقط؛ رصد الدرجات وتعديلها لمعلم الفصل.</span>`;
+  if (d.approvedAt && (ME.classes || []).indexOf(GR.cls) !== -1) st += `<span class="sub">اعتمد رئيس الشعبة الكشف، فهو للاطلاع فقط ولا يمكن تعديله.</span>`;
+  else if (!grCanEdit()) st += `<span class="sub">للاطلاع فقط؛ رصد الدرجات وتعديلها لمعلم الفصل.</span>`;
   $("gr-status").innerHTML = st;
   $("gr-approve").hidden = !ME.isHead || ME.isDemo; $("gr-approve").textContent = d.approvedAt ? "إلغاء الاعتماد" : "اعتماد الكشف";
   if (!n) { $("gr-list").innerHTML = '<div class="empty">لم يُرفع كشف طلاب هذا الفصل بعد.</div>'; return; }
@@ -3684,7 +3678,7 @@ function grWireEditor() {
 }
 $("gr-approve").onclick = async () => {
   const on = !GR.data.approvedAt, m = $("gr-msg"); m.textContent = on ? "جارٍ الاعتماد…" : "جارٍ إلغاء الاعتماد…";
-  try { const o = await run("gradesApprove", CODE, GR.sem, GR.cls, GR.subj, on); Object.assign(GR.data, { approvedAt: o.approvedAt, approvedBy: o.approvedBy, editedAfter: false }); GR.ov = null; m.textContent = on ? "اعتُمد الكشف. الاعتماد الورقي هو الفيصل النهائي." : "أُلغي الاعتماد."; grRender(); }
+  try { const o = await run("gradesApprove", CODE, GR.sem, GR.cls, GR.subj, on); Object.assign(GR.data, { approvedAt: o.approvedAt, approvedBy: o.approvedBy, editedAfter: false }); GR.ov = null; m.textContent = on ? "اعتُمد الكشف، وصار للاطلاع فقط عند المعلم." : "أُلغي الاعتماد، ويستطيع المعلم التعديل من جديد."; grRender(); }
   catch (e) { m.textContent = cleanErr(e); }
 };
 
@@ -3693,9 +3687,9 @@ async function grLoadOv() {
   const box = $("gr-ovlist"); grSeg("gr-ovsem", GR.ovSem);
   if (!GR.ov) { box.innerHTML = '<div class="empty">جارٍ تجهيز المتابعة…</div>'; try { GR.ov = await run("gradesOverview", CODE, GR.ovSem); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; } }
   const rows = GR.ov.slice().sort((a, b) => { const A = ALL_CLASSES.findIndex(c => c.id === a.classId), B = ALL_CLASSES.findIndex(c => c.id === b.classId); return A - B || (a.subject > b.subject ? 1 : -1); });
-  const appr = rows.filter(r => r.approvedAt).length, edited = rows.filter(r => r.editedAfter).length;
+  const appr = rows.filter(r => r.approvedAt).length, edited = 0;
   box.innerHTML = `<div class="gr-status" style="margin-top:0"><span class="gr-badge">${ar(rows.length)} كشف</span><span class="gr-badge ok">معتمد ${ar(appr)}</span>${edited ? `<span class="gr-badge warn">عُدّل بعد الاعتماد ${ar(edited)}</span>` : ""}</div>`;
-  const pill = r => { const st = r.editedAfter ? ["warn", "عُدّل بعد الاعتماد"] : r.approvedAt ? ["ok", "معتمد"] : r.filled && r.filled === r.total ? ["", "مكتمل"] : ["", r.started ? `${ar(r.filled)}/${ar(r.total)}` : "لم يبدأ"];
+  const pill = r => { const st = r.approvedAt ? ["ok", "معتمد"] : r.filled && r.filled === r.total ? ["", "مكتمل"] : ["", r.started ? `${ar(r.filled)}/${ar(r.total)}` : "لم يبدأ"];
     return `<button type="button" class="gr-ovp" data-c="${esc(r.classId)}" data-s="${r.subject}"><span>${r.subject === "qr" ? "القرآن" : "الإسلامية"}</span><span class="gr-badge ${st[0]}">${st[1]}</span></button>`; };
   const byT = []; rows.forEach(r => { let g = byT.find(x => x.t === r.teacher); if (!g) byT.push(g = { t: r.teacher, cls: [] }); let c = g.cls.find(x => x.id === r.classId); if (!c) g.cls.push(c = { id: r.classId, r: [] }); c.r.push(r); });
   box.innerHTML += byT.map(g => `<div class="card" style="margin-top:10px"><b>أ. ${esc(g.t)}</b>${g.cls.map(c => `<div class="gr-ovrow"><span class="c">${esc(classLabel(c.id))}</span>${c.r.sort((a, b) => a.subject > b.subject ? 1 : -1).map(pill).join("")}</div>`).join("")}</div>`).join("");

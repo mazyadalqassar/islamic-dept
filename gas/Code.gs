@@ -74,7 +74,7 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
-  setMyEmail, listLeaves, saveLeave, decideLeave, finalLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf,
+  setMyEmail, listLeaves, saveLeave, decideLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf,
   gradesGet, gradesSave, gradesApprove, gradesOverview,
   listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular,
   listDevices, resetDevice, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent,
@@ -322,7 +322,7 @@ function submitAchievement(code, a) {
     String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, "", nowText_(), ""];
   withLock_(() => appendText_(sh_(SHEET_ACH), row));
   notify_(me, `إنجاز جديد: ${title} — أ. ${me.name}`, `
-    <p>رفع <b>أ. ${esc_(me.name)}</b> إنجازًا جديدًا في موقع الشعبة، وهو بانتظار الصياغة.</p>
+    <p>رفع <b>أ. ${esc_(me.name)}</b> إنجازًا جديدًا في موقع الشعبة، ويستطيع تنزيل تقريره بصياغته مباشرة. ويمكنك تعديل الصياغة من ركن الإنجازات متى شئت.</p>
     <table cellpadding="6" style="border-collapse:collapse;border:1px solid #e6e1db">
       <tr><td style="background:#fbeee3"><b>العنوان</b></td><td>${esc_(title)}</td></tr>
       <tr><td style="background:#fbeee3"><b>النوع</b></td><td>${esc_(row[3])}</td></tr>
@@ -420,7 +420,7 @@ function saveMinute(code, m) {
   if (!title) throw new Error("اكتب عنوان الاجتماع.");
   const names = TEACHERS.map(t => t[0]);
   const att = (m.attendees || []).filter(n => names.indexOf(n) !== -1);
-  return withLock_(() => {
+  const saved = withLock_(() => {
     const sh = sh_(SHEET_MIN);
     const id = m.id || newId_();
     const row = m.id ? findRow_(sh, 1, m.id) : -1;
@@ -428,8 +428,17 @@ function saveMinute(code, m) {
     const values = [id, title, String(m.date || "").slice(0, 10), String(m.time || "").slice(0, 20), String(m.place || "").slice(0, 100),
       JSON.stringify(att), String(m.agenda || "").slice(0, 5000), String(m.discussion || "").slice(0, 15000), String(m.decisions || "").slice(0, 8000), created];
     if (row > 0) writeRow_(sh, row, values); else appendText_(sh, values);
-    return { id };
+    return { id, isNew: row < 0 };
   });
+  if (saved.isNew) {
+    const date = String(m.date || "").slice(0, 10);
+    TEACHERS.filter(t => !t[2]).forEach(t => notifyTeacher_(t[0], `محضر اجتماع جديد: ${title}`, `
+      <p>الأستاذ الفاضل/ ${esc_(t[0])} المحترم،</p>
+      <p>نُشر في موقع شعبة التربية الإسلامية <b>محضر اجتماع جديد</b>، يرجى الاطلاع عليه و${att.indexOf(t[0]) === -1 ? "التوقيع بالعلم" : "التوقيع عليه"}.</p>
+      <p style="background:#fbeee3;padding:8px 12px;border-radius:8px"><b>${esc_(title)}</b>${date ? `<br>${dayOf_(date)} ${dmy_(date)}` : ""}</p>
+      <p>تجده في ركن «محاضر الاجتماعات».</p><p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`));
+  }
+  return { id: saved.id };
 }
 
 function deleteMinute(code, id) {
@@ -600,7 +609,7 @@ function saveVisit(code, v) {
   const ratings = (Array.isArray(v.ratings) ? v.ratings : []).slice(0, 40).map(x => [String((x && x[0]) || "").slice(0, 30), String((x && x[1]) || "").slice(0, 300)]);
   const headSig = String(v.headSig || "");
   if (headSig && !validSig_(headSig)) throw new Error("توقيعك غير صالح، ارسمه مرة أخرى.");
-  return withLock_(() => {
+  const saved = withLock_(() => {
     const sh = sh_(SHEET_VIS);
     const row = v.id ? findRow_(sh, 1, v.id) : -1;
     let old = null;
@@ -619,8 +628,14 @@ function saveVisit(code, v) {
       const my = sh_(SHEET_MYSIG), r2 = findRow_(my, 1, me.name);
       if (r2 > 0) writeRow_(my, r2, [me.name, headSig, nowText_()]); else appendText_(my, [me.name, headSig, nowText_()]);
     }
-    return { id: values[0], number };
+    return { id: values[0], number, isNew: !old };
   });
+  if (saved.isNew) notifyTeacher_(teacher, `زيارة صفية جديدة · ${dmy_(String(v.date || "").slice(0, 10))}`, `
+    <p>الأستاذ الفاضل/ ${esc_(teacher)} المحترم،</p>
+    <p>سجّل رئيس الشعبة <b>زيارة صفية ${esc_(v.type)}</b> لك (رقم ${esc_(saved.number)})، يرجى الاطلاع عليها والتوقيع.</p>
+    <p style="background:#fbeee3;padding:8px 12px;border-radius:8px">${esc_(VISIT_CARDS[v.card])} · ${esc_(grLabel_(v.classId))}<br>${dayOf_(String(v.date || "").slice(0, 10))} ${dmy_(String(v.date || "").slice(0, 10))}${v.period ? " · الحصة " + esc_(v.period) : ""}</p>
+    <p>تجدها في ركن «الزيارات الصفية».</p><p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`);
+  return { id: saved.id, number: saved.number };
 }
 
 /** رئيس الشعبة يرى كل الزيارات، والمعلم يرى زياراته فقط */
@@ -1031,7 +1046,7 @@ function notifyTeacher_(name, subject, html) {
 }
 
 // ======================= الاستئذانات =======================
-// المعلم يرى استئذاناته فقط، ورئيس الشعبة يرى الكل. الخطوات: طلب ← موافقة رئيس الشعبة المبدئية ← تقديمه في الديوان ← اعتماد المدير.
+// المعلم يرى استئذاناته فقط، ورئيس الشعبة يرى الكل. الخطوات: طلب ← موافقة رئيس الشعبة (والمعلم يقدّم الإذن في الديوان بنفسه).
 // المعلم لا يحدد الدقيقة مسبقًا: الموقع يحسب «الوقت المطلوب» من التزاماته (حصص ومراقبات)، وبعد البصمة يسجّل وقته الفعلي.
 // الأعمدة: 0 المعرف | 1 المعلم | 2 النوع | 3 التاريخ | 4 بداية الفترة (للخروج أثناء الدوام) | 5 الوقت المطلوب | 6 السبب
 // (E و F: الأوقات التقريبية التي كتبها المعلم: الخروج/الانصراف والحضور/العودة)
@@ -1040,9 +1055,11 @@ function notifyTeacher_(name, subject, html) {
 const LEAVE_HEAD_ = ["المعرف", "المعلم", "النوع", "التاريخ", "بداية الفترة", "الوقت المطلوب", "السبب", "الالتزامات والبدلاء", "الحالة", "ملاحظة رئيس الشعبة", "وقت الطلب", "وقت قرار رئيس الشعبة", "وقت قرار المدير", "سجّل قرار المدير", "وقت البصمة الفعلي", "تواصل مع البدلاء"];
 const DAY_MIN_ = "07:10", DAY_MAX_ = "14:05";
 const LV_TYPES_ = ["بداية الدوام", "أثناء الدوام", "نهاية الدوام"];
-const LV_ST_ = { pending: "بانتظار موافقة رئيس الشعبة", ok: "موافقة مبدئية · بانتظار اعتماد المدير", no: "غير موافق عليه", done: "معتمد من المدير", nodone: "لم يعتمده المدير" };
+const LV_ST_ = { pending: "بانتظار موافقة رئيس الشعبة", ok: "موافقة رئيس الشعبة", no: "غير موافق عليه" };
+// حالات قديمة من مرحلة «اعتماد المدير» (أُلغيت ٢٥/١٠/٢٠٢٦) تُعرض كلها «موافقة رئيس الشعبة»
+const LV_OLD_OK_ = ["موافقة مبدئية · بانتظار اعتماد المدير", "معتمد من المدير", "لم يعتمده المدير"];
 function leaveSheet_() { return sh_(SHEET_LEAVE) || sheet_(SHEET_LEAVE, LEAVE_HEAD_, true); }
-function leaveObj_(r) { return { id: r[0], teacher: r[1], type: r[2], date: r[3], from: r[4], to: r[5], reason: r[6], periods: json_(r[7], []), status: r[8], note: r[9],
+function leaveObj_(r) { return { id: r[0], teacher: r[1], type: r[2], date: r[3], from: r[4], to: r[5], reason: r[6], periods: json_(r[7], []), status: LV_OLD_OK_.indexOf(r[8]) !== -1 ? LV_ST_.ok : r[8], note: r[9],
   createdAt: r[10], decidedAt: r[11], finalAt: r[12], finalBy: r[13], actual: r[14], contacted: r[15] === "نعم", demo: isDemo_(r[1]) }; }
 function leaveRow_(o) { return [o.id, o.teacher, o.type, o.date, o.from, o.to, o.reason, JSON.stringify(o.periods || []), o.status, o.note || "", o.createdAt, o.decidedAt || "", o.finalAt || "", o.finalBy || "", o.actual || "", o.contacted ? "نعم" : ""]; }
 function leaveGet_(me, sh, id) {
@@ -1091,11 +1108,11 @@ function saveLeave(code, l) {
   if (!me.isHead) notify_(me, `طلب استئذان: أ. ${me.name} · ${type} · ${dmy_(o.date)}`, `
     <p>قدّم <b>أ. ${esc_(me.name)}</b> طلب <b>${esc_(type)}</b>:</p>
     <p>${esc_(lvWhen_(o))}<br>السبب: ${esc_(reason)}</p>${lvTable_(o)}
-    <p>افتح الموقع: الاستئذانات، للموافقة المبدئية أو عدم الموافقة.</p>`);
+    <p>افتح الموقع: الاستئذانات، للموافقة أو عدم الموافقة.</p>`);
   return leaveObj_(leaveRow_(o).map(String));
 }
 
-/** رئيس الشعبة: موافقة مبدئية أو عدم موافقة، ويصل المعلم إيميل */
+/** رئيس الشعبة: موافقة أو عدم موافقة، ويصل المعلم إيميل */
 function decideLeave(code, id, approve, note) {
   const me = head_(code);
   const o = withLock_(() => {
@@ -1105,28 +1122,11 @@ function decideLeave(code, id, approve, note) {
     writeRow_(sh, cur.row, leaveRow_(cur.o));
     return cur.o;
   });
-  const sent = notifyTeacher_(o.teacher, approve ? `موافقة مبدئية على استئذانك · ${dmy_(o.date)}` : `لم تتم الموافقة على استئذانك · ${dmy_(o.date)}`, approve ? `
-    <p>الأستاذ ${esc_(o.teacher)}،</p><p>وافق رئيس الشعبة <b>موافقة مبدئية</b> على طلبك (${esc_(o.type)}): ${esc_(lvWhen_(o))}.</p>
-    ${o.note ? `<p>ملاحظة رئيس الشعبة: ${esc_(o.note)}</p>` : ""}
-    <p style="background:#fff4d6;padding:8px 12px;border-radius:8px"><b>الخطوة التالية:</b> قدّم الإذن عن طريق الديوان لاعتماد المدير، ثم سجّل قرار المدير في الموقع (الاستئذانات).</p>` : `
+  const sent = notifyTeacher_(o.teacher, approve ? `وافق رئيس الشعبة على استئذانك · ${dmy_(o.date)}` : `لم تتم الموافقة على استئذانك · ${dmy_(o.date)}`, approve ? `
+    <p>الأستاذ ${esc_(o.teacher)}،</p><p>وافق رئيس الشعبة على طلبك (${esc_(o.type)}): ${esc_(lvWhen_(o))}.</p>
+    ${o.note ? `<p>ملاحظة رئيس الشعبة: ${esc_(o.note)}</p>` : ""}` : `
     <p>الأستاذ ${esc_(o.teacher)}،</p><p>لم يوافق رئيس الشعبة على طلبك (${esc_(o.type)}): ${esc_(lvWhen_(o))}.</p>${o.note ? `<p>الملاحظة: ${esc_(o.note)}</p>` : ""}`);
   o.emailed = sent;
-  return o;
-}
-
-/** تسجيل قرار المدير (صاحب الاستئذان أو رئيس الشعبة) */
-function finalLeave(code, id, ok) {
-  const me = who_(code);
-  const o = withLock_(() => {
-    const sh = leaveSheet_(), cur = leaveGet_(me, sh, id);
-    if (cur.o.status !== LV_ST_.ok) throw new Error("يُسجَّل قرار المدير بعد الموافقة المبدئية فقط.");
-    cur.o.status = ok ? LV_ST_.done : LV_ST_.nodone; cur.o.finalAt = nowText_(); cur.o.finalBy = me.name;
-    writeRow_(sh, cur.row, leaveRow_(cur.o));
-    return cur.o;
-  });
-  const what = ok ? "اعتمد المدير" : "لم يعتمد المدير";
-  if (me.isHead && o.teacher !== me.name) notifyTeacher_(o.teacher, `${what} استئذانك · ${dmy_(o.date)}`, `<p>الأستاذ ${esc_(o.teacher)}،</p><p>${what} طلبك (${esc_(o.type)}): ${esc_(lvWhen_(o))}.</p>`);
-  if (!me.isHead) notify_(me, `${what} استئذان أ. ${o.teacher} · ${dmy_(o.date)}`, `<p>سجّل <b>أ. ${esc_(o.teacher)}</b> أن المدير ${ok ? "اعتمد" : "لم يعتمد"} استئذانه (${esc_(o.type)}): ${esc_(lvWhen_(o))}.</p>`);
   return o;
 }
 
@@ -1180,31 +1180,31 @@ function importDuties(code, rows, replace) {
 
 
 // ======================= تقرير الاستئذانات اليومي (PDF لرئيس الشعبة) =======================
-// يُرسل كل يوم دوام الساعة ٢ ظهرًا تقريبًا إلى إيميل رئيس الشعبة، ليرفعه إلى المدير فيعتمد الأذونات من تطبيق الديوان.
-// يشمل استئذانات اليوم غير التجريبية، عدا غير الموافق عليها.
+// يُرسل كل يوم دوام الساعة ٢ ظهرًا تقريبًا إلى إيميل رئيس الشعبة.
+// يشمل الاستئذانات التي قُدّمت في ذلك اليوم (أيًّا كان تاريخ الإذن نفسه)، عدا التجريبية وغير الموافق عليها.
 const LOGO_PNG_B64_ = "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";
 function leavesOfDay_(date) {
   const sh = sh_(SHEET_LEAVE); if (!sh) return [];
-  return rows_(SHEET_LEAVE).slice(1).filter(r => r[0] && r[3] === date && !isDemo_(r[1])).map(leaveObj_).filter(o => o.status !== LV_ST_.no)
-    .sort((a, b) => LV_TYPES_.indexOf(a.type) - LV_TYPES_.indexOf(b.type) || (a.from || a.to).localeCompare(b.from || b.to));
+  return rows_(SHEET_LEAVE).slice(1).filter(r => r[0] && String(r[10]).slice(0, 10) === date && !isDemo_(r[1])).map(leaveObj_).filter(o => o.status !== LV_ST_.no)
+    .sort((a, b) => a.date.localeCompare(b.date) || LV_TYPES_.indexOf(a.type) - LV_TYPES_.indexOf(b.type) || String(a.createdAt).localeCompare(String(b.createdAt)));
 }
 function t12_(t) { if (!t) return ""; const h = +t.slice(0, 2); return `${h > 12 ? h - 12 : h}:${t.slice(3, 5)} ${h >= 12 ? "م" : "ص"}`; }
 function leavesDayHtml_(date, list) {
-  const rows = list.map((o, i) => `<tr><td class="c">${i + 1}</td><td><b>أ. ${esc_(o.teacher)}</b></td><td class="c">${esc_(o.type)}</td></tr>`).join("");
+  const rows = list.map((o, i) => `<tr><td class="c">${i + 1}</td><td><b>أ. ${esc_(o.teacher)}</b></td><td class="c">${esc_(o.type)}</td><td class="c">${dayOf_(o.date)} ${dmy_(o.date)}</td><td class="c">${esc_(o.status)}</td></tr>`).join("");
   return `<html dir="rtl"><head><meta charset="utf-8"><style>
     @page { size: A4; margin: 14mm; } body { font-family: Arial, Tahoma, sans-serif; color: #2b2b2b; font-size: 12pt; direction: rtl; }
     .lh { width: 100%; border-bottom: 2px solid #c8641c; padding-bottom: 6px; } .lh td { vertical-align: middle; font-size: 10.5pt; line-height: 1.5; }
     .o { color: #c8641c; font-weight: bold; } h1 { text-align: center; font-size: 17pt; margin: 14px 0 4px; } .sub { text-align: center; color: #77736e; margin-bottom: 12px; }
     table.t { width: 100%; border-collapse: collapse; } table.t th { background: #fbeee3; color: #c8641c; padding: 7px; border: 1px solid #e0d6cc; font-size: 11pt; }
     table.t td { padding: 7px 8px; border: 1px solid #e0d6cc; font-size: 11.5pt; } td.c { text-align: center; }
-    .sum { margin-top: 10px; font-size: 10.5pt; color: #555; } .sig { width: 100%; margin-top: 36px; text-align: center; font-size: 11pt; } .sig td { width: 50%; }
+    .sum { margin-top: 10px; font-size: 10.5pt; color: #555; } .sig { width: 100%; margin-top: 36px; text-align: center; font-size: 11pt; }
   </style></head><body>
   <table class="lh"><tr><td><b>دولة الكويت · وزارة التربية</b><br>منطقة حولي التعليمية<br><b>ثانوية أحمد الربعي للبنين</b><br><span class="o">شعبة التربية الإسلامية</span></td>
     <td style="text-align:left"><img src="data:image/png;base64,${LOGO_PNG_B64_}" width="62"></td></tr></table>
-  <h1>كشف استئذانات المعلمين</h1><div class="sub">${dayOf_(date)} ${dmy_(date)}</div>
-  <table class="t"><tr><th style="width:8%">م</th><th>اسم المعلم</th><th style="width:28%">نوع الإذن</th></tr>${rows}</table>
+  <h1>كشف استئذانات المعلمين</h1><div class="sub">الاستئذانات المقدَّمة يوم ${dayOf_(date)} ${dmy_(date)}</div>
+  <table class="t"><tr><th style="width:6%">م</th><th>اسم المعلم</th><th style="width:16%">نوع الإذن</th><th style="width:22%">يوم الإذن</th><th style="width:20%">الحالة</th></tr>${rows}</table>
   <div class="sum">العدد: ${list.length} · بداية الدوام: ${list.filter(o => o.type === LV_TYPES_[0]).length} · أثناء الدوام: ${list.filter(o => o.type === LV_TYPES_[1]).length} · نهاية الدوام: ${list.filter(o => o.type === LV_TYPES_[2]).length}</div>
-  <table class="sig"><tr><td><b>رئيس شعبة التربية الإسلامية</b><br>أ. مزيد حمد القصار<br><br>التوقيع: ....................</td><td><b>مدير المدرسة</b><br>أ. فيصل عبدالله المحمد<br><br>التوقيع: ....................</td></tr></table>
+  <table class="sig"><tr><td><b>رئيس شعبة التربية الإسلامية</b><br>أ. مزيد حمد القصار<br><br>التوقيع: ....................</td></tr></table>
   </body></html>`;
 }
 function leavesPdfBlob_(date, list) {
@@ -1225,8 +1225,8 @@ function dailyLeavesReport() {
   const list = leavesOfDay_(date); if (!list.length) return;
   MailApp.sendEmail({ to: HEAD_EMAIL, subject: `كشف استئذانات المعلمين · ${dayOf_(date)} ${dmy_(date)} (${list.length})`, name: "موقع شعبة التربية الإسلامية",
     htmlBody: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:14px;line-height:1.8">
-      <p>مرفق كشف استئذانات المعلمين لليوم (${list.length})، لإرساله إلى المدير لاعتماد الأذونات من تطبيق الديوان.</p>
-      <p>${list.map(o => `أ. ${esc_(o.teacher)} · ${esc_(o.type)}`).join("<br>")}</p></div>`,
+      <p>مرفق كشف الاستئذانات التي قدّمها المعلمون اليوم (${list.length})، لإرساله إلى المدير.</p>
+      <p>${list.map(o => `أ. ${esc_(o.teacher)} · ${esc_(o.type)} · ${dayOf_(o.date)} ${dmy_(o.date)}`).join("<br>")}</p></div>`,
     attachments: [leavesPdfBlob_(date, list)] });
 }
 /** يُشغَّل مرة واحدة من المحرر (بعد موافقة رئيس الشعبة على الصلاحية): ينشئ المهمة اليومية الساعة ٢ ظهرًا بتوقيت الكويت */
@@ -1260,8 +1260,8 @@ function weeklyBackup() {
 
 
 // ======================= كشف درجات الأعمال (التقييم البنائي ٤٠) =======================
-// كشف لكل (فصل دراسي، فصل، مادة). المعلم يرى فصوله فقط، ورئيس الشعبة يرى الكل. الاعتماد الورقي هو الفيصل،
-// والاعتماد في الموقع للمتابعة: يمكن التعديل بعده، ويُنبَّه رئيس الشعبة بأول تعديل بعد الاعتماد.
+// كشف لكل (فصل دراسي، فصل، مادة). المعلم يرى فصوله فقط، ورئيس الشعبة يرى الكل.
+// يعتمد رئيس الشعبة الكشف متى شاء (غالبًا آخر الفصل)، وبعد الاعتماد يُقفل الكشف على المعلم: اطلاع فقط. ولرئيس الشعبة إلغاء الاعتماد.
 // الأعمدة: 0 المفتاح (sem|class|subject) | 1 المعلم | 2 الفصل الدراسي | 3 الفصل | 4 المادة | 5 الدرجات JSON {اسم الطالب: {...}} | 6 وقت الاعتماد | 7 اعتمده | 8 عُدّل بعد الاعتماد | 9 آخر تحديث
 const GRADES_HEAD_ = ["المفتاح", "المعلم", "الفصل الدراسي", "الفصل", "المادة", "الدرجات", "وقت الاعتماد", "اعتمده", "عُدّل بعد الاعتماد", "آخر تحديث"];
 // البنود: السلوك ٣ · تسميع ½ + ½ · مشاركة ٢ · واجبات ٣ · مشروع ٣٫٥ (لكل قسم) · الاختبار القصير ١٥
@@ -1316,26 +1316,20 @@ function gradesSave(code, sem, cls, subj, student, vals) {
     clean[k] = n;
   });
   const key = (me.isDemo ? "DEMO:" + me.name + "|" : "") + grKey_(sem, cls, subj);
-  let notify = false;
-  const res = withLock_(() => {
+  return withLock_(() => {
     const sh = gradesSheet_(), cur = grRow_(sh, key);
     const o = grObj_(cur && cur.r);
+    if (o.approvedAt) throw new Error("اعتمد رئيس الشعبة هذا الكشف، فهو للاطلاع فقط ولا يمكن تعديله.");
     const before = o.grades[student] || {};
     if (Object.keys(clean).length) o.grades[student] = clean; else delete o.grades[student];
     if (!me.isDemo) grLog_(me, sem, cls, subj, student, before, clean);
-    if (o.approvedAt && !me.isHead && !o.editedAfter) { o.editedAfter = true; notify = true; }
     const row = [key, me.isDemo ? me.name : grTeacherOf_(cls), sem, cls, subj, JSON.stringify(o.grades), o.approvedAt, o.approvedBy, o.editedAfter ? "نعم" : "", nowText_()];
     writeRow_(sh, cur ? cur.row : sh.getLastRow() + 1, row);
     return o;
   });
-  if (notify) notify_(me, `تعديل بعد الاعتماد: كشف درجات ${subj === "qr" ? "القرآن الكريم" : "التربية الإسلامية"} · ${grLabel_(cls)}`, `
-    <p>عدّل <b>أ. ${esc_(me.name)}</b> درجات في كشف معتمد:</p>
-    <p>الفصل: ${esc_(grLabel_(cls))} · المادة: ${subj === "qr" ? "القرآن الكريم" : "التربية الإسلامية"} · الفصل الدراسي ${sem === "1" ? "الأول" : "الثاني"}<br>الطالب: ${esc_(student)}</p>
-    <p>يصلك هذا التنبيه مرة واحدة بعد الاعتماد. يمكنك مراجعة الكشف من الموقع: كشف درجات الأعمال.</p>`);
-  return res;
 }
 
-/** رئيس الشعبة: اعتماد الكشف أو إلغاء اعتماده (الاعتماد الورقي هو الفيصل النهائي) */
+/** رئيس الشعبة: اعتماد الكشف (يُقفل على المعلم) أو إلغاء اعتماده */
 function gradesApprove(code, sem, cls, subj, on) {
   const me = head_(code); sem = String(sem); grCheck_(me, sem, cls, subj);
   const key = grKey_(sem, cls, subj);
