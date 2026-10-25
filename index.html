@@ -407,6 +407,8 @@ nav.sections .tile[hidden] { display: none; }
 .sf-row { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); }
 .sf-row b { font-family: var(--f-display); }
 .sf-row .sub { display: block; }
+.sd-act { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 220px; }
+.sd-act select { width: auto; flex: 1 1 140px; padding: 6px 8px; }
 .sf-x { font: inherit; font-size: 12.5px; background: none; border: 0; color: var(--late); text-decoration: underline; cursor: pointer; padding: 0; margin-top: 2px; }
 .sf-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding: 10px 12px; border: 1.5px dashed var(--c-subs); border-radius: 14px; background: var(--c-subs-s); }
 .sf-add b { flex: 1 1 100%; font-family: var(--f-display); font-size: 14px; color: var(--c-subs); }
@@ -2502,8 +2504,34 @@ async function renderSubsLog() {
 function subsDetail(n, kind, recs) {
   const rs = recs.filter(r => kind === "abs" ? r.teacher === n : r.sub === n).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.period - b.period);
   const d = $("subs-detail"); d.hidden = false;
-  d.innerHTML = `<h2>${kind === "abs" ? "غياب" : "حصص احتياط"} أ. ${esc(n)}</h2><div class="tablebox"><table class="subs-table"><thead><tr><th>التاريخ</th><th>الحصة</th><th>الفصل</th><th>${kind === "abs" ? "البديل" : "بدلًا من"}</th></tr></thead><tbody>
-    ${rs.map(r => `<tr><td>${DAYS[isoDay(r.date)]} ${fmtDate(r.date)}</td><td>${ar(r.period)}</td><td>${esc(classLabel(r.classId))}</td><td>${kind === "abs" ? (r.sub ? "أ. " + esc(r.sub) : '<span class="pill late">بلا بديل</span>') : "أ. " + esc(r.teacher)}</td></tr>`).join("")}</tbody></table></div>`;
+  // تبديل البديل أو إلغاؤه أو تعيينه، لكل حصة
+  const act = r => {
+    const day = isoDay(r.date), list = availableFor(r.date, day, r.period, r.teacher, r.classId).filter(x => x.name !== r.sub);
+    const opts = list.map((x, i) => `<option value="${esc(x.name)}">${i === 0 ? "★ " : ""}أ. ${esc(x.name)}</option>`).join("");
+    return `<div class="sd-act" data-a="${esc(r.absence)}" data-p="${r.period}">
+      ${list.length ? `<select aria-label="بديل جديد"><option value="">${r.sub ? "— بدّله بـ —" : "— عيّن بديلًا —"}</option>${opts}</select><button class="btn sm" type="button" data-do="set">${r.sub ? "تبديل" : "تعيين"}</button>` : '<span class="sub">لا يوجد معلم متفرغ</span>'}
+      ${r.sub ? '<button class="btn ghost sm" type="button" data-do="rm">إلغاء</button>' : ""}<span class="saved"></span></div>`;
+  };
+  d.innerHTML = `<h2>${kind === "abs" ? "غياب" : "حصص احتياط"} أ. ${esc(n)}</h2><div class="tablebox"><table class="subs-table sd-table"><thead><tr><th>التاريخ</th><th>الحصة</th><th>الفصل</th><th>${kind === "abs" ? "البديل" : "بدلًا من"}</th><th>تبديل أو إلغاء</th></tr></thead><tbody>
+    ${rs.map(r => `<tr><td>${DAYS[isoDay(r.date)]} ${fmtDate(r.date)}</td><td>${ar(r.period)}</td><td>${esc(classLabel(r.classId))}</td><td>${kind === "abs" ? (r.sub ? "أ. " + esc(r.sub) : '<span class="pill late">بلا بديل</span>') : "أ. " + esc(r.teacher)}</td><td>${act(r)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="sub" style="margin-top:6px">«إلغاء» يُخرج المعلم من الحصة ويصله إيميل بذلك، وتعود الحصة مفتوحة للمعلمين. «تبديل» يلغي المعلم الحالي ويضع المعلم الذي تختاره.</div>`;
+  const refresh = () => { renderSubsLog().then(() => { const rr = SUBS.filter(r => subsRange === "all" || weekOf(r.date) === WEEK); subsDetail(n, kind, rr); }); };
+  d.querySelectorAll(".sd-act [data-do]").forEach(btn => {
+    const box = btn.closest(".sd-act"), id = box.dataset.a, p = +box.dataset.p, m = box.querySelector(".saved");
+    const go_ = async () => {
+      const r = SUBS.find(x => x.absence === id && x.period === p); if (!r) return;
+      const to = btn.dataset.do === "set" ? box.querySelector("select").value : "";
+      if (btn.dataset.do === "set" && !to) { m.textContent = "اختر المعلم."; return; }
+      box.querySelectorAll("button,select").forEach(x => x.disabled = true); m.textContent = "جارٍ الحفظ…";
+      try {
+        if (r.sub) SUBS = await run("removeSub", CODE, id, p);
+        if (to) SUBS = await run("saveAbsence", CODE, { date: r.date, teacher: r.teacher,
+          items: SUBS.filter(x => x.absence === id).map(x => ({ period: x.period, classId: x.classId, sub: x.period === p ? to : x.sub })) });
+        DASH = null; refresh();
+      } catch (e) { m.textContent = cleanErr(e); box.querySelectorAll("button,select").forEach(x => x.disabled = false); }
+    };
+    btn.onclick = btn.dataset.do === "rm" ? () => confirmInline(btn, "تأكيد الإلغاء", go_) : go_;
+  });
   d.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 $("sr-week").onclick = () => { subsRange = "week"; renderSubsLog(); };
