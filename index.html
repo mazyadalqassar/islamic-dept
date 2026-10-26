@@ -898,7 +898,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <div id="lv-rest" hidden>
             <label class="f" for="lv-reason">سبب الاستئذان</label>
             <textarea id="lv-reason" rows="2" maxlength="500" required></textarea>
-            <div id="lv-who-wrap" hidden><label class="f" for="lv-who">المعلم (للتجربة)</label><select id="lv-who"></select></div>
+            <div id="lv-who-wrap" hidden><label class="f" for="lv-who" id="lv-who-label">المعلم (للتجربة)</label><select id="lv-who"></select><div class="sub" id="lv-who-note" hidden style="margin-top:4px">اختر المعلم لتقديم الاستئذان عنه، ويُعتمد مباشرة بموافقة رئيس الشعبة ويدخل كشف اليوم.</div></div>
             <label class="f" id="lv-date-label">الاستئذان يوم <span class="lv-dayname" id="lv-dayname"></span></label>
             <input type="hidden" id="lv-date">
             <button type="button" class="pickf" id="lv-date-btn"><span id="lv-date-show" class="ph">اختر اليوم</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>
@@ -3230,7 +3230,7 @@ const LV_ST = { pending: "بانتظار موافقة رئيس الشعبة", ok
 const LV_PILL = { [LV_ST.pending]: "late", [LV_ST.ok]: "ok", [LV_ST.no]: "none" };
 const DAY_MIN = "07:10", DAY_MAX = "14:05", FLEX_LATEST = "07:55", TEACH_END = "13:55";
 let LEAVES = null, DUTIES = null, lvSub = "new", lvType = "";
-function lvMe() { return ME.isDemo ? ($("lv-who").value || TEACHERS[0][0]) : ME.name; }
+function lvMe() { return ME.isDemo || ME.isHead ? ($("lv-who").value || (ME.isHead ? ME.name : TEACHERS[0][0])) : ME.name; }
 const hm12 = t => { if (!t) return ""; const [h, m] = t.split(":").map(Number); return ar(`${h > 12 ? h - 12 : h}:${String(m).padStart(2, "0")}`); };
 function lvTab(which) {
   lvSub = which;
@@ -3250,8 +3250,11 @@ $("lv-daypdf").onclick = async () => {
 };
 document.querySelectorAll('input[name="lvf"]').forEach(x => x.onchange = () => renderLeaves());
 async function lvInit() {
-  $("lv-who-wrap").hidden = !ME.isDemo;
-  if (ME.isDemo && !$("lv-who").options.length) $("lv-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
+  $("lv-who-wrap").hidden = !ME.isDemo && !ME.isHead;
+  if (ME.isHead) {
+    $("lv-who-label").textContent = "الاستئذان عن"; $("lv-who-note").hidden = false;
+    if (!$("lv-who").options.length || $("lv-who").options[0].value !== ME.name) $("lv-who").innerHTML = `<option value="${esc(ME.name)}">نفسي (رئيس الشعبة)</option>` + TEACHERS.filter(t => t[0] !== ME.name).map(t => `<option value="${esc(t[0])}">${esc(t[0])}</option>`).join("");
+  } else if (ME.isDemo && (!$("lv-who").options.length || $("lv-who").options[0].value !== TEACHERS[0][0])) $("lv-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
   if (!$("lv-date").value) $("lv-date").value = nextWorkISO(todayISO()); lvShowPicks();
   if (!DUTIES) { try { DUTIES = await run("listDuties", CODE); } catch (e) { DUTIES = []; } }
   lvSetType(lvType);
@@ -3363,9 +3366,11 @@ $("lv-form").addEventListener("submit", async e => {
   const { from, to } = lvTimes();
   btn.disabled = true; msg.textContent = "جارٍ الإرسال…";
   try {
-    await run("saveLeave", CODE, { type: lvType, date: $("lv-date").value, from, to, reason: $("lv-reason").value.trim(), periods, contacted: !!periods.length });
+    const forT = ME.isHead && lvMe() !== ME.name ? lvMe() : "";
+    await run("saveLeave", CODE, { type: lvType, date: $("lv-date").value, from, to, reason: $("lv-reason").value.trim(), periods, contacted: !!periods.length, teacher: forT || undefined });
     LEAVES = null; $("lv-reason").value = ""; $("lv-from").value = ""; $("lv-to").value = ""; $("lv-periods").innerHTML = ""; lvShowPicks(); lvSetType("");
-    msg.innerHTML = `<div class="lv-diwan"><b>لا تنسَ تقديم الإذن عن طريق الديوان.</b>${ME.isHead ? "سُجّل استئذانك، وبعد البصمة سجّل وقتك في «الاستئذانات»." : "أُرسل الاستئذان لرئيس الشعبة، ويصلك إيميل عند موافقته."}</div>`;
+    msg.innerHTML = forT ? `<div class="lv-diwan"><b>سُجّل استئذان أ. ${esc(forT)} معتمدًا بموافقة رئيس الشعبة، ودخل كشف اليوم.</b>ووصله إيميل بذلك إن كان مسجّلًا إيميله، ويسجّل وقت البصمة من حسابه بعدها.</div>`
+      : `<div class="lv-diwan"><b>لا تنسَ تقديم الإذن عن طريق الديوان.</b>${ME.isHead ? "سُجّل استئذانك، وبعد البصمة سجّل وقتك في «الاستئذانات»." : "أُرسل الاستئذان لرئيس الشعبة، ويصلك إيميل عند موافقته."}</div>`;
   } catch (x) { msg.textContent = "لم يُرسل: " + cleanErr(x); }
   finally { btn.disabled = false; }
 });

@@ -1143,9 +1143,20 @@ function saveLeave(code, l) {
   const periods = (Array.isArray(l.periods) ? l.periods : []).slice(0, 12).map(x => ({ kind: String((x && x.kind) || "").slice(0, 20), label: String((x && x.label) || "").slice(0, 80), time: String((x && x.time) || "").slice(0, 20), sub: String((x && x.sub) || "").trim().slice(0, 80) }));
   periods.forEach(x => { if (x.sub.length < 3) throw new Error(`اكتب اسم البديل: ${x.label}.`); });
   if (periods.length && !l.contacted) throw new Error("أكّد أنك تواصلت مع البدلاء.");
-  const o = { id: newId_(), teacher: me.name, type, date: l.date, from: l.from, to: l.to, reason, periods,
+  // رئيس الشعبة يقدّم الاستئذان عن المعلم، فيُعتمد مباشرة
+  let teacher = me.name;
+  if (me.isHead && l.teacher && l.teacher !== me.name) {
+    if (!TEACHERS.some(t => t[0] === l.teacher)) throw new Error("اختر المعلم من القائمة.");
+    teacher = l.teacher;
+  }
+  const o = { id: newId_(), teacher, type, date: l.date, from: l.from, to: l.to, reason, periods,
     status: me.isHead ? LV_ST_.ok : LV_ST_.pending, note: "", createdAt: nowText_(), decidedAt: me.isHead ? nowText_() : "", contacted: !!(periods.length && l.contacted) };
   withLock_(() => appendText_(leaveSheet_(), leaveRow_(o)));
+  if (teacher !== me.name) notifyTeacher_(teacher, `استئذان معتمد: ${type} · ${dmy_(o.date)}`, `
+    <p>الأستاذ الفاضل/ ${esc_(teacher)} المحترم،</p>
+    <p>سجّل رئيس الشعبة عنك <b>${esc_(type)}</b> بحالة <b>${esc_(LV_ST_.ok)}</b>:</p>
+    <p>${esc_(lvWhen_(o))}<br>السبب: ${esc_(reason)}</p>${lvTable_(o)}
+    <p>لا تنسَ تقديم الإذن عن طريق الديوان، وبعد البصمة سجّل وقتها في الموقع (الاستئذانات).</p>`);
   if (!me.isHead) notify_(me, `طلب استئذان: أ. ${me.name} · ${type} · ${dmy_(o.date)}`, `
     <p>قدّم <b>أ. ${esc_(me.name)}</b> طلب <b>${esc_(type)}</b>:</p>
     <p>${esc_(lvWhen_(o))}<br>السبب: ${esc_(reason)}</p>${lvTable_(o)}
