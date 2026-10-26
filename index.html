@@ -151,7 +151,12 @@ input[type="date"] { width: 100%; font: inherit; color: var(--ink); background: 
 .meta-grid dt { font-size: 11.5px; color: var(--muted); }
 .meta-grid dd { margin: 0; font-weight: 700; font-size: 13.5px; }
 .signbox { margin-top: 12px; }
-#sig-pad { width: 100%; height: auto; aspect-ratio: 600 / 220; background: #fff; border: 1.5px dashed var(--line); border-radius: 10px; touch-action: none; display: block; margin: 8px 0; cursor: crosshair; }
+.sig-upl { cursor: pointer; }
+.mf-file { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.mf-file input[type=file] { flex: 1 1 220px; min-width: 0; }
+.min-pages { display: grid; gap: 10px; margin-top: 12px; }
+.min-pages canvas, .min-pages img { width: 100%; height: auto; display: block; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+#sig-pad { width: 100%; height: auto; aspect-ratio: 600 / 220; background: #fff linear-gradient(to left, transparent 6%, #cdd4e2 6%, #cdd4e2 94%, transparent 94%) no-repeat 0 76% / 100% 1px; border: 1.5px dashed var(--line); border-radius: 10px; touch-action: none; display: block; margin: 8px 0; cursor: crosshair; }
 .sigimg { max-width: 240px; max-height: 90px; background: #fff; border-radius: 8px; padding: 4px; display: block; margin: 6px 0; }
 .acct { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .acct:last-of-type { border-bottom: none; }
@@ -689,6 +694,9 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <div><label class="f" for="mf-time">الوقت</label><input type="text" id="mf-time" maxlength="20" placeholder="الحصة الخامسة"></div>
           <div><label class="f" for="mf-place">المكان</label><input type="text" id="mf-place" maxlength="100"></div>
         </div>
+        <label class="f" for="mf-file">ملف المحضر الجاهز <span class="sub">(اختياري · PDF أو صورة · يُرسل للمعلمين كما هو)</span></label>
+        <div class="mf-file"><input type="file" id="mf-file" accept="application/pdf,image/jpeg,image/png"><span class="sub" id="mf-cur"></span></div>
+        <div class="sub" style="margin-top:4px">إذا أرفقت ملف المحضر فالحقول التالية (جدول الأعمال وما دار والتوصيات) اختيارية. ملف الوورد احفظه PDF أولًا (حفظ باسم ← PDF) ليبقى تنسيقه كما هو.</div>
         <label class="f" for="mf-agenda">جدول الأعمال <span class="sub">(كل بند في سطر)</span></label>
         <textarea id="mf-agenda" rows="4"></textarea>
         <label class="f" for="mf-discussion">ما دار في الاجتماع</label>
@@ -1737,7 +1745,7 @@ async function loadMinutes(force) {
     const pill = ME.isHead ? `<span class="pill ${m.signedCount >= total ? "ok" : "none"}">وقّع ${ar(m.signedCount)} من ${ar(total)}</span>`
       : !req ? "" : m.mySignedAt ? `<span class="pill ok">وقّعت</span>` : `<span class="pill late">${attendee ? "بانتظار توقيعك" : "لم تحضر · وقّع بالعلم"}</span>`;
     const need = !ME.isHead && req && !m.mySignedAt;
-    return `<button class="li li-btn ${need ? "need" : ME.isHead ? "" : "done"}" data-open="${m.id}"><div class="li-main"><b>${need ? '<span class="rdot" aria-label="لم توقّع"></span>' : ""}${esc(m.title)}</b><span class="sub">${fmtDate(m.date, true)}</span></div>${pill}</button>`;
+    return `<button class="li li-btn ${need ? "need" : ME.isHead ? "" : "done"}" data-open="${m.id}"><div class="li-main"><b>${need ? '<span class="rdot" aria-label="لم توقّع"></span>' : ""}${esc(m.title)}</b><span class="sub">${fmtDate(m.date, true)}${m.hasFile ? " · 📎 ملف مرفق" : ""}</span></div>${pill}</button>`;
   }).join("");
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openMinute(b.dataset.open));
 }
@@ -1761,23 +1769,35 @@ async function openMinute(id) {
   CUR_MIN = m;
   const signed = Object.fromEntries(m.signatures.map(s => [s.teacher, s]));
   const mine = signed[ME.name], attendee = m.attendees.indexOf(ME.name) !== -1, req = (m.required || m.attendees).indexOf(ME.name) !== -1;
-  let html = `<button class="btn ghost sm" id="min-back">→ رجوع للمحاضر</button><div class="minute">${minuteHtml(m)}</div>`;
+  MIN_FILE = null;
+  let html = `<button class="btn ghost sm" id="min-back">→ رجوع للمحاضر</button><div class="minute">${minuteHtml(m)}${m.hasFile ? `
+    <h3>ملف المحضر</h3><div class="ci-file"><span>📄 ${esc(m.fileName || "ملف المحضر")}</span><button class="btn sm" type="button" id="min-fopen">فتح الملف</button></div>
+    <div class="min-pages" id="min-pages"><div class="empty">جارٍ عرض الملف…</div></div><div class="saved" id="min-fmsg"></div>` : ""}</div>`;
   if (req && mine) html += `<div class="card signbox"><h3>${attendee ? "توقيعك" : "توقيعك بالعلم"}</h3><img class="sigimg" src="${mine.image}" alt="توقيعك"><div class="sub">وقّعت في ${fmtStamp(mine.signedAt)}</div></div>`;
   else if (req) html += `<div class="card signbox"><h3>${attendee ? "التوقيع على المحضر" : "التوقيع بالعلم"}</h3>${attendee ? "" : '<div class="sub">لم تحضر هذا الاجتماع، ومطلوب منك الاطلاع على المحضر والتوقيع بالعلم.</div>'}
       <div id="sig-saved" hidden><div class="sub">توقيعك المحفوظ:</div><img class="sigimg" id="sig-saved-img" alt="توقيعك المحفوظ"><div class="row-actions"><button class="btn ghost sm" type="button" id="sig-redraw">ارسم توقيعًا جديدًا</button></div></div>
-      <div id="sig-draw"><div class="sub">ارسم توقيعك بإصبعك أو بالفأرة داخل المربع.</div><canvas id="sig-pad" width="600" height="220" aria-label="مربع التوقيع"></canvas>
-      <div class="row-actions"><button class="btn ghost sm" type="button" id="sig-clear">مسح</button></div></div>
+      <div id="sig-draw"><div class="sub">وقّع بإصبعك أو بقلم الآيباد داخل المربع، أو ارفع صورة توقيعك من ورقة بيضاء.</div><canvas id="sig-pad" width="600" height="220" aria-label="مربع التوقيع"></canvas>
+      <div class="row-actions"><button class="btn ghost sm" type="button" id="sig-undo">تراجع</button><button class="btn ghost sm" type="button" id="sig-clear">مسح</button><label class="btn ghost sm sig-upl">رفع صورة التوقيع<input type="file" id="sig-file" accept="image/*" hidden></label></div></div>
       <label class="check"><input type="checkbox" id="sig-ack"> ${attendee ? "اطّلعت على المحضر وأوافق على ما ورد فيه" : "اطّلعت على المحضر وعلمت بما ورد فيه"}</label>
       <div class="row-actions" style="margin-top:10px"><button class="btn" id="sig-submit">توقيع</button><span class="saved" id="sig-msg"></span></div></div>`;
   if (ME.isHead) {
     const reqList = m.required || m.attendees;
     html += `<div class="card"><h3>حالة التوقيع (${ar(reqList.filter(n => signed[n]).length)} من ${ar(reqList.length)})</h3>
       ${reqList.map(n => `<div class="acct"><span>${esc(n)}${m.attendees.indexOf(n) === -1 ? ' <span class="pill none">لم يحضر</span>' : ""}</span>${signed[n] ? `<span class="pill ok">وقّع ${fmtStamp(signed[n].signedAt)}</span>` : `<span class="pill late">لم يوقّع</span>`}</div>`).join("")}
-      <div class="row-actions" style="margin-top:12px"><button class="btn" id="min-word">تنزيل المحضر PDF</button><button class="btn ghost" id="min-edit">تعديل</button><button class="btn ghost" id="min-del">حذف</button></div>
+      <div class="row-actions" style="margin-top:12px"><button class="btn" id="min-word">${m.hasFile ? "تنزيل المحضر بالتواقيع PDF" : "تنزيل المحضر PDF"}</button><button class="btn ghost" id="min-edit">تعديل</button><button class="btn ghost" id="min-del">حذف</button></div>
       <div class="saved" id="min-dmsg"></div></div>`;
   }
   d.innerHTML = html;
   $("min-back").onclick = () => loadMinutes(true);
+  if (m.hasFile) {
+    showMinuteFile(m.id).catch(e => { if ($("min-pages")) $("min-pages").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; });
+    $("min-fopen").onclick = async () => {
+      const msg = $("min-fmsg"); msg.textContent = "جارٍ فتح الملف…";
+      try { const f = await minFile(m.id), blob = new Blob([b64ToBytes(f.b64)], { type: f.mime }), url = URL.createObjectURL(blob);
+        const w = window.open(url, "_blank"); if (!w) await deliver(blob, f.name, msg); else msg.textContent = ""; setTimeout(() => URL.revokeObjectURL(url), 120000); }
+      catch (e) { msg.textContent = cleanErr(e); }
+    };
+  }
   if (req && !mine) setupPad();
   if (ME.isHead) {
     $("min-edit").onclick = () => editMinute(m);
@@ -1787,33 +1807,106 @@ async function openMinute(id) {
     $("min-word").onclick = async () => {
       const msg = $("min-dmsg"); msg.textContent = "جارٍ إنشاء الملف…";
       try {
-        const blob = await htmlPdf(minutePdfHtml(CUR_MIN), { css: PDF_DISC });
+        const blob = CUR_MIN.hasFile ? await minuteMergedPdf(CUR_MIN) : await htmlPdf(minutePdfHtml(CUR_MIN), { css: PDF_DISC });
         await deliver(blob, `محضر ${CUR_MIN.title} - ${CUR_MIN.date}.pdf`, msg);
       } catch (e) { msg.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
     };
   }
 }
 
-// لوحة التوقيع
+// لوحة التوقيع: قلم ناعم بحبر أزرق، سماكته تتغير مع سرعة اليد وضغط قلم الآيباد، بدقة عالية، مع التراجع ورفع صورة توقيع من ورقة
 async function setupPad(onSign, ackMsg) {
   const c = $("sig-pad"), g = c.getContext("2d");
-  let drawing = false, dirty = false, useSaved = "";
-  g.lineWidth = 3; g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = "#1d2a5c";
-  const pos = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; };
-  c.addEventListener("pointerdown", e => { drawing = true; dirty = true; c.setPointerCapture(e.pointerId); const [x, y] = pos(e); g.beginPath(); g.moveTo(x, y); g.lineTo(x + 0.1, y + 0.1); g.stroke(); });
-  c.addEventListener("pointermove", e => { if (!drawing) return; const [x, y] = pos(e); g.lineTo(x, y); g.stroke(); });
-  ["pointerup", "pointercancel", "pointerleave"].forEach(t => c.addEventListener(t, () => drawing = false));
-  $("sig-clear").onclick = () => { g.clearRect(0, 0, c.width, c.height); dirty = false; };
+  const INK = "#1a2a6c", MINW = 0.8, MAXW = 3.6;
+  let strokes = [], cur = null, dirty = false, useSaved = "", upload = null, fitted = false;
+  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  function paint(P, from) {
+    for (let i = Math.max(1, from); i < P.length; i++) {
+      const a = P[i - 1], b = P[i], m0 = i === 1 ? a : mid(P[i - 2], a), m1 = mid(a, b);
+      g.beginPath(); g.moveTo(m0.x, m0.y); g.quadraticCurveTo(a.x, a.y, m1.x, m1.y); g.lineWidth = (a.w + b.w) / 2; g.stroke();
+    }
+  }
+  function finish(P) {
+    if (P.length === 1) { g.beginPath(); g.arc(P[0].x, P[0].y, P[0].w * 0.6, 0, Math.PI * 2); g.fill(); return; }
+    const a = P[P.length - 2], b = P[P.length - 1], m = mid(a, b);
+    g.beginPath(); g.moveTo(m.x, m.y); g.lineTo(b.x, b.y); g.lineWidth = b.w; g.stroke();
+  }
+  function redraw() {
+    const r = c.width / (c.clientWidth || c.width);
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); g.setTransform(r, 0, 0, r, 0, 0);
+    g.strokeStyle = INK; g.fillStyle = INK; g.lineCap = "round"; g.lineJoin = "round";
+    if (upload) {
+      const W = c.clientWidth, H = c.clientHeight, k = Math.min((W - 40) / upload.width, (H - 30) / upload.height);
+      g.drawImage(upload, (W - upload.width * k) / 2, (H - upload.height * k) / 2, upload.width * k, upload.height * k);
+    }
+    strokes.forEach(s => { if (s.pts.length) { paint(s.pts, 1); finish(s.pts); } });
+  }
+  function fit() {
+    const W = c.clientWidth, H = c.clientHeight; if (!W || !H) return;
+    const r = Math.min(3, Math.max(window.devicePixelRatio || 1, 2)), w = Math.round(W * r), h = Math.round(H * r);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    fitted = true; redraw();
+  }
+  function point(e, s) {
+    const b = c.getBoundingClientRect(), p = { x: e.clientX - b.left, y: e.clientY - b.top, t: e.timeStamp || Date.now() };
+    const prev = s.pts[s.pts.length - 1];
+    if (prev) {
+      const d = Math.hypot(p.x - prev.x, p.y - prev.y); if (d < 1.2) return null;
+      s.v = 0.7 * (d / Math.max(1, p.t - prev.t)) + 0.3 * s.v;
+    }
+    let w = Math.max(MINW, MAXW / (s.v * 1.5 + 1));
+    if (e.pointerType === "pen" && e.pressure > 0) w *= 0.55 + e.pressure * 0.9;
+    p.w = prev ? prev.w * 0.55 + w * 0.45 : w * 0.8;
+    return p;
+  }
+  c.addEventListener("pointerdown", e => {
+    e.preventDefault(); try { c.setPointerCapture(e.pointerId); } catch (x) {}
+    if (!fitted) fit();
+    cur = { pts: [], v: 0 }; strokes.push(cur); dirty = true;
+    const p = point(e, cur); if (p) cur.pts.push(p);
+  });
+  c.addEventListener("pointermove", e => {
+    if (!cur) return;
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    for (const ev of (evs.length ? evs : [e])) { const p = point(ev, cur); if (p) { cur.pts.push(p); paint(cur.pts, cur.pts.length - 1); } }
+  });
+  const end = () => { if (cur && cur.pts.length) finish(cur.pts); cur = null; };
+  ["pointerup", "pointercancel"].forEach(t => c.addEventListener(t, end));
+  const onResize = () => { if (!c.isConnected) { window.removeEventListener("resize", onResize); return; } fit(); };
+  window.addEventListener("resize", onResize);
+  requestAnimationFrame(fit);
+  $("sig-clear").onclick = () => { strokes = []; upload = null; dirty = false; redraw(); };
+  if ($("sig-undo")) $("sig-undo").onclick = () => { if (strokes.length) strokes.pop(); else upload = null; dirty = strokes.length > 0 || !!upload; redraw(); };
+  // صورة توقيع من ورقة بيضاء: تُزال الخلفية ويتحول الحبر إلى الأزرق
+  if ($("sig-file")) $("sig-file").onchange = e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    const img = new Image(), url = URL.createObjectURL(f);
+    img.onload = () => {
+      const k = Math.min(1, 1000 / img.naturalWidth), o = document.createElement("canvas");
+      o.width = Math.max(1, Math.round(img.naturalWidth * k)); o.height = Math.max(1, Math.round(img.naturalHeight * k));
+      const og = o.getContext("2d"); og.drawImage(img, 0, 0, o.width, o.height);
+      const im = og.getImageData(0, 0, o.width, o.height), d = im.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        d[i] = 26; d[i + 1] = 42; d[i + 2] = 108; d[i + 3] = lum > 170 ? 0 : Math.min(255, (170 - lum) * 2.4);
+      }
+      og.putImageData(im, 0, 0); URL.revokeObjectURL(url);
+      upload = o; strokes = []; dirty = true; fit();
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); $("sig-msg").textContent = "تعذّر فتح الصورة، جرّب صورة أخرى."; };
+    img.src = url;
+  };
   try {
     const saved = await run("mySignature", CODE);
     if (saved) { useSaved = saved; $("sig-saved-img").src = saved; $("sig-saved").hidden = false; $("sig-draw").hidden = true; }
   } catch (e) {}
-  if ($("sig-redraw")) $("sig-redraw").onclick = () => { useSaved = ""; $("sig-saved").hidden = true; $("sig-draw").hidden = false; };
+  if ($("sig-redraw")) $("sig-redraw").onclick = () => { useSaved = ""; $("sig-saved").hidden = true; $("sig-draw").hidden = false; requestAnimationFrame(fit); };
   $("sig-submit").onclick = async () => {
     const msg = $("sig-msg");
     if (!$("sig-ack").checked) { msg.textContent = ackMsg || "أكّد اطلاعك على المحضر أولًا."; return; }
     let img = useSaved;
-    if (!img) { if (!dirty) { msg.textContent = "ارسم توقيعك داخل المربع."; return; } img = exportSig(c); }
+    if (!img) { if (!dirty) { msg.textContent = "ارسم توقيعك داخل المربع أو ارفع صورته."; return; } img = exportSig(c); }
+    if (!img) { msg.textContent = "التوقيع كبير جدًا، امسحه وارسمه أصغر."; return; }
     $("sig-submit").disabled = true; msg.textContent = "جارٍ التوقيع…";
     try { if (onSign) await onSign(img); else { await run("signMinute", CODE, CUR_MIN.id, img); MIN = null; openMinute(CUR_MIN.id); } }
     catch (e) { msg.textContent = cleanErr(e); $("sig-submit").disabled = false; }
@@ -1837,6 +1930,7 @@ function exportSig(c) {
 }
 
 // نموذج كتابة المحضر (رئيس الشعبة)
+let MF_REMOVE = false;
 function editMinute(m) {
   $("min-listwrap").hidden = true; $("min-detail").hidden = true; $("min-form").hidden = false;
   $("mf-id").value = m ? m.id : "";
@@ -1849,6 +1943,9 @@ function editMinute(m) {
   $("mf-decisions").value = m ? m.decisions : "";
   const att = m ? m.attendees : TEACHERS.map(t => t[0]);
   $("mf-att").innerHTML = TEACHERS.map(([n], i) => `<label class="check"><input type="checkbox" id="mf-a${i}" value="${esc(n)}"${att.indexOf(n) !== -1 ? " checked" : ""}> ${esc(n)}</label>`).join("");
+  $("mf-file").value = ""; MF_REMOVE = false;
+  $("mf-cur").innerHTML = m && m.hasFile ? `الملف الحالي: ${esc(m.fileName || "ملف المحضر")} <button class="linkbtn" type="button" id="mf-rm">إزالته</button>` : "";
+  if ($("mf-rm")) $("mf-rm").onclick = () => { MF_REMOVE = true; $("mf-cur").textContent = "سيُزال الملف الحالي عند الحفظ."; };
   $("mf-msg").textContent = m ? "تعديل المحضر لا يحذف التواقيع السابقة." : "";
   $("mf-heading").textContent = m ? "تعديل المحضر" : "محضر جديد";
 }
@@ -1859,7 +1956,13 @@ $("min-form").addEventListener("submit", async e => {
   const data = { id: $("mf-id").value, title: $("mf-title").value, date: $("mf-date").value, time: $("mf-time").value, place: $("mf-place").value,
     agenda: $("mf-agenda").value, discussion: $("mf-discussion").value, decisions: $("mf-decisions").value,
     attendees: [...$("mf-att").querySelectorAll("input:checked")].map(i => i.value) };
-  btn.disabled = true; msg.textContent = "جارٍ الحفظ…";
+  const f = $("mf-file").files[0];
+  if (f) {
+    if (!/^(application\/pdf|image\/(jpeg|png))$/.test(f.type)) { msg.textContent = "ملف المحضر يجب أن يكون PDF أو صورة. ملف الوورد احفظه PDF أولًا."; return; }
+    if (f.size > 8 * 1024 * 1024) { msg.textContent = "حجم الملف أكبر من ٨ ميجابايت."; return; }
+    data.file = await fileToDataURL(f); data.fileName = f.name;
+  } else if (MF_REMOVE) data.removeFile = true;
+  btn.disabled = true; msg.textContent = f ? "جارٍ رفع الملف والحفظ…" : "جارٍ الحفظ…";
   try { const r = await run("saveMinute", CODE, data); MIN = null; openMinute(r.id); }
   catch (x) { msg.textContent = cleanErr(x); } finally { btn.disabled = false; }
 });
@@ -3911,8 +4014,8 @@ async function openCircular(id) {
   if (c.mustSign && c.mine) html += `<div class="card signbox"><h3>توقيعك بالعلم</h3><img class="sigimg" src="${c.mine.image}" alt="توقيعك"><div class="sub">وقّعت في ${fmtStamp(c.mine.signedAt)}</div></div>`;
   else if (c.mustSign) html += `<div class="card signbox"><h3>التوقيع بالعلم</h3>
       <div id="sig-saved" hidden><div class="sub">توقيعك المحفوظ:</div><img class="sigimg" id="sig-saved-img" alt="توقيعك المحفوظ"><div class="row-actions"><button class="btn ghost sm" type="button" id="sig-redraw">ارسم توقيعًا جديدًا</button></div></div>
-      <div id="sig-draw"><div class="sub">ارسم توقيعك بإصبعك أو بالفأرة داخل المربع.</div><canvas id="sig-pad" width="600" height="220" aria-label="مربع التوقيع"></canvas>
-      <div class="row-actions"><button class="btn ghost sm" type="button" id="sig-clear">مسح</button></div></div>
+      <div id="sig-draw"><div class="sub">وقّع بإصبعك أو بقلم الآيباد داخل المربع، أو ارفع صورة توقيعك من ورقة بيضاء.</div><canvas id="sig-pad" width="600" height="220" aria-label="مربع التوقيع"></canvas>
+      <div class="row-actions"><button class="btn ghost sm" type="button" id="sig-undo">تراجع</button><button class="btn ghost sm" type="button" id="sig-clear">مسح</button><label class="btn ghost sm sig-upl">رفع صورة التوقيع<input type="file" id="sig-file" accept="image/*" hidden></label></div></div>
       <label class="check"><input type="checkbox" id="sig-ack"> اطّلعت على التعميم وعلمت بما ورد فيه</label>
       <div class="row-actions" style="margin-top:10px"><button class="btn" id="sig-submit">توقيع بالعلم</button><span class="saved" id="sig-msg"></span></div></div>`;
   if (c.status) {
@@ -4109,12 +4212,75 @@ function minutePdfHtml(m) {
     ${m.discussion ? `<h2>ثانيًا: ما دار في الاجتماع</h2><div class="disc">${reportBodyHtml(m.discussion)}</div>` : ""}
     ${dec.length ? `<h2>ثالثًا: التوصيات والقرارات</h2><ol>${dec.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
     <h2>رابعًا: توقيعات المعلمين</h2>
-    ${(() => { const req = m.required || m.attendees, cell = (n, i) => { if (!n) return '<td></td><td></td><td></td>'; const s = sigs[n], absent = m.attendees.indexOf(n) === -1;
+    ${minSigTableHtml(m)}
+    ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
+}
+
+function minSigTableHtml(m) {
+  const sigs = Object.fromEntries((m.signatures || []).map(s => [s.teacher, s]));
+  const req = m.required || m.attendees, cell = (n, i) => { if (!n) return '<td></td><td></td><td></td>'; const s = sigs[n], absent = m.attendees.indexOf(n) === -1;
         return `<td class="c">${ar(i + 1)}</td><td>${esc(tName(n))}${absent ? '<div class="mut" style="font-size:10.5px;line-height:1.4">لم يحضر · مطلوب منه التوقيع بالعلم</div>' : ""}</td><td class="c">${s && s.image ? pdfSigImg(s.image) : ""}</td>`; };
       let rows = ""; for (let i = 0; i < req.length; i += 2) rows += `<tr style="height:44px">${cell(req[i], i)}${cell(req[i + 1], i + 1)}</tr>`;
       return `<table style="font-size:12px"><colgroup><col style="width:5%"><col style="width:27%"><col style="width:18%"><col style="width:5%"><col style="width:27%"><col style="width:18%"></colgroup>
-      <thead><tr><th class="c">م</th><th>الاسم</th><th class="c">التوقيع</th><th class="c">م</th><th>الاسم</th><th class="c">التوقيع</th></tr></thead><tbody>${rows}</tbody></table>`; })()}
+      <thead><tr><th class="c">م</th><th>الاسم</th><th class="c">التوقيع</th><th class="c">م</th><th>الاسم</th><th class="c">التوقيع</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+// ---------- ملف المحضر المرفق: عرضه للمعلمين، وطباعته كما هو مع صفحة التواقيع ----------
+let MIN_FILE = null, PDFJS_LIB = null, PDFLIB_LIB = null;
+function minFile(id) { if (!MIN_FILE || MIN_FILE.id !== id) MIN_FILE = { id, p: run("minuteFile", CODE, id).catch(e => { MIN_FILE = null; throw e; }) }; return MIN_FILE.p; }
+function pdfjsLib_() {
+  if (!PDFJS_LIB) PDFJS_LIB = (window.pdfjsLib ? Promise.resolve() : grLoadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js")).then(() => {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; return window.pdfjsLib;
+  }).catch(() => { PDFJS_LIB = null; throw new Error("تعذّر تحميل عارض PDF. تأكد من الاتصال بالإنترنت وأعد المحاولة."); });
+  return PDFJS_LIB;
+}
+function pdfLib_() {
+  if (!PDFLIB_LIB) PDFLIB_LIB = (window.PDFLib ? Promise.resolve() : grLoadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js")).then(() => window.PDFLib)
+    .catch(() => { PDFLIB_LIB = null; throw new Error("تعذّر تحميل أداة دمج PDF. تأكد من الاتصال بالإنترنت وأعد المحاولة."); });
+  return PDFLIB_LIB;
+}
+// يعرض صفحات المحضر داخل الصفحة نفسها ليقرأه المعلم قبل التوقيع
+async function showMinuteFile(id) {
+  const f = await minFile(id), box = $("min-pages"); if (!box) return;
+  if (/^image\//.test(f.mime)) { box.innerHTML = `<img src="data:${f.mime};base64,${f.b64}" alt="ملف المحضر">`; return; }
+  const lib = await pdfjsLib_(), doc = await lib.getDocument({ data: b64ToBytes(f.b64) }).promise;
+  if (!$("min-pages") || CUR_MIN.id !== id) return;
+  box.innerHTML = "";
+  const W = Math.max(300, box.clientWidth || 600), r = Math.min(2.5, Math.max(window.devicePixelRatio || 1, 1.5));
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i), v1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: W / v1.width * r });
+    const cv = document.createElement("canvas"); cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+    cv.setAttribute("aria-label", `صفحة ${ar(i)} من ${ar(doc.numPages)}`);
+    box.appendChild(cv);
+    await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+  }
+}
+// صفحة التواقيع التي تُلحق بملف المحضر عند الطباعة
+function minuteSigPagePdfHtml(m) {
+  return pdfHead() + `<div class="kicker">ملحق محضر اجتماع</div><h1>توقيعات المعلمين على المحضر</h1>
+    <table><colgroup><col style="width:17%"><col style="width:83%"></colgroup>
+    <tr><td class="k">عنوان الاجتماع</td><td>${esc(m.title)}</td></tr></table>
+    <table style="margin-top:-1px"><colgroup><col style="width:17%"><col style="width:33%"><col style="width:17%"><col style="width:33%"></colgroup>
+    <tr><td class="k">التاريخ</td><td>${fmtDate(m.date, true)}</td><td class="k">المكان</td><td>${esc(m.place || "—")}</td></tr></table>
+    <p class="mut" style="margin-top:10px;font-size:12px">وقّع المعلمون أدناه إلكترونيًا في موقع الشعبة بعد الاطلاع على المحضر المرفق، من حضر منهم على ما ورد فيه، ومن لم يحضر بالعلم.</p>
+    <h2>توقيعات المعلمين</h2>${minSigTableHtml(m)}
     ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
+}
+// المحضر كما رُفع تمامًا + صفحة التواقيع في ملف PDF واحد
+async function minuteMergedPdf(m) {
+  const [f, PDFLib, sigBlob] = await Promise.all([minFile(m.id), pdfLib_(), htmlPdf(minuteSigPagePdfHtml(m), { css: PDF_DISC })]);
+  const out = await PDFLib.PDFDocument.create();
+  if (f.mime === "application/pdf") {
+    const src = await PDFLib.PDFDocument.load(b64ToBytes(f.b64), { ignoreEncryption: true });
+    (await out.copyPages(src, src.getPageIndices())).forEach(p => out.addPage(p));
+  } else {
+    const bytes = b64ToBytes(f.b64), img = f.mime === "image/png" ? await out.embedPng(bytes) : await out.embedJpg(bytes);
+    const PW = 595.28, PH = 841.89, M = 24, k = Math.min((PW - 2 * M) / img.width, (PH - 2 * M) / img.height);
+    out.addPage([PW, PH]).drawImage(img, { x: (PW - img.width * k) / 2, y: (PH - img.height * k) / 2, width: img.width * k, height: img.height * k });
+  }
+  const sig = await PDFLib.PDFDocument.load(await sigBlob.arrayBuffer());
+  (await out.copyPages(sig, sig.getPageIndices())).forEach(p => out.addPage(p));
+  out.setTitle(`محضر ${m.title}`);
+  return new Blob([await out.save()], { type: "application/pdf" });
 }
 
 // ---------- بطاقة الزيارة الصفية ----------
@@ -4202,8 +4368,8 @@ function showPledge() {
     <p>أتعهد أنا المعلم/ <b>${esc(ME.name)}</b> بما يلي:</p><ol>${PLEDGE_ITEMS.map(x => `<li>${x}</li>`).join("")}</ol></div>
     <div class="signbox">
     <div id="sig-saved" hidden><div class="sub">توقيعك المحفوظ:</div><img class="sigimg" id="sig-saved-img" alt="توقيعك المحفوظ"><div class="row-actions"><button class="btn ghost sm" type="button" id="sig-redraw">ارسم توقيعًا جديدًا</button></div></div>
-    <div id="sig-draw"><div class="sub">ارسم توقيعك بإصبعك أو بالفأرة داخل المربع.</div><canvas id="sig-pad" width="600" height="220" aria-label="مربع التوقيع"></canvas>
-    <div class="row-actions"><button class="btn ghost sm" type="button" id="sig-clear">مسح</button></div></div>
+    <div id="sig-draw"><div class="sub">وقّع بإصبعك أو بقلم الآيباد داخل المربع، أو ارفع صورة توقيعك من ورقة بيضاء.</div><canvas id="sig-pad" width="600" height="220" aria-label="مربع التوقيع"></canvas>
+    <div class="row-actions"><button class="btn ghost sm" type="button" id="sig-undo">تراجع</button><button class="btn ghost sm" type="button" id="sig-clear">مسح</button><label class="btn ghost sm sig-upl">رفع صورة التوقيع<input type="file" id="sig-file" accept="image/*" hidden></label></div></div>
     <label class="check"><input type="checkbox" id="sig-ack"> قرأت التعهد وألتزم بما ورد فيه</label>
     <div class="row-actions" style="margin-top:10px"><button class="btn" id="sig-submit">توقيع التعهد والمتابعة</button><span class="saved" id="sig-msg"></span></div></div>`;
   v.hidden = false; $("app").hidden = true; window.scrollTo(0, 0);

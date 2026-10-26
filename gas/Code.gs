@@ -71,7 +71,7 @@ function doGet() {
 // ======================= واجهة الموقع الخارجي (GitHub Pages) =======================
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
-  getPhoto, listMinutes, getMinute, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
+  getPhoto, listMinutes, getMinute, minuteFile, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
   setMyEmail, listLeaves, saveLeave, decideLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf,
@@ -111,7 +111,8 @@ function setup() {
   sheet_(SHEET_DATA, ["المفتاح", "الفصل", "المادة", "المعلم", "الحصص المنجزة", "آخر ما أُنجز", "ملاحظة", "آخر تحديث"], false);
   sheet_(SHEET_LOG, ["الوقت", "المعلم", "الفصل", "المادة", "الحصص المنجزة", "ملاحظة"], false);
   sheet_(SHEET_ACH, ["المعرف", "المعلم", "التاريخ", "النوع", "العنوان", "الفئة المستهدفة", "وصف المعلم", "الصور", "الحالة", "التقرير", "تاريخ الرفع", "تاريخ الصياغة"], true);
-  sheet_(SHEET_MIN, ["المعرف", "العنوان", "التاريخ", "الوقت", "المكان", "الحضور", "جدول الأعمال", "ما دار في الاجتماع", "التوصيات", "تاريخ الإنشاء"], true);
+  sheet_(SHEET_MIN, ["المعرف", "العنوان", "التاريخ", "الوقت", "المكان", "الحضور", "جدول الأعمال", "ما دار في الاجتماع", "التوصيات", "تاريخ الإنشاء", "ملف المحضر", "اسم الملف", "نوع الملف"], true);
+  minFileHeaders_(sh_(SHEET_MIN));
   sheet_(SHEET_SIG, ["المحضر", "المعلم", "وقت التوقيع", "التوقيع"], true);
   sheet_(SHEET_MYSIG, ["المعلم", "التوقيع", "آخر تحديث"], true);
   sheet_(SHEET_VIS, ["المعرف", "المعلم", "الفصل", "البطاقة", "التاريخ", "الحصة", "رقم الوحدة", "المجال", "رقم الدرس", "عنوان الدرس / السورة والآيات",
@@ -389,8 +390,11 @@ function minObj_(r) {
   let att = [];
   try { att = JSON.parse(r[5] || "[]"); } catch (e) {}
   const required = r[0] === DEMO_MINUTE ? Object.keys(DEMOS) : TEACHERS.filter(t => !t[2]).map(t => t[0]);
-  return { id: r[0], title: r[1], date: r[2], time: r[3], place: r[4], attendees: att, required, agenda: r[6], discussion: r[7], decisions: r[8], createdAt: r[9] };
+  return { id: r[0], title: r[1], date: r[2], time: r[3], place: r[4], attendees: att, required, agenda: r[6], discussion: r[7], decisions: r[8], createdAt: r[9],
+    fileId: r[10] || "", fileName: r[11] || "", mime: r[12] || "", hasFile: !!r[10] };
 }
+const MIN_FILE_HEAD_ = ["ملف المحضر", "اسم الملف", "نوع الملف"];
+function minFileHeaders_(sh) { if (!sh.getRange(1, 11).getDisplayValue()) sh.getRange(1, 11, 1, 3).setValues([MIN_FILE_HEAD_]); }
 function sigRows_() { return rows_(SHEET_SIG).slice(1).filter(r => r[0]); }
 
 function listMinutes(code) {
@@ -399,7 +403,7 @@ function listMinutes(code) {
   return rows_(SHEET_MIN).slice(1).filter(r => r[0] && (me.isDemo ? r[0] === DEMO_MINUTE : r[0] !== DEMO_MINUTE)).map(r => {
     const m = minObj_(r);
     const mine = sigs.find(s => s[0] === m.id && s[1] === me.name);
-    return { id: m.id, title: m.title, date: m.date, attendees: m.attendees, required: m.required,
+    return { id: m.id, title: m.title, date: m.date, attendees: m.attendees, required: m.required, hasFile: m.hasFile,
       signedCount: sigs.filter(s => s[0] === m.id && m.required.indexOf(s[1]) !== -1).length, mySignedAt: mine ? mine[2] : "" };
   }).reverse();
 }
@@ -411,7 +415,19 @@ function getMinute(code, id) {
   if (!r || (me.isDemo !== (id === DEMO_MINUTE))) throw new Error("المحضر غير موجود.");
   const m = minObj_(r);
   m.signatures = sigRows_().filter(s => s[0] === id).map(s => ({ teacher: s[1], signedAt: s[2], image: (me.isHead || s[1] === me.name) ? s[3] : "" }));
+  delete m.fileId;
   return m;
+}
+
+/** ملف المحضر المرفق كما رفعه رئيس الشعبة (PDF أو صورة) */
+function minuteFile(code, id) {
+  const me = who_(code);
+  const r = rows_(SHEET_MIN).slice(1).find(x => x[0] === id);
+  if (!r || (me.isDemo !== (id === DEMO_MINUTE))) throw new Error("المحضر غير موجود.");
+  const m = minObj_(r);
+  if (!m.fileId) throw new Error("لا يوجد ملف مرفق بهذا المحضر.");
+  const b = DriveApp.getFileById(m.fileId).getBlob();
+  return { name: m.fileName, mime: m.mime || b.getContentType(), b64: Utilities.base64Encode(b.getBytes()) };
 }
 
 function saveMinute(code, m) {
@@ -420,13 +436,34 @@ function saveMinute(code, m) {
   if (!title) throw new Error("اكتب عنوان الاجتماع.");
   const names = TEACHERS.map(t => t[0]);
   const att = (m.attendees || []).filter(n => names.indexOf(n) !== -1);
+  // ملف المحضر الجاهز (اختياري): PDF أو صورة، يُحفظ في Drive كما هو
+  const file = String(m.file || "");
+  let fm = null;
+  if (file) {
+    fm = file.match(/^data:(application\/pdf|image\/jpeg|image\/png);base64,(.+)$/);
+    if (!fm) throw new Error("ملف المحضر يجب أن يكون PDF أو صورة.");
+    if (fm[2].length > 11000000) throw new Error("حجم الملف كبير (الحد ٨ ميجابايت).");
+  }
   const saved = withLock_(() => {
     const sh = sh_(SHEET_MIN);
+    minFileHeaders_(sh);
     const id = m.id || newId_();
     const row = m.id ? findRow_(sh, 1, m.id) : -1;
-    const created = row > 0 ? sh.getRange(row, 10).getDisplayValue() : nowText_();
+    const old = row > 0 ? sh.getRange(row, 1, 1, 13).getDisplayValues()[0] : [];
+    const created = row > 0 ? old[9] : nowText_();
+    let fileId = old[10] || "", fileName = old[11] || "", mime = old[12] || "";
+    if (fm || m.removeFile) {
+      if (fileId) { try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) {} }
+      fileId = ""; fileName = ""; mime = "";
+    }
+    if (fm) {
+      mime = fm[1];
+      fileName = String(m.fileName || "").replace(/[\\/:*?"<>|]/g, "-").slice(0, 120) || ("محضر." + (mime === "application/pdf" ? "pdf" : "jpg"));
+      fileId = folder_().createFile(Utilities.newBlob(Utilities.base64Decode(fm[2]), mime, `محضر-${id}-${fileName}`)).getId();
+    }
     const values = [id, title, String(m.date || "").slice(0, 10), String(m.time || "").slice(0, 20), String(m.place || "").slice(0, 100),
-      JSON.stringify(att), String(m.agenda || "").slice(0, 5000), String(m.discussion || "").slice(0, 15000), String(m.decisions || "").slice(0, 8000), created];
+      JSON.stringify(att), String(m.agenda || "").slice(0, 5000), String(m.discussion || "").slice(0, 15000), String(m.decisions || "").slice(0, 8000), created,
+      fileId, fileName, mime];
     if (row > 0) writeRow_(sh, row, values); else appendText_(sh, values);
     return { id, isNew: row < 0 };
   });
@@ -445,7 +482,11 @@ function deleteMinute(code, id) {
   head_(code);
   return withLock_(() => {
     const sh = sh_(SHEET_MIN), row = findRow_(sh, 1, id);
-    if (row > 0) sh.deleteRow(row);
+    if (row > 0) {
+      const fid = sh.getRange(row, 11).getDisplayValue();
+      if (fid) { try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {} }
+      sh.deleteRow(row);
+    }
     const sig = sh_(SHEET_SIG), vals = sig.getDataRange().getDisplayValues();
     for (let i = vals.length - 1; i >= 1; i--) if (vals[i][0] === id) sig.deleteRow(i + 1);
     return true;
