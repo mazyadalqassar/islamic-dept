@@ -1565,12 +1565,13 @@ $("refresh-btn").onclick = async () => {
 };
 $("export-btn").onclick = async () => {
   const msg = $("export-msg");
-  const order = TEACHERS.map(t => t[0]);
+  // الترتيب: العاشر ثم الحادي عشر ثم الثاني عشر، وداخل كل صف حسب رقم الفصل (العلمي قبل الأدبي)
+  const TR = { "": 0, s: 1, l: 2 };
   const rows = headRows().filter(r => !filterStatus || r.st.kind === filterStatus)
-    .sort((a, b) => order.indexOf(a.teacher) - order.indexOf(b.teacher) || a.grade - b.grade || (a.track > b.track ? 1 : a.track < b.track ? -1 : 0) || a.num - b.num || (a.subject === "ie" ? -1 : 1));
+    .sort((a, b) => a.grade - b.grade || TR[a.track] - TR[b.track] || a.num - b.num || (a.subject === b.subject ? 0 : a.subject === "ie" ? -1 : 1));
   msg.textContent = "جارٍ إنشاء الملف…";
   try {
-    const blob = await htmlPdf(reportPdfHtml(rows, WEEK, NOW, countsOf(rows)), { landscape: true });
+    const blob = await reportPdfPaged(rows, WEEK, NOW);
     await deliver(blob, `تقرير متابعة المنهج - الأسبوع ${WEEK >= 1 && WEEK <= WEEKS ? WEEK : "النهائي"}.pdf`, msg);
   } catch (e) { msg.textContent = "لم يتم إنشاء الملف، حاول مرة أخرى."; }
 };
@@ -4155,6 +4156,64 @@ function swapPdfHtml(x) {
     <h2 style="border:0;margin-top:16px">سبب التبديل:</h2>
     <div class="avoid" style="border-bottom:2px dotted #b9b2aa;height:34px"></div><div class="avoid" style="border-bottom:2px dotted #b9b2aa;height:34px"></div>
     <div class="signs avoid" style="margin-top:14px">${sig("رئيس الشعبة", HEAD_SIGN, "شعبة التربية الإسلامية")}${sig("رئيس الشعبة", same ? HEAD_SIGN : "", x.other.dept)}${sig("المدير المساعد", "", " ")}</div>`;
+}
+
+// ---------- تقرير متابعة المنهج مقسّمًا حسب الصف (بالعرض) ----------
+// كل صف يبدأ بصفحة جديدة، والترويسة واسم الصف ورأس الجدول تتكرر في كل صفحة، والتوقيعات في آخر التقرير.
+const GRADE_TITLE = { 10: "الصف العاشر", 11: "الصف الحادي عشر", 12: "الصف الثاني عشر" };
+const RPT_CSS = `.rt{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 4px}.rt h1{margin:0;text-align:right}
+.band{font-family:"Noto Kufi Arabic";background:#c8641c;color:#fff;font-size:17px;font-weight:800;padding:3px 22px;border-radius:8px;white-space:nowrap}.band small{font-family:"IBM Plex Sans Arabic";font-weight:400;font-size:12px;margin-right:6px}
+.rsub{color:#77736e;font-size:12px;margin:0 0 8px}.rsum{display:flex;gap:6px;margin-bottom:8px}.rsum div{flex:1;border:1px solid #e6e1db;border-radius:8px;padding:2px 8px;font-size:11.5px;color:#77736e}.rsum b{font-family:"Noto Kufi Arabic";font-size:15px;margin-left:6px}`;
+function rptMeasure(html, css) {
+  return new Promise(async res => {
+    const W = 1123, fr = document.createElement("iframe");
+    fr.style.cssText = `position:fixed;left:-20000px;top:0;width:${W}px;height:800px;border:0;visibility:hidden`;
+    document.body.appendChild(fr);
+    try {
+      const doc = fr.contentDocument;
+      doc.open(); doc.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>${PDF_CSS()}${css}</style></head><body style="width:${W}px">${html}</body></html>`); doc.close();
+      await Promise.race([doc.fonts ? doc.fonts.ready : Promise.resolve(), new Promise(r => setTimeout(r, 4000))]);
+      await Promise.all([...doc.images].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+      const h = {}; doc.querySelectorAll("[data-m]").forEach(e => { h[e.dataset.m] = e.getBoundingClientRect().height; });
+      res(h);
+    } finally { fr.remove(); }
+  });
+}
+async function reportPdfPaged(rows, week, now) {
+  const colors = { ok: "#2F7D4F", late: "#B4382B", ahead: "#2C62A8", none: "#8A847E" };
+  const dateStr = `${ar(now.getDate())}/${ar(now.getMonth() + 1)}/${ar(now.getFullYear())}`;
+  const wLabel = week >= 1 && week <= WEEKS ? `الأسبوع ${WEEK_NAMES[week]} (${weekRange(week)})` : week > WEEKS ? "بعد نهاية أسابيع الخطة" : "قبل بداية الفصل";
+  const grades = [10, 11, 12].filter(g => rows.some(r => r.grade === g));
+  const byG = Object.fromEntries(grades.map(g => [g, rows.filter(r => r.grade === g)]));
+  const head = (g, cont) => pdfHead("الفصل الدراسي الأول") + `<div class="rt"><h1>تقرير متابعة تنفيذ خطة المنهج</h1><div class="band">${GRADE_TITLE[g]}${cont ? "<small>(تابع)</small>" : ""}</div></div>
+    <div class="rsub">مادتا التربية الإسلامية والقرآن الكريم · ${wLabel} · تاريخ التقرير: ${dateStr}</div>`;
+  const sumBox = R => { const c = countsOf(R); return `<div class="rsum">${[["ok", "مطابق للخطة"], ["late", "متأخر"], ["ahead", "متقدم"], ["none", "لم يُحدَّث"]].map(([k, t]) => `<div><b style="color:${colors[k]}">${ar(c[k])}</b>${t}</div>`).join("")}<div><b>${ar(R.length)}</b>الإجمالي</div></div>`; };
+  const COLS = '<colgroup><col style="width:4%"><col style="width:17%"><col style="width:8%"><col style="width:10%"><col style="width:21%"><col style="width:21%"><col style="width:9%"><col style="width:10%"></colgroup>';
+  const TH = `<tr>${["م", "المعلم", "الفصل", "المادة", "آخر ما تم إنجازه", "المقرر حسب الخطة", "الحالة", "ملاحظات"].map(t => `<th class="c">${t}</th>`).join("")}</tr>`;
+  const tr = (r, i) => `<tr><td class="c">${ar(i + 1)}</td><td>${esc(tName(r.teacher))}</td><td class="c">${esc(r.label)}</td><td class="c">${esc(SUBJECTS[r.subject])}</td><td>${esc(r.doneLabel)}</td><td>${esc(r.planned)}</td><td class="c b" style="color:${colors[r.st.kind]}">${esc(r.st.text)}</td><td>${esc(r.note || "")}</td></tr>`;
+  const signs = pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]]);
+  // قياس ارتفاع كل جزء لتوزيع الصفوف على الصفحات دون أن يُقطع الجدول بلا ترويسة
+  let probe = `<div data-m="head">${head(10, true)}</div><div data-m="sig">${signs}</div><table style="font-size:12px">${COLS}<thead><tr data-m="th">${TH.slice(4)}</thead><tbody>`;
+  grades.forEach(g => { probe = probe.replace('<div data-m="sig">', `<div data-m="sum${g}">${sumBox(byG[g])}</div><div data-m="sig">`); byG[g].forEach((r, i) => { probe += tr(r, i).replace("<tr>", `<tr data-m="r${g}_${i}">`); }); });
+  const H = await rptMeasure(probe + "</tbody></table>", RPT_CSS);
+  const AVAIL = 794 - 30 - 40 - 40; // ارتفاع الصفحة ناقص الهوامش وتذييل الصفحة
+  let html = "", first = true;
+  for (const g of grades) {
+    const R = byG[g];
+    let i = 0, cont = false;
+    while (i < R.length || !cont) {
+      let used = H.head + (cont ? 0 : H["sum" + g]) + H.th + 4, chunk = [];
+      while (i < R.length && (used + H[`r${g}_${i}`] <= AVAIL || !chunk.length)) { used += H[`r${g}_${i}`]; chunk.push(i); i++; }
+      const lastOfAll = g === grades[grades.length - 1] && i >= R.length;
+      const sigHere = lastOfAll && used + H.sig + 12 <= AVAIL;
+      html += `${first ? "" : '<div class="pb"></div>'}${head(g, cont)}${cont ? "" : sumBox(R)}<table style="font-size:12px">${COLS}<thead>${TH}</thead><tbody>${chunk.map(k => tr(R[k], k)).join("")}</tbody></table>${sigHere ? signs : ""}`;
+      first = false; cont = true;
+      if (lastOfAll && !sigHere) html += `<div class="pb"></div>${head(g, true)}${signs}`;
+      if (i >= R.length) break;
+    }
+  }
+  if (!grades.length) html = head(10, false) + '<p class="mut">لا توجد بيانات.</p>' + signs;
+  return htmlPdf(html, { landscape: true, css: RPT_CSS });
 }
 
 // ---------- تقرير متابعة المنهج (بالعرض) ----------
