@@ -1256,8 +1256,14 @@ function leavesDayHtml_(date, list) {
   <h1>كشف استئذانات المعلمين</h1><div class="sub">الاستئذانات المقدَّمة يوم ${dayOf_(date)} ${dmy_(date)}</div>
   <table class="t"><tr><th style="width:6%">م</th><th>اسم المعلم</th><th style="width:16%">نوع الإذن</th><th style="width:22%">يوم الإذن</th><th style="width:20%">الحالة</th></tr>${rows}</table>
   <div class="sum">العدد: ${list.length} · بداية الدوام: ${list.filter(o => o.type === LV_TYPES_[0]).length} · أثناء الدوام: ${list.filter(o => o.type === LV_TYPES_[1]).length} · نهاية الدوام: ${list.filter(o => o.type === LV_TYPES_[2]).length}</div>
-  <table class="sig"><tr><td><b>رئيس شعبة التربية الإسلامية</b><br>أ. مزيد حمد القصار<br><br>التوقيع: ....................</td></tr></table>
+  <table class="sig"><tr><td><b>رئيس شعبة التربية الإسلامية</b><br>أ. مزيد حمد القصار<br>${headSigImg_() ? `<img src="${headSigImg_()}" style="max-height:60px;max-width:190px;margin-top:6px">` : "<br>التوقيع: ...................."}</td></tr></table>
   </body></html>`;
+}
+/** توقيع رئيس الشعبة المحفوظ في الموقع (آخر توقيع وقّع به) — يُطبع تلقائيًا على الكشف */
+function headSigImg_() {
+  const sh = sh_(SHEET_MYSIG); if (!sh) return "";
+  const r = rows_(SHEET_MYSIG).slice(1).find(x => x[0] === CIRC_HEAD_NAME_);
+  return r && /^data:image\/png;base64,/.test(r[1]) ? r[1] : "";
 }
 function leavesPdfBlob_(date, list) {
   return HtmlService.createHtmlOutput(leavesDayHtml_(date, list)).getAs("application/pdf").setName(`كشف استئذانات المعلمين - ${dmy_(date).replace(/\//g, "-")}.pdf`);
