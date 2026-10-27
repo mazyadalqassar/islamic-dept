@@ -313,6 +313,17 @@ input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var
 .ltype { font: inherit; font-family: var(--f-display); font-size: 13.5px; color: var(--ink); background: var(--surface); border: 1.5px solid var(--line); border-radius: 999px; padding: 10px 4px; cursor: pointer; white-space: nowrap; }
 .ltype[aria-checked="true"] { border-color: var(--c-lv); background: var(--c-lv); color: #fff; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ltype[aria-checked="true"] { color: #1b1a19; } }
+.lv-pick { margin-top: 12px; }
+.lv-pick h3 { margin: 0 0 4px; font-family: var(--f-display); font-size: 15px; color: var(--c-lv); }
+.lv-prow { display: flex; gap: 10px; align-items: flex-start; padding: 9px 2px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.lv-prow:last-of-type { border-bottom: none; }
+.lv-prow input { margin-top: 5px; width: 18px; height: 18px; flex: none; }
+.lv-prow .who { flex: 1; min-width: 0; }
+.lv-prow .who b { display: block; }
+.lv-prow .who span { font-size: 13px; color: var(--muted); }
+.lv-tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 0 8px; border-radius: 999px; background: var(--none-soft, #efedea); color: var(--ink); margin-inline-start: 4px; }
+.lv-tag.today { background: var(--ok-soft, #e4f2e9); color: var(--ok, #2f7d4f); }
+.lv-tag.next { background: var(--ahead-soft, #e3ecf8); color: var(--ahead, #2c62a8); }
 .lv-dayname { font-family: var(--f-body); font-weight: 400; color: var(--muted); font-size: 14px; }
 .pickf { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 13px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; text-align: right; }
 .pickf .ph { color: var(--muted); }
@@ -922,8 +933,9 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
             <label class="chip"><input type="radio" name="lvf" value="mine"><span>استئذاناتي</span></label>
           </div>
           <button class="btn ghost sm" id="lv-reload" type="button">تحديث</button>
-          <button class="btn sm head-only" id="lv-daypdf" type="button" hidden>كشف اليوم PDF</button>
+          <button class="btn sm head-only" id="lv-daypdf" type="button" hidden>كشف الاستئذانات PDF</button>
         </div>
+        <div class="card lv-pick" id="lv-pick" hidden></div>
         <div class="saved" id="lv-list-msg"></div>
         <div class="list" id="lv-cards"></div>
       </section>
@@ -3241,13 +3253,32 @@ function lvTab(which) {
 $("lvtab-new").onclick = () => lvTab("new");
 $("lvtab-list").onclick = () => lvTab("list");
 $("lv-reload").onclick = () => loadLeaves(true);
-// كشف استئذانات اليوم PDF (يصل أيضًا تلقائيًا بالإيميل الساعة ٢ ظهرًا)
-// يشمل الاستئذانات المقدَّمة اليوم، أيًّا كان يوم الإذن نفسه
+// كشف الاستئذانات PDF: تظهر الاستئذانات المقدَّمة أمس واليوم، ورئيس الشعبة يختار ما يدخل الكشف
+// (المؤشَّر عليها مبدئيًا: التي يومها اليوم). الكشف التلقائي بالإيميل الساعة ٢ يشمل التي يومها اليوم.
 $("lv-daypdf").onclick = async () => {
-  const m = $("lv-list-msg"); m.textContent = "جارٍ إنشاء الكشف…";
-  try { const r = await run("leavesDayPdf", CODE, todayISO()); await deliver(new Blob([b64ToBytes(r.b64)], { type: "application/pdf" }), r.name, m);
-    if (!r.count) m.insertAdjacentHTML("afterbegin", "لم يُقدَّم أي استئذان اليوم. "); }
-  catch (e) { m.textContent = cleanErr(e); }
+  const box = $("lv-pick"), m = $("lv-list-msg");
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false; box.innerHTML = '<div class="empty">جارٍ التحميل…</div>'; m.textContent = "";
+  let r; try { r = await run("leavesRecent", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
+  const T = r.today, addD = (iso, n) => { const [y, mo, d] = iso.split("-").map(Number), x = new Date(y, mo - 1, d + n, 12); return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`; };
+  const Y = addD(T, -1), N = nextWorkISO(addD(T, 1));
+  const subDay = s => { const d = String(s).slice(0, 10); return d === T ? "اليوم" : d === Y ? "أمس" : dayName(d); };
+  const t12 = s => { const t = String(s).slice(11, 16); if (!t) return ""; const h = +t.slice(0, 2); return ar(`${h > 12 ? h - 12 : h || 12}:${t.slice(3, 5)}`) + (h >= 12 ? " م" : " ص"); };
+  const leaveTag = d => d === T ? '<span class="lv-tag today">اليوم</span>' : d === N ? '<span class="lv-tag next">باكر</span>' : d < T ? '<span class="lv-tag">سابق</span>' : "";
+  if (!r.list.length) { box.innerHTML = `<h3>كشف الاستئذانات</h3><div class="sub">لا توجد استئذانات مقدَّمة منذ ${esc(subDay(r.from) === "أمس" ? "أمس" : dayName(r.from))}.</div><div class="row-actions" style="margin-top:10px"><button class="btn ghost sm" type="button" id="lvp-close">إغلاق</button></div>`; $("lvp-close").onclick = () => box.hidden = true; return; }
+  box.innerHTML = `<h3>اختر الاستئذانات التي تدخل الكشف</h3><div class="sub">المقدَّمة ${subDay(r.from) === "أمس" ? "أمس" : "منذ " + dayName(r.from)} واليوم. المؤشَّر عليها مبدئيًا: التي يومها اليوم.</div>
+    ${r.list.map(o => `<label class="lv-prow"><input type="checkbox" value="${esc(o.id)}"${o.date === T ? " checked" : ""}>
+      <span class="who"><b>أ. ${esc(o.teacher)}</b><span>${esc(o.type)} · يوم الإذن: ${dayName(o.date)} ${fmtDate(o.date)} ${leaveTag(o.date)}</span><br>
+      <span>قُدّم <b style="display:inline;color:var(--ink)">${subDay(o.createdAt)}</b> ${t12(o.createdAt)}${o.status !== LV_ST.ok ? ` · <span style="color:var(--late)">${esc(o.status)}</span>` : ""}</span></span></label>`).join("")}
+    <div class="row-actions" style="margin-top:12px"><button class="btn" type="button" id="lvp-go">تحميل الكشف</button><button class="btn ghost sm" type="button" id="lvp-close">إغلاق</button><span class="saved" id="lvp-msg"></span></div>`;
+  $("lvp-close").onclick = () => box.hidden = true;
+  $("lvp-go").onclick = async () => {
+    const ids = [...box.querySelectorAll("input:checked")].map(x => x.value), pm = $("lvp-msg");
+    if (!ids.length) { pm.textContent = "اختر استئذانًا واحدًا على الأقل."; return; }
+    $("lvp-go").disabled = true; pm.textContent = "جارٍ إنشاء الكشف…";
+    try { const k = await run("leavesPickPdf", CODE, ids); await deliver(new Blob([b64ToBytes(k.b64)], { type: "application/pdf" }), k.name, pm); }
+    catch (e) { pm.textContent = cleanErr(e); } finally { $("lvp-go").disabled = false; }
+  };
 };
 document.querySelectorAll('input[name="lvf"]').forEach(x => x.onchange = () => renderLeaves());
 async function lvInit() {
