@@ -117,7 +117,8 @@ function setup() {
   sheet_(SHEET_MYSIG, ["المعلم", "التوقيع", "آخر تحديث"], true);
   sheet_(SHEET_VIS, ["المعرف", "المعلم", "الفصل", "البطاقة", "التاريخ", "الحصة", "رقم الوحدة", "المجال", "رقم الدرس", "عنوان الدرس / السورة والآيات",
     "رقم الزيارة", "التقييمات", "التوصيات", "توقيع رئيس الشعبة", "تاريخ الإنشاء", "توقيع المعلم", "وقت توقيع المعلم", "نوع الزيارة", "الملاحظات"], true);
-  sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل"], true);
+  sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل", "الدرس"], true);
+  subsLessonHeader_(sh_(SHEET_SUBS));
   sheet_(SHEET_SCHOOL, ["المعلم", "الشعبة", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
   sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true);
   sheet_(SHEET_STU, STU_HEAD_, true);
@@ -732,7 +733,8 @@ function staff_(code) {
   return me;
 }
 function subsRows_() { const sh = sh_(SHEET_SUBS); return sh ? rows_(SHEET_SUBS).slice(1).filter(r => r[0]) : []; }
-function subObj_(r) { return { absence: r[0], date: r[1], teacher: r[2], period: Number(r[3]), classId: r[4], sub: r[5], by: r[6], at: r[7] }; }
+function subObj_(r) { return { absence: r[0], date: r[1], teacher: r[2], period: Number(r[3]), classId: r[4], sub: r[5], by: r[6], at: r[7], lesson: r[8] || "" }; }
+function subsLessonHeader_(sh) { if (sh && !sh.getRange(1, 9).getDisplayValue()) sh.getRange(1, 9).setValue("الدرس"); }
 
 /** كل سجلات الاحتياط */
 function subsList(code) { staff_(code); return subsRows_().map(subObj_); }
@@ -745,7 +747,7 @@ function saveAbsence(code, a) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("التاريخ غير صحيح.");
   const names = TEACHERS.map(t => t[0]);
   if (names.indexOf(a.teacher) === -1) throw new Error("اختر المعلم الغائب.");
-  const items = (Array.isArray(a.items) ? a.items : []).slice(0, 7).map(x => ({ period: Number(x && x.period), classId: String((x && x.classId) || "").slice(0, 20), sub: String((x && x.sub) || "") }));
+  const items = (Array.isArray(a.items) ? a.items : []).slice(0, 7).map(x => ({ period: Number(x && x.period), classId: String((x && x.classId) || "").slice(0, 20), sub: String((x && x.sub) || ""), lesson: String((x && x.lesson) || "").trim().slice(0, 200) }));
   if (!items.length) throw new Error("لا توجد حصص لهذا المعلم في هذا اليوم.");
   items.forEach(x => {
     if (!(x.period >= 1 && x.period <= 7)) throw new Error("رقم الحصة غير صحيح.");
@@ -754,6 +756,7 @@ function saveAbsence(code, a) {
   const id = date + "|" + a.teacher;
   return withLock_(() => {
     const sh = sh_(SHEET_SUBS);
+    subsLessonHeader_(sh);
     const all = sh.getDataRange().getDisplayValues();
     // لا يُكلَّف معلم بحصتين في الوقت نفسه
     items.forEach(x => {
@@ -763,7 +766,7 @@ function saveAbsence(code, a) {
     });
     for (let i = all.length - 1; i >= 1; i--) if (all[i][0] === id) sh.deleteRow(i + 1);
     const now = nowText_();
-    items.forEach(x => appendText_(sh, [id, date, a.teacher, x.period, x.classId, x.sub, me.name, now]));
+    items.forEach(x => appendText_(sh, [id, date, a.teacher, x.period, x.classId, x.sub, me.name, now, x.lesson]));
     return subsRows_().map(subObj_);
   });
 }
@@ -1723,7 +1726,7 @@ function notifyAbsence(code, date, teacher) {
   staff_(code);
   const rs = subsRows_().map(subObj_).filter(r => r.date === date && r.teacher === teacher && !r.sub).sort((a, b) => a.period - b.period);
   if (!rs.length) throw new Error("لا توجد حصص بلا بديل لهذا الغياب.");
-  const d = dayIdx_(date), list = rs.map(r => `<li>الحصة ${AR_ORD_[r.period]} · ${esc_(arLabel_(r.classId))}</li>`).join("");
+  const d = dayIdx_(date), list = rs.map(r => `<li>الحصة ${AR_ORD_[r.period]} · ${esc_(arLabel_(r.classId))}${r.lesson ? `<br><span style="color:#5f7d2e">الدرس: ${esc_(r.lesson)}</span>` : ""}</li>`).join("");
   let sent = 0;
   TEACHERS.filter(t => !t[2] && t[0] !== teacher).forEach(t => {
     if (notifyTeacher_(t[0], `احتياط: أ. ${teacher} غائب يوم ${DAYS_AR_[d]}`, `
@@ -1745,7 +1748,7 @@ function subsOpen(code) {
   return Object.values(by).sort((a, b) => a.date < b.date ? -1 : 1).map(g => {
     const d = dayIdx_(g.date);
     return { absence: g.absence, date: g.date, teacher: g.teacher, mineAbsent: g.teacher === me.name,
-      periods: g.periods.sort((a, b) => a.period - b.period).map(r => ({ period: r.period, classId: r.classId, sub: r.sub, mine: r.sub === me.name,
+      periods: g.periods.sort((a, b) => a.period - b.period).map(r => ({ period: r.period, classId: r.classId, sub: r.sub, lesson: r.lesson, mine: r.sub === me.name,
         free: !r.sub && g.teacher !== me.name && !(absentOn[g.date] || {})[me.name] && !ttAt_(me.name, d, r.period) && !all.some(x => x.date === g.date && x.period === r.period && x.sub === me.name) })) };
   });
 }

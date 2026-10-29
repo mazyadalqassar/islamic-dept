@@ -429,6 +429,10 @@ nav.sections .tile[hidden] { display: none; }
 .sf-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding: 10px 12px; border: 1.5px dashed var(--c-subs); border-radius: 14px; background: var(--c-subs-s); }
 .sf-add b { flex: 1 1 100%; font-family: var(--f-display); font-size: 14px; color: var(--c-subs); }
 .sf-add select { width: auto; flex: 1 1 120px; }
+.sf-les { grid-column: 1 / -1; display: grid; gap: 4px; }
+.sf-les label { font-size: 13px; font-weight: 700; color: var(--c-subs); }
+.sf-les .sub { font-size: 12.5px; }
+.sbt-les { display: block; font-size: 13px; color: var(--c-subs); margin-top: 2px; }
 .sf-none { padding: 14px; text-align: center; color: var(--muted); background: var(--bg); border-radius: 12px; margin-top: 12px; }
 table.subs-table { min-width: 0; }
 table.subs-table tr[data-t] { cursor: pointer; }
@@ -2510,6 +2514,29 @@ async function initSubsForm() {
   try { await loadSubs(); } catch (e) { $("sf-periods").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
   renderSubsForm();
 }
+// الدرس الذي وصل إليه الفصل في مادة ما: الحصة التالية لآخر ما سجّله المعلم، أو بداية المقرر لهذا الأسبوع إن لم يسجّل
+function subNextLesson(cls, s) {
+  const g = classInfo(cls).grade, key = planKey(s, g), L = SLOTS[key]; if (!L) return null;
+  const p = ALL[docId(cls, s)], done = p && p.done != null ? +p.done : null;
+  const idx = done != null ? done : Math.max(0, cumThrough(key, WEEK - 1));
+  return { lesson: idx < L.length ? L[idx].lesson : "مراجعة عامة", fromRec: done != null, last: done ? slotLabel(key, done) : "" };
+}
+const subLesVal = (s, lesson) => `${SUBJECTS[s]}: ${lesson}`;
+function subLessonSelect(p, cls, sel) {
+  const g = classInfo(cls).grade;
+  const groups = ["ie", "qr"].map(s => {
+    const key = planKey(s, g), seen = new Set(), nx = subNextLesson(cls, s);
+    const opts = (SLOTS[key] || []).filter(x => !seen.has(x.lesson) && seen.add(x.lesson)).map(x => {
+      const v = subLesVal(s, x.lesson), isNext = nx && nx.lesson === x.lesson;
+      return `<option value="${esc(v)}"${v === sel ? " selected" : ""}>${isNext ? "◀ وصلوا هنا: " : ""}${esc(x.lesson)}</option>`; }).join("");
+    return `<optgroup label="${SUBJECTS[s]}">${opts}<option value="${esc(subLesVal(s, "مراجعة عامة"))}"${subLesVal(s, "مراجعة عامة") === sel ? " selected" : ""}>مراجعة عامة</option></optgroup>`;
+  }).join("");
+  const known = !sel || groups.includes(`value="${esc(sel)}"`);
+  const info = ["ie", "qr"].map(s => { const nx = subNextLesson(cls, s); return nx ? `${SUBJECTS[s]}: ${nx.fromRec ? "آخر ما سجّله المعلم «" + esc(nx.last) + "»" : "لم يسجّل المعلم بعد، المقترح حسب الخطة"}` : ""; }).filter(Boolean).join(" · ");
+  return `<div class="sf-les"><label for="sf-les${p}">الدرس الذي يُعطى في هذه الحصة</label>
+    <select id="sf-les${p}" data-les="${p}"><option value="">— بدون تحديد —</option>${known ? "" : `<option value="${esc(sel)}" selected>${esc(sel)}</option>`}${groups}</select>
+    <span class="sub">${info}</span></div>`;
+}
 function renderSubsForm() {
   const date = $("sf-date").value, name = $("sf-teacher").value, d = isoDay(date), box = $("sf-periods");
   $("sf-msg").textContent = "";
@@ -2541,15 +2568,19 @@ function renderSubsForm() {
     + rows.map(r => {
     const p = r.p, cls = r.c, cur = existing.find(x => x.period === p), list = availableFor(date, d, p, name, cls);
     const sel = p in SF.sel ? SF.sel[p] : cur ? cur.sub : "";
+    if (!SF.les) SF.les = {};
+    const nx = subNextLesson(cls, "ie");
+    const les = p in SF.les ? SF.les[p] : cur ? (cur.lesson || "") : nx ? subLesVal("ie", nx.lesson) : "";
     const opts = '<option value="">— يختاره المعلمون —</option>' + list.map((x, i) =>
       `<option value="${esc(x.name)}"${x.name === sel ? " selected" : ""}>${i === 0 ? "★ مقترح: " : ""}أ. ${esc(x.name)}${x.head ? " (رئيس الشعبة)" : ""} · ${x.same ? "نفس المرحلة · " : ""}نصابه اليوم ${ar(x.load)} · احتياط ${ar(x.taken)}</option>`).join("")
       + (sel && !list.some(x => x.name === sel) ? `<option value="${esc(sel)}" selected>أ. ${esc(sel)}</option>` : "");
     return `<div class="sf-row" data-p="${p}" data-c="${esc(cls)}"><div><b>الحصة ${ar(p)}</b>${r.x ? ' <span class="pill ahead">حصة مبدّلة</span>' : ""}<span class="sub">${esc(classLabel(cls))}</span>
       <button class="sf-x" type="button" data-rm="${p}" data-x="${r.x ? 1 : ""}">${r.x ? "حذف الحصة المبدّلة" : "إزالة (أُبدلت إلى يوم آخر)"}</button>
       ${cur && cur.sub ? `<button class="btn ghost sm" type="button" data-unsub="${p}" style="margin-top:6px">إلغاء أ. ${esc(cur.sub.split(" ")[0])} من هذه الحصة</button>` : ""}</div>
-      <select aria-label="البديل للحصة ${ar(p)}" data-sel="${p}">${opts}</select></div>`;
+      <select aria-label="البديل للحصة ${ar(p)}" data-sel="${p}">${opts}</select>${subLessonSelect(p, cls, les)}</div>`;
   }).join("") + addBox + (existing.length || !rows.length ? "" : '<div class="sub" style="margin-top:8px">★ المقترح: معلم يدرّس المرحلة نفسها، الأخف نصابًا في هذا اليوم، والأقل أخذًا للاحتياط. ورئيس الشعبة لا يُقترح إلا إذا لم يتوفر غيره.</div>');
   box.querySelectorAll("[data-sel]").forEach(x => x.onchange = () => { SF.sel[x.dataset.sel] = x.value; });
+  box.querySelectorAll("[data-les]").forEach(x => x.onchange = () => { SF.les[x.dataset.les] = x.value; });
   box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { const p = +b.dataset.rm;
     if (b.dataset.x) SF.extra = SF.extra.filter(e => e.p !== p); else SF.removed.add(p); delete SF.sel[p]; renderSubsForm(); });
   box.querySelectorAll("[data-unsub]").forEach(b => b.onclick = () => confirmInline(b, "اضغط للتأكيد", async () => {
@@ -2579,7 +2610,7 @@ $("sf-teacher").onchange = renderSubsForm;
 $("subs-form").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("sf-msg"), btn = $("sf-save");
-  const items = [...$("sf-periods").querySelectorAll(".sf-row")].map(r => ({ period: +r.dataset.p, classId: r.dataset.c, sub: r.querySelector("select").value }));
+  const items = [...$("sf-periods").querySelectorAll(".sf-row")].map(r => ({ period: +r.dataset.p, classId: r.dataset.c, sub: r.querySelector("[data-sel]").value, lesson: (r.querySelector("[data-les]") || {}).value || "" }));
   btn.disabled = true; msg.textContent = "جارٍ الحفظ…";
   const date = $("sf-date").value, teacher = $("sf-teacher").value, notify = $("sf-notify").checked;
   try {
@@ -4546,7 +4577,7 @@ function renderSubsT() {
   tileBadge("subs", list.reduce((n, g) => n + g.periods.filter(p => p.free).length, 0));
   if (!list.length) { box.innerHTML = '<div class="empty">لا توجد حصص احتياط مطلوبة حاليًا.</div>'; return; }
   box.innerHTML = list.map(g => `<div class="card sbt"><h3>أ. ${esc(g.teacher)} ${g.mineAbsent ? "(غيابك)" : "غائب"}</h3><div class="sub">${DAYS[isoDay(g.date)]} ${fmtDate(g.date)}</div>
-    ${g.periods.map(p => `<div class="sbt-row${p.free ? " need" : ""}"><div><b>${p.free ? '<span class="rdot"></span>' : ""}الحصة ${ar(p.period)}</b><span class="sub">${esc(classLabel(p.classId))} · ${ar(slotTime(isoDay(g.date), p.period))}</span></div>
+    ${g.periods.map(p => `<div class="sbt-row${p.free ? " need" : ""}"><div><b>${p.free ? '<span class="rdot"></span>' : ""}الحصة ${ar(p.period)}</b><span class="sub">${esc(classLabel(p.classId))} · ${ar(slotTime(isoDay(g.date), p.period))}</span>${p.lesson ? `<span class="sbt-les">الدرس: ${esc(p.lesson)}</span>` : ""}</div>
       ${p.mine ? `<span class="pill ok">حصتك</span><button class="linkbtn" type="button" data-un="${esc(g.absence)}" data-p="${p.period}">إلغاء</button>`
         : p.sub ? `<span class="pill none">أخذها أ. ${esc(p.sub.split(" ")[0] + " " + p.sub.split(" ").slice(-1)[0])}</span>`
         : p.free ? `<button class="btn sm" type="button" data-take="${esc(g.absence)}" data-p="${p.period}">سآخذ هذه الحصة</button>`
