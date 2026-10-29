@@ -1019,7 +1019,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
             <div><label class="f" for="sf-teacher">المعلم الغائب</label><select id="sf-teacher"></select></div>
           </div>
           <div id="sf-periods"></div>
-          <label class="check" id="sf-notify-wrap"><input type="checkbox" id="sf-notify" checked> أرسل الحصص لمعلمي الشعبة بالإيميل ليختاروا</label>
+          <label class="check" id="sf-notify-wrap"><input type="checkbox" id="sf-notify" checked> <span id="sf-notify-txt">أرسل الحصص لمعلمي الشعبة بالإيميل ليختاروا</span></label>
           <div class="row-actions" style="margin-top:14px"><button class="btn" id="sf-save" type="submit">حفظ</button><button class="btn ghost" id="sf-del" type="button" hidden>حذف هذا الغياب</button></div>
           <div class="saved" id="sf-msg"></div>
         </form>
@@ -2533,7 +2533,7 @@ function renderSubsForm() {
   renderSubsDay(date);
   const existing = (SUBS || []).filter(r => r.date === date && r.teacher === name);
   $("sf-del").hidden = !existing.length;
-  $("sf-notify-wrap").hidden = !!existing.length; $("sf-notify").checked = !existing.length;
+  $("sf-notify").checked = true; $("sf-notify-wrap").hidden = true;
   if (!name) { box.innerHTML = ""; $("sf-save").hidden = true; return; }
   if (d < 0 || d > 4) { box.innerHTML = '<div class="sf-none">التاريخ المختار ليس يوم دوام (الأحد إلى الخميس).</div>'; $("sf-save").hidden = true; return; }
   // الحصص: حصص الجدول، ناقص ما أُزيل منها (أُبدلت إلى يوم آخر)، زائد الحصص المبدّلة إلى هذا اليوم
@@ -2568,7 +2568,8 @@ function renderSubsForm() {
       ${cur && cur.sub ? `<button class="btn ghost sm" type="button" data-unsub="${p}" style="margin-top:6px">إلغاء أ. ${esc(cur.sub.split(" ")[0])} من هذه الحصة</button>` : ""}</div>
       <select aria-label="البديل للحصة ${ar(p)}" data-sel="${p}">${opts}</select>${subLessonSelect(p, cls, les)}</div>`;
   }).join("") + addBox + (existing.length || !rows.length ? "" : '<div class="sub" style="margin-top:8px">★ المقترح: معلم يدرّس المرحلة نفسها، الأخف نصابًا في هذا اليوم، والأقل أخذًا للاحتياط. ورئيس الشعبة لا يُقترح إلا إذا لم يتوفر غيره.</div>');
-  box.querySelectorAll("[data-sel]").forEach(x => x.onchange = () => { SF.sel[x.dataset.sel] = x.value; });
+  box.querySelectorAll("[data-sel]").forEach(x => x.onchange = () => { SF.sel[x.dataset.sel] = x.value; sfNotifyText(); });
+  sfNotifyText();
   box.querySelectorAll("[data-les]").forEach(x => x.onchange = () => { SF.les[x.dataset.les] = x.value; });
   box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { const p = +b.dataset.rm;
     if (b.dataset.x) SF.extra = SF.extra.filter(e => e.p !== p); else SF.removed.add(p); delete SF.sel[p]; renderSubsForm(); });
@@ -2580,6 +2581,21 @@ function renderSubsForm() {
   }));
   box.querySelectorAll("[data-back]").forEach(b => b.onclick = () => { SF.removed.delete(+b.dataset.back); renderSubsForm(); });
   const ab = $("sf-addbtn"); if (ab) ab.onclick = () => { SF.extra.push({ p: +$("sf-ap").value, c: $("sf-ac").value }); renderSubsForm(); };
+}
+// نص خيار الإيميل حسب الاختيار: المكلَّف يصله تكليفه، والحصص بلا بديل تُرسل لمعلمي الشعبة ليختاروا (عند تسجيل غياب جديد)
+function sfNotifyPlan() {
+  const date = $("sf-date").value, name = $("sf-teacher").value, before = (SUBS || []).filter(r => r.date === date && r.teacher === name);
+  const rows = [...$("sf-periods").querySelectorAll(".sf-row")].map(r => ({ p: +r.dataset.p, sub: r.querySelector("[data-sel]").value }));
+  const assigned = rows.filter(r => r.sub && !before.some(b => b.period === r.p && b.sub === r.sub)).map(r => r.p);
+  const open = !before.length && rows.some(r => !r.sub);
+  return { assigned, open };
+}
+function sfNotifyText() {
+  const { assigned, open } = sfNotifyPlan(), w = $("sf-notify-wrap");
+  w.hidden = !assigned.length && !open;
+  $("sf-notify-txt").textContent = assigned.length && open ? "أرسل إيميل للمعلم المكلَّف بحصته، والحصص الباقية لمعلمي الشعبة ليختاروا"
+    : assigned.length ? (assigned.length > 1 ? "أرسل إيميل لكل معلم مكلَّف بحصته والدرس" : "أرسل إيميل للمعلم المكلَّف بالحصة والدرس")
+    : "أرسل الحصص لمعلمي الشعبة بالإيميل ليختاروا";
 }
 function renderSubsDay(date) {
   const recs = (SUBS || []).filter(r => r.date === date), box = $("sf-day");
@@ -2601,14 +2617,18 @@ $("subs-form").addEventListener("submit", async e => {
   const msg = $("sf-msg"), btn = $("sf-save");
   const items = [...$("sf-periods").querySelectorAll(".sf-row")].map(r => ({ period: +r.dataset.p, classId: r.dataset.c, sub: r.querySelector("[data-sel]").value, lesson: (r.querySelector("[data-les]") || {}).value || "" }));
   btn.disabled = true; msg.textContent = "جارٍ الحفظ…";
-  const date = $("sf-date").value, teacher = $("sf-teacher").value, notify = $("sf-notify").checked;
+  const date = $("sf-date").value, teacher = $("sf-teacher").value, notify = $("sf-notify").checked && !$("sf-notify-wrap").hidden, plan = sfNotifyPlan();
   try {
     SUBS = await run("saveAbsence", CODE, { date, teacher, items });
     DASH = null; SF = { key: "" }; renderSubsForm();
-    const un = items.filter(x => !x.sub).length;
-    if (un && notify) { msg.textContent = "تم الحفظ. جارٍ إرسال الحصص للمعلمين…"; const r = await run("notifyAbsence", CODE, date, teacher);
-      msg.textContent = `تم الحفظ، وأُرسلت الحصص لـ ${ar(r.sent)} من المعلمين ليختاروا. تتابع الحجز هنا، وتولع لمبة ركن الاحتياط عند كل حجز.`; }
-    else msg.textContent = un ? `تم الحفظ. ${un === 1 ? "بقيت حصة واحدة" : "بقي " + countWord(un)} بلا بديل.` : "تم الحفظ، وغُطّيت كل الحصص.";
+    const un = items.filter(x => !x.sub).length, parts = [];
+    if (notify && plan.assigned.length) { msg.textContent = "تم الحفظ. جارٍ إرسال التكليف…"; const r = await run("notifyAssigned", CODE, date, teacher, plan.assigned);
+      parts.push(r.sent ? `وصل التكليف بالإيميل لـ ${ar(r.sent)} من المعلمين المكلَّفين` : "");
+      if (r.noEmail.length) parts.push(`لم يصل لمن لم يسجّل إيميله: ${r.noEmail.map(n => "أ. " + n).join("، ")}`); }
+    if (notify && plan.open && un) { msg.textContent = "تم الحفظ. جارٍ إرسال الحصص للمعلمين…"; const r = await run("notifyAbsence", CODE, date, teacher);
+      parts.push(`أُرسلت الحصص الباقية لـ ${ar(r.sent)} من المعلمين ليختاروا`); }
+    const base = un ? `تم الحفظ. ${un === 1 ? "بقيت حصة واحدة" : "بقي " + countWord(un)} بلا بديل.` : "تم الحفظ، وغُطّيت كل الحصص.";
+    msg.textContent = base + (parts.filter(Boolean).length ? " " + parts.filter(Boolean).join("، و") + "." : "");
   } catch (x) { msg.textContent = cleanErr(x); } finally { btn.disabled = false; }
 });
 $("sf-del").onclick = () => confirmInline($("sf-del"), "اضغط مرة ثانية لحذف الغياب", async () => {

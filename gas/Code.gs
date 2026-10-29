@@ -72,7 +72,7 @@ function doGet() {
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, minuteFile, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
-  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
+  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, notifyAssigned, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
   setMyEmail, listLeaves, saveLeave, decideLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf, leavesRecent, leavesPickPdf,
   gradesGet, gradesSave, gradesApprove, gradesOverview,
@@ -1738,6 +1738,23 @@ function notifyAbsence(code, date, teacher) {
   return { sent };
 }
 /** المعلم: حصص الاحتياط المفتوحة من اليوم فصاعدًا */
+/** رئيس الشعبة: إيميل لكل معلم كلّفه بحصة احتياط (الحصة والفصل والدرس) */
+function notifyAssigned(code, date, teacher, periods) {
+  staff_(code);
+  periods = (Array.isArray(periods) ? periods : []).map(Number);
+  const rs = subsRows_().map(subObj_).filter(r => r.date === date && r.teacher === teacher && r.sub && periods.indexOf(r.period) !== -1);
+  const by = {}; rs.forEach(r => (by[r.sub] = by[r.sub] || []).push(r));
+  const d = dayIdx_(date); let sent = 0; const noEmail = [];
+  Object.keys(by).forEach(n => {
+    const list = by[n].sort((a, b) => a.period - b.period).map(r => `<li><b>الحصة ${AR_ORD_[r.period]}</b> · ${esc_(arLabel_(r.classId))}${r.lesson ? `<br><span style="color:#5f7d2e">الدرس: ${esc_(r.lesson)}</span>` : ""}</li>`).join("");
+    if (notifyTeacher_(n, `تكليف احتياط: ${DAYS_AR_[d]} ${date} بدل أ. ${teacher}`, `
+      <p>الأستاذ الفاضل/ ${esc_(n)} المحترم،</p>
+      <p>كُلّفتم بحصة احتياط بدلًا من <b>أ. ${esc_(teacher)}</b> يوم <b>${DAYS_AR_[d]} ${esc_(date)}</b>:</p><ul>${list}</ul>
+      <p>تجدها في الموقع ← ركن «الاحتياط». شكرًا لتعاونكم.</p>
+      <p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`)) sent++; else noEmail.push(n);
+  });
+  return { sent, noEmail };
+}
 function subsOpen(code) {
   const me = who_(code);
   if (me.isDemo) return [];
