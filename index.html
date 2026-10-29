@@ -2514,28 +2514,18 @@ async function initSubsForm() {
   try { await loadSubs(); } catch (e) { $("sf-periods").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
   renderSubsForm();
 }
-// الدرس الذي وصل إليه الفصل في مادة ما: الحصة التالية لآخر ما سجّله المعلم، أو بداية المقرر لهذا الأسبوع إن لم يسجّل
-function subNextLesson(cls, s) {
-  const g = classInfo(cls).grade, key = planKey(s, g), L = SLOTS[key]; if (!L) return null;
-  const p = ALL[docId(cls, s)], done = p && p.done != null ? +p.done : null;
-  const idx = done != null ? done : Math.max(0, cumThrough(key, WEEK - 1));
-  return { lesson: idx < L.length ? L[idx].lesson : "مراجعة عامة", fromRec: done != null, last: done ? slotLabel(key, done) : "" };
-}
+// الدرس يختاره رئيس الشعبة من دروس صف الفصل (المادتان)، دون ربط بما قطع من المنهج
 const subLesVal = (s, lesson) => `${SUBJECTS[s]}: ${lesson}`;
 function subLessonSelect(p, cls, sel) {
-  const g = classInfo(cls).grade;
+  let g; try { g = classInfo(cls).grade; } catch (e) { g = 0; }
   const groups = ["ie", "qr"].map(s => {
-    const key = planKey(s, g), seen = new Set(), nx = subNextLesson(cls, s);
-    const opts = (SLOTS[key] || []).filter(x => !seen.has(x.lesson) && seen.add(x.lesson)).map(x => {
-      const v = subLesVal(s, x.lesson), isNext = nx && nx.lesson === x.lesson;
-      return `<option value="${esc(v)}"${v === sel ? " selected" : ""}>${isNext ? "◀ وصلوا هنا: " : ""}${esc(x.lesson)}</option>`; }).join("");
-    return `<optgroup label="${SUBJECTS[s]}">${opts}<option value="${esc(subLesVal(s, "مراجعة عامة"))}"${subLesVal(s, "مراجعة عامة") === sel ? " selected" : ""}>مراجعة عامة</option></optgroup>`;
+    const seen = new Set(), all = (SLOTS[planKey(s, g)] || []).filter(x => !seen.has(x.lesson) && seen.add(x.lesson));
+    if (!all.length) return "";
+    return `<optgroup label="${SUBJECTS[s]}">${all.map(x => { const v = subLesVal(s, x.lesson); return `<option value="${esc(v)}"${v === sel ? " selected" : ""}>${esc(x.lesson)}</option>`; }).join("")}</optgroup>`;
   }).join("");
   const known = !sel || groups.includes(`value="${esc(sel)}"`);
-  const info = ["ie", "qr"].map(s => { const nx = subNextLesson(cls, s); return nx ? `${SUBJECTS[s]}: ${nx.fromRec ? "آخر ما سجّله المعلم «" + esc(nx.last) + "»" : "لم يسجّل المعلم بعد، المقترح حسب الخطة"}` : ""; }).filter(Boolean).join(" · ");
   return `<div class="sf-les"><label for="sf-les${p}">الدرس الذي يُعطى في هذه الحصة</label>
-    <select id="sf-les${p}" data-les="${p}"><option value="">— بدون تحديد —</option>${known ? "" : `<option value="${esc(sel)}" selected>${esc(sel)}</option>`}${groups}</select>
-    <span class="sub">${info}</span></div>`;
+    <select id="sf-les${p}" data-les="${p}"><option value="">— اختر الدرس —</option>${known ? "" : `<option value="${esc(sel)}" selected>${esc(sel)}</option>`}${groups}</select></div>`;
 }
 function renderSubsForm() {
   const date = $("sf-date").value, name = $("sf-teacher").value, d = isoDay(date), box = $("sf-periods");
@@ -2569,8 +2559,7 @@ function renderSubsForm() {
     const p = r.p, cls = r.c, cur = existing.find(x => x.period === p), list = availableFor(date, d, p, name, cls);
     const sel = p in SF.sel ? SF.sel[p] : cur ? cur.sub : "";
     if (!SF.les) SF.les = {};
-    const nx = subNextLesson(cls, "ie");
-    const les = p in SF.les ? SF.les[p] : cur ? (cur.lesson || "") : nx ? subLesVal("ie", nx.lesson) : "";
+    const les = p in SF.les ? SF.les[p] : cur ? (cur.lesson || "") : "";
     const opts = '<option value="">— يختاره المعلمون —</option>' + list.map((x, i) =>
       `<option value="${esc(x.name)}"${x.name === sel ? " selected" : ""}>${i === 0 ? "★ مقترح: " : ""}أ. ${esc(x.name)}${x.head ? " (رئيس الشعبة)" : ""} · ${x.same ? "نفس المرحلة · " : ""}نصابه اليوم ${ar(x.load)} · احتياط ${ar(x.taken)}</option>`).join("")
       + (sel && !list.some(x => x.name === sel) ? `<option value="${esc(sel)}" selected>أ. ${esc(sel)}</option>` : "");
