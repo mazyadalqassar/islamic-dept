@@ -4099,7 +4099,7 @@ async function openCircular(id) {
     const n = c.status.filter(s => s.signedAt).length;
     html += `<div class="card"><h3>حالة التوقيع بالعلم (${ar(n)} من ${ar(c.status.length)})</h3>
       ${c.status.map(s => `<div class="acct"><span>${esc(s.teacher)}</span>${s.signedAt ? `<span class="pill ok">وقّع ${fmtStamp(s.signedAt)}</span>` : `<span class="pill late">لم يوقّع</span>`}</div>`).join("")}
-      ${ME.isHead ? `<div class="row-actions" style="margin-top:12px">${n < c.status.length ? '<button class="btn" id="ci-remind">تذكير من لم يوقّع</button>' : ""}<button class="btn ghost" id="ci-del">حذف التعميم</button></div>` : ""}
+      ${ME.isHead ? `<div class="row-actions" style="margin-top:12px"><button class="btn" id="ci-pdf">تنزيل التعميم بالتواقيع PDF</button>${n < c.status.length ? '<button class="btn ghost" id="ci-remind">تذكير من لم يوقّع</button>' : ""}<button class="btn ghost" id="ci-del">حذف التعميم</button></div>` : ""}
       <div class="saved" id="ci-dmsg"></div></div>`;
   }
   d.innerHTML = html;
@@ -4112,6 +4112,11 @@ async function openCircular(id) {
     catch (e) { m.textContent = cleanErr(e); }
   };
   if (c.mustSign && !c.mine) setupPad(async img => { await run("signCircular", CODE, c.id, img); CIRC = null; openCircular(c.id); }, "أكّد اطلاعك على التعميم أولًا.");
+  if ($("ci-pdf")) $("ci-pdf").onclick = async () => {
+    const m = $("ci-dmsg"); m.textContent = "جارٍ إنشاء الملف…"; $("ci-pdf").disabled = true;
+    try { const blob = await circularSignedPdf(c); await deliver(blob, `تعميم ${c.title}${c.date ? " - " + c.date : ""}.pdf`, m); }
+    catch (e) { m.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); } finally { $("ci-pdf").disabled = false; }
+  };
   if ($("ci-remind")) $("ci-remind").onclick = async () => { const m = $("ci-dmsg"); m.textContent = "جارٍ الإرسال…";
     try { const r = await run("remindCircular", CODE, c.id); m.textContent = `أُرسل التذكير. عدد من لم يوقّع: ${ar(r.left)}، ووصلهم التذكير بالإيميل: ${ar(r.sent)}.`; } catch (e) { m.textContent = cleanErr(e); } };
   if ($("ci-del")) $("ci-del").onclick = () => confirmInline($("ci-del"), "اضغط مرة ثانية لحذف التعميم وتواقيعه", async () => {
@@ -4401,6 +4406,42 @@ function minuteSigPagePdfHtml(m) {
     ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
 }
 // المحضر كما رُفع تمامًا + صفحة التواقيع في ملف PDF واحد
+// ---------- التعميم بالتواقيع: الملف المرفق كما هو (أو نص التعميم) + صفحة توقيعات المعلمين بالعلم ----------
+function circSigInfo(c) {
+  const st = c.status || [], names = st.map(x => x.teacher);
+  return { required: names, attendees: names, signatures: st.filter(x => x.signedAt).map(x => ({ teacher: x.teacher, signedAt: x.signedAt, image: x.image })) };
+}
+function circMetaHtml(c) {
+  return `<table><colgroup><col style="width:17%"><col style="width:83%"></colgroup><tr><td class="k">عنوان التعميم</td><td>${esc(c.title)}</td></tr></table>
+    <table style="margin-top:-1px"><colgroup><col style="width:17%"><col style="width:16%"><col style="width:12%"><col style="width:20%"><col style="width:14%"><col style="width:21%"></colgroup>
+    <tr><td class="k">رقم التعميم</td><td>${esc(ar(c.number || "—"))}</td><td class="k">التاريخ</td><td>${c.date ? fmtDate(c.date, true) : "—"}</td><td class="k">جهة الإصدار</td><td>${esc(c.source || "—")}</td></tr></table>`;
+}
+function circSigPartHtml(c) {
+  const n = (c.status || []).filter(x => x.signedAt).length, t = (c.status || []).length;
+  return `<h2>توقيعات المعلمين بالعلم (${ar(n)} من ${ar(t)})</h2>
+    <p class="mut" style="font-size:12px">وقّع المعلمون أدناه إلكترونيًا في موقع الشعبة بالعلم بعد الاطلاع على التعميم.</p>${minSigTableHtml(circSigInfo(c))}
+    ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
+}
+async function circularSignedPdf(c) {
+  if (!c.hasFile) {
+    const body = String(c.text || "").split(/\n+/).filter(Boolean).map(p => `<p>${esc(p)}</p>`).join("");
+    return htmlPdf(pdfHead() + `<div class="kicker">تعميم</div><h1>${esc(c.title)}</h1>${circMetaHtml(c)}<div style="margin-top:10px">${body}</div>${circSigPartHtml(c)}`, { css: PDF_DISC });
+  }
+  const [f, PDFLib, sigBlob] = await Promise.all([circFile(), pdfLib_(), htmlPdf(pdfHead() + `<div class="kicker">ملحق تعميم</div><h1>توقيعات المعلمين بالعلم</h1>${circMetaHtml(c)}${circSigPartHtml(c)}`, { css: PDF_DISC })]);
+  const out = await PDFLib.PDFDocument.create();
+  if (f.mime === "application/pdf") {
+    const src = await PDFLib.PDFDocument.load(b64ToBytes(f.b64), { ignoreEncryption: true });
+    (await out.copyPages(src, src.getPageIndices())).forEach(p => out.addPage(p));
+  } else {
+    const bytes = b64ToBytes(f.b64), img = f.mime === "image/png" ? await out.embedPng(bytes) : await out.embedJpg(bytes);
+    const PW = 595.28, PH = 841.89, M = 24, k = Math.min((PW - 2 * M) / img.width, (PH - 2 * M) / img.height);
+    out.addPage([PW, PH]).drawImage(img, { x: (PW - img.width * k) / 2, y: (PH - img.height * k) / 2, width: img.width * k, height: img.height * k });
+  }
+  const sig = await PDFLib.PDFDocument.load(await sigBlob.arrayBuffer());
+  (await out.copyPages(sig, sig.getPageIndices())).forEach(p => out.addPage(p));
+  out.setTitle(`تعميم ${c.title}`);
+  return new Blob([await out.save()], { type: "application/pdf" });
+}
 async function minuteMergedPdf(m) {
   const [f, PDFLib, sigBlob] = await Promise.all([minFile(m.id), pdfLib_(), htmlPdf(minuteSigPagePdfHtml(m), { css: PDF_DISC })]);
   const out = await PDFLib.PDFDocument.create();
