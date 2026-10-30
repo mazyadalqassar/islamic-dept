@@ -1402,14 +1402,46 @@ async function deliver(blob, filename, msgEl) {
 
 // ================= الدخول والتنقل =================
 // معرّف هذا الجهاز (يُحفظ في المتصفح) — الحساب يُربط بجهاز واحد
+// حفظ دائم: نسخة في localStorage وفي كوكي وفي IndexedDB، فإذا مُسحت إحداها تُستعاد من غيرها
+const PST = {
+  get(k) { let v = ""; try { v = localStorage.getItem(k) || ""; } catch (e) {}
+    if (!v) { const m = document.cookie.match(new RegExp("(?:^|; )ps_" + k + "=([^;]*)")); if (m) v = decodeURIComponent(m[1]); }
+    if (!v) v = (PST.idb || {})[k] || "";
+    return v; },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {}
+    try { document.cookie = `ps_${k}=${encodeURIComponent(v)}; max-age=34560000; path=/; SameSite=Lax; Secure`; } catch (e) {}
+    PST.idb = PST.idb || {}; PST.idb[k] = v; PST.idbPut(k, v); },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} try { document.cookie = `ps_${k}=; max-age=0; path=/`; } catch (e) {}
+    if (PST.idb) delete PST.idb[k]; PST.idbPut(k, null); },
+  db() { return new Promise(res => { try { const r = indexedDB.open("dept", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } }); },
+  idbPut(k, v) { PST.db().then(db => { if (!db) return; try { const t = db.transaction("kv", "readwrite").objectStore("kv"); v == null ? t.delete(k) : t.put(v, k); } catch (e) {} }); }
+};
+const PST_READY = PST.db().then(db => new Promise(res => { if (!db) return res();
+  try { const out = {}, st = db.transaction("kv").objectStore("kv"), keys = ["devid", "code"]; let n = keys.length;
+    keys.forEach(k => { const r = st.get(k); r.onsuccess = () => { if (r.result) out[k] = r.result; if (!--n) { PST.idb = out; res(); } }; r.onerror = () => { if (!--n) { PST.idb = out; res(); } }; });
+  } catch (e) { res(); } })).catch(() => {}).then(() => {
+  // ما وُجد في مكان واحد يُعاد نسخه إلى البقية
+  ["devid", "code"].forEach(k => { const v = PST.get(k); if (v) PST.set(k, v); }); });
 function devId() {
-  let d = ""; try { d = localStorage.getItem("devid") || ""; } catch (e) {}
+  let d = PST.get("devid");
   if (!/^[A-Z0-9]{24}$/.test(d)) {
     const a = new Uint8Array(24); (window.crypto || window.msCrypto).getRandomValues(a);
     d = [...a].map(x => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[x % 32]).join("");
-    try { localStorage.setItem("devid", d); } catch (e) {}
+    PST.set("devid", d);
   }
   return d;
+}
+// بصمة الجهاز من مواصفاته الثابتة، ليتعرّف الخادم على الجهاز نفسه إذا مُسح رقمه
+let DEV_FP = "";
+async function devFp() {
+  if (DEV_FP) return DEV_FP;
+  try {
+    const sc = window.screen || {}, w = Math.min(sc.width || 0, sc.height || 0), h = Math.max(sc.width || 0, sc.height || 0);
+    const raw = [navigator.userAgent, navigator.platform, w + "x" + h, window.devicePixelRatio, (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone, navigator.language, navigator.hardwareConcurrency, navigator.maxTouchPoints].join("|");
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+    DEV_FP = [...new Uint8Array(buf)].slice(0, 12).map(x => x.toString(16).padStart(2, "0")).join("").toUpperCase();
+  } catch (e) { DEV_FP = ""; }
+  return DEV_FP;
 }
 // نوع الجهاز: جوال/جهاز لوحي (M) أو كمبيوتر (C)
 function devKind() { const ua = navigator.userAgent || ""; return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "M" : "C"; }
@@ -1417,10 +1449,11 @@ async function doLogin(code, silent) {
   const msg = $("login-msg");
   $("login-btn").disabled = true; msg.textContent = "جارٍ التحقق…";
   try {
-    const raw = code.trim().toUpperCase().split("~")[0], full = raw + "~" + devId() + "~" + devKind();
+    await PST_READY;
+    const raw = code.trim().toUpperCase().split("~")[0], full = raw + "~" + devId() + "~" + devKind() + "~" + await devFp();
     const r = await run("login", full);
     CODE = full; ME = r; MINE = r.entries || {}; ALL = r.all || {};
-    try { if ($("remember").checked) localStorage.setItem("code", raw); } catch (e) {}
+    try { if ($("remember").checked) PST.set("code", raw); } catch (e) {}
     $("view-login").hidden = true; $("app").hidden = false;
     $("me-name").textContent = `${NOW.getHours() < 12 ? "صباح الخير" : "مساء الخير"}، أ. ${r.name.split(" ")[0]}`;
     $("logout").hidden = false;
@@ -1435,14 +1468,14 @@ async function doLogin(code, silent) {
     $("dev-admin").ontoggle = () => { if ($("dev-admin").open) loadDevices(); };
     if (!r.isDemo && !r.email) showEmailGate(false); else if (!r.pledged) showPledge();
   } catch (e) {
-    if (/DEVICE_NEW\|/.test(String(e && e.message || e))) { msg.textContent = ""; showDeviceVerify(code.trim().toUpperCase().split("~")[0] + "~" + devId() + "~" + devKind()); return; }
+    if (/DEVICE_NEW\|/.test(String(e && e.message || e))) { msg.textContent = ""; showDeviceVerify(code.trim().toUpperCase().split("~")[0] + "~" + devId() + "~" + devKind() + "~" + DEV_FP); return; }
     msg.textContent = cleanErr(e);
-    if (silent && !/مربوط/.test(msg.textContent)) { try { localStorage.removeItem("code"); } catch (x) {} msg.textContent = ""; }
+    if (silent && !/مربوط/.test(msg.textContent)) { try { PST.del("code"); } catch (x) {} msg.textContent = ""; }
   } finally { $("login-btn").disabled = false; }
 }
 $("login-form").addEventListener("submit", e => { e.preventDefault(); doLogin($("code").value); });
 $("logout").onclick = () => {
-  try { localStorage.removeItem("code"); } catch (e) {}
+  try { PST.del("code"); } catch (e) {}
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
@@ -3850,7 +3883,7 @@ function setVisType(t) {
   check(); document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
 })();
 
-(function () { let c = ""; try { c = localStorage.getItem("code") || ""; } catch (e) {} if (c) { $("code").value = c; doLogin(c, true); } })();
+PST_READY.then(() => { let c = ""; try { c = PST.get("code"); } catch (e) {} if (c) { $("code").value = c; doLogin(c, true); } });
 
 // ================= ركن كشف درجات الأعمال (التقييم البنائي ٤٠) =================
 // المعلم يرى فصوله فقط، ورئيس الشعبة يرى الكل. كشف مستقل لكل فصل دراسي/فصل/مادة.
@@ -4619,12 +4652,18 @@ async function loadDevices() {
   const box = $("dev-list"); box.innerHTML = '<div class="empty">جارٍ التحميل…</div>';
   let list; try { list = await run("listDevices", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
   box.innerHTML = list.map((d, i) => `<div class="dev-row"><span class="n">${d.isHead ? "أ. " + esc(HEAD_SIGN) + " (رئيس الشعبة)" : "أ. " + esc(d.teacher)}</span>
-    ${d.isHead ? `<span class="pill ok">أجهزتك المربوطة: ${ar(d.devices)} من ${ar(3)}</span>` : d.devices ? `<span class="pill ${d.kinds.includes("M") ? "ok" : "none"}">الجوال${d.kinds.includes("M") ? " ✓" : ""}</span><span class="pill ${d.kinds.includes("C") ? "ok" : "none"}">الكمبيوتر${d.kinds.includes("C") ? " ✓" : ""}</span>` : '<span class="pill none">لم يدخل بعد</span>'}
+    ${d.isHead ? `<span class="pill ok">أجهزتك المربوطة: ${ar(d.devices)} من ${ar(d.max || 5)}</span>` : d.free ? '<span class="pill ahead">دخول بدون قفل</span>' : d.devices ? `<span class="pill ${d.kinds.includes("M") ? "ok" : "none"}">الجوال${d.kinds.includes("M") ? " ✓" : ""}</span><span class="pill ${d.kinds.includes("C") ? "ok" : "none"}">الكمبيوتر${d.kinds.includes("C") ? " ✓" : ""}</span>` : '<span class="pill none">لم يدخل بعد</span>'}
     ${d.isHead ? "" : d.pledgeAt ? `<span class="pill ok">وقّع التعهد</span>` : '<span class="pill late">لم يوقّع التعهد</span>'}
     ${d.devices ? `<button class="btn ghost sm" type="button" data-reset="${i}">إعادة تعيين الجهاز</button>` : ""}
+    ${d.isHead ? "" : `<button class="btn ghost sm" type="button" data-free="${i}">${d.free ? "إرجاع قفل الجهاز" : "دخول بدون قفل"}</button>`}
     ${d.phone && d.code ? `<a class="btn sm wa" target="_blank" rel="noopener" data-wa="${i}" href="${waLink(d)}">${d.sentAt ? "إعادة إرسال الرمز" : "أرسل الرمز بالواتساب"}</a>${d.sentAt ? `<span class="pill ok">أُرسل ${esc(relTime(parseStamp(d.sentAt), true))}</span>` : ""}` : ""}</div>`).join("");
   box.querySelectorAll("[data-wa]").forEach(a => a.addEventListener("click", () => { const d = list[+a.dataset.wa];
     setTimeout(async () => { try { await run("markInviteSent", CODE, d.teacher); loadDevices(); } catch (e) {} }, 400); }));
+  box.querySelectorAll("[data-free]").forEach(b => b.onclick = () => confirmInline(b, "اضغط مرة ثانية للتأكيد", async () => {
+    const d = list[+b.dataset.free];
+    try { await run("setDeviceFree", CODE, d.teacher, !d.free);
+      $("dev-msg").textContent = d.free ? `رجع قفل الجهاز لأ. ${d.teacher}، ويرتبط بجهازه عند دخوله.` : `صار أ. ${d.teacher} يدخل برمزه من أي جهاز بدون كود.`; loadDevices(); }
+    catch (e) { $("dev-msg").textContent = cleanErr(e); } }));
   box.querySelectorAll("[data-reset]").forEach(b => b.onclick = () => confirmInline(b, "اضغط مرة ثانية للتأكيد", async () => {
     const d = list[+b.dataset.reset]; try { await run("resetDevice", CODE, d.teacher); $("dev-msg").textContent = `أُعيد تعيين جهاز أ. ${d.isHead ? HEAD_SIGN : d.teacher}. سيرتبط بجهازه الجديد عند دخوله.`; loadDevices(); } catch (e) { $("dev-msg").textContent = cleanErr(e); } }));
 }

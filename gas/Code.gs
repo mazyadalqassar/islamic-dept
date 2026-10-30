@@ -77,7 +77,7 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   setMyEmail, listLeaves, saveLeave, decideLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf, leavesRecent, leavesPickPdf,
   gradesGet, gradesSave, gradesApprove, gradesOverview,
   listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular,
-  listDevices, resetDevice, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent,
+  listDevices, resetDevice, setDeviceFree, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent,
   notifyAbsence, subsOpen, claimSub, unclaimSub, removeSub, headNews, markSeen };
 
 function doPost(e) {
@@ -202,7 +202,7 @@ function who_(code) {
 function whoBase_(code) {
   const parts = String(code || "").trim().toUpperCase().split("~");
   const me = whoCode_(parts[0]);
-  if (!me.isDemo) checkDevice_(me, parts[1] || "", parts[2] === "C" ? "C" : "M");
+  if (!me.isDemo) checkDevice_(me, parts[1] || "", parts[2] === "C" ? "C" : "M", devFp_(parts[3]));
   return me;
 }
 /** من سجّل إيميله ومن وقّع التعهد (مخزّن مؤقتًا لتسريع الطلبات) */
@@ -1640,17 +1640,27 @@ function devSave_(name, list) {
   const c = devCache_(); if (c) c.remove("devmap");
 }
 // المعلم: جوال واحد + كمبيوتر واحد (kind: M جوال/جهاز لوحي، C كمبيوتر). رئيس الشعبة: حتى ٣ أجهزة من أي نوع.
+// المعلم: جوالان وكمبيوتر واحد. رئيس الشعبة: حتى DEV_MAX_HEAD_ أجهزة
 function devAllowed_(me, list, kind) {
   if (me.isHead) return list.length < DEV_MAX_HEAD_;
-  return list.length < 2 && !list.some(d => d.kind === kind);
+  return list.filter(d => d.kind === kind).length < (kind === "M" ? 2 : 1);
 }
-function checkDevice_(me, dev, kind) {
+// بصمة الجهاز (مواصفاته): يُتعرَّف بها على الجهاز نفسه إذا مسح المتصفح رقمه، فلا يُطلب كود
+function devFp_(v) { const f = String(v || "").toUpperCase(); return /^[A-F0-9]{16,40}$/.test(f) ? f : ""; }
+// معلمون أعفاهم رئيس الشعبة من قفل الجهاز (يدخلون برمزهم من أي جهاز)
+function devFree_() { return json_(PropertiesService.getScriptProperties().getProperty("DEVFREE"), []); }
+function checkDevice_(me, dev, kind, fp) {
   if (!/^[A-Z0-9]{16,40}$/.test(dev)) throw new Error("حدّث الصفحة ثم ادخل مرة أخرى.");
+  if (!me.isHead && devFree_().indexOf(me.name) !== -1) return;
   const list = devMap_()[me.name] || [];
   const hit = list.find(d => d.id === dev);
-  if (hit) { if (!hit.kind) withLock_(() => devSave_(me.name, (devMap_()[me.name] || []).map(d => d.id === dev ? Object.assign({}, d, { kind }) : d))); return; }
+  if (hit) { if (!hit.kind || (fp && hit.fp !== fp)) withLock_(() => devSave_(me.name, (devMap_()[me.name] || []).map(d => d.id === dev ? Object.assign({}, d, { kind, fp: fp || d.fp || "" }) : d))); return; }
+  if (fp) {
+    const same = list.find(d => d.fp === fp && (d.kind || kind) === kind);
+    if (same) { withLock_(() => devSave_(me.name, (devMap_()[me.name] || []).map(d => d.id === same.id ? Object.assign({}, d, { id: dev, kind, at: nowText_() }) : d))); return; }
+  }
   if (devAllowed_(me, list, kind)) {
-    withLock_(() => { const cur = (devMap_()[me.name] || []); if (!cur.some(d => d.id === dev) && devAllowed_(me, cur, kind)) devSave_(me.name, cur.concat([{ id: dev, kind, at: nowText_() }])); });
+    withLock_(() => { const cur = (devMap_()[me.name] || []); if (!cur.some(d => d.id === dev) && devAllowed_(me, cur, kind)) devSave_(me.name, cur.concat([{ id: dev, kind, fp, at: nowText_() }])); });
     return;
   }
   // جهاز جديد: يتحقق المعلم بكود يصله على إيميله (requestDeviceCode ثم verifyDeviceCode)
@@ -1662,8 +1672,21 @@ function listDevices(code) {
   const map = devMap_(), pl = pledgeMap_(), ph = {}, codes = {};
   if (sh_(SHEET_PHONES)) rows_(SHEET_PHONES).slice(1).forEach(r => { if (r[0]) ph[r[0]] = { phone: String(r[1] || "").replace(/\D/g, ""), sent: r[2] }; });
   rows_(SHEET_CODES).slice(1).forEach(r => { if (r[0]) codes[String(r[0]).trim()] = String(r[1]).trim(); });
-  return TEACHERS.map(t => ({ teacher: t[0], isHead: !!t[2], devices: (map[t[0]] || []).length, kinds: (map[t[0]] || []).map(d => d.kind || ""), boundAt: ((map[t[0]] || [])[0] || {}).at || "", pledgeAt: (pl[t[0]] || {}).at || "",
+  const free = devFree_();
+  return TEACHERS.map(t => ({ teacher: t[0], isHead: !!t[2], free: free.indexOf(t[0]) !== -1, max: t[2] ? DEV_MAX_HEAD_ : 3, devices: (map[t[0]] || []).length, kinds: (map[t[0]] || []).map(d => d.kind || ""), boundAt: ((map[t[0]] || [])[0] || {}).at || "", pledgeAt: (pl[t[0]] || {}).at || "",
     phone: t[2] ? "" : ((ph[t[0]] || {}).phone || ""), code: t[2] ? "" : (codes[t[0]] || ""), sentAt: (ph[t[0]] || {}).sent || "" }));
+}
+/** رئيس الشعبة: إعفاء معلم من قفل الجهاز أو إعادته */
+function setDeviceFree(code, teacher, on) {
+  head_(code);
+  const t = TEACHERS.find(x => x[0] === teacher);
+  if (!t || t[2]) throw new Error("المعلم غير موجود.");
+  return withLock_(() => {
+    const props = PropertiesService.getScriptProperties(), list = devFree_().filter(n => n !== teacher);
+    if (on) list.push(teacher);
+    props.setProperty("DEVFREE", JSON.stringify(list));
+    return { free: !!on };
+  });
 }
 function resetDevice(code, teacher) {
   head_(code);
@@ -1703,7 +1726,7 @@ function listPledges(code) {
 // ---------- نقل الحساب إلى جهاز جديد بكود على الإيميل ----------
 function devStore_() { const c = devCache_(); return { get: k => c ? c.get(k) : PropertiesService.getScriptProperties().getProperty(k), put: (k, v, s) => c ? c.put(k, v, s) : PropertiesService.getScriptProperties().setProperty(k, v), del: k => c ? c.remove(k) : PropertiesService.getScriptProperties().setProperty(k, "") }; }
 function devParts_(code) { const p = String(code || "").trim().toUpperCase().split("~"); const me = whoCode_(p[0]); const dev = p[1] || "", kind = p[2] === "C" ? "C" : "M";
-  if (!/^[A-Z0-9]{16,40}$/.test(dev)) throw new Error("حدّث الصفحة ثم ادخل مرة أخرى."); return { me, dev, kind }; }
+  if (!/^[A-Z0-9]{16,40}$/.test(dev)) throw new Error("حدّث الصفحة ثم ادخل مرة أخرى."); return { me, dev, kind, fp: devFp_(p[3]) }; }
 function requestDeviceCode(code) {
   const { me, dev, kind } = devParts_(code);
   if (me.isDemo) throw new Error("الحساب التجريبي لا يحتاج تحققًا.");
@@ -1722,7 +1745,7 @@ function requestDeviceCode(code) {
   return { sentTo: to.replace(/^(.{2}).*(@.*)$/, "$1•••$2") };
 }
 function verifyDeviceCode(code, pin) {
-  const { me, dev, kind } = devParts_(code);
+  const { me, dev, kind, fp } = devParts_(code);
   const st = devStore_(), key = "devcode:" + me.name, o = json_(st.get(key), null);
   if (!o || o.dev !== dev || Date.now() > o.exp) throw new Error("انتهت صلاحية الكود، اطلب كودًا جديدًا.");
   if (String(pin || "").replace(/\D/g, "") !== o.pin) {
@@ -1732,8 +1755,9 @@ function verifyDeviceCode(code, pin) {
   st.del(key);
   withLock_(() => { const cur = (devMap_()[me.name] || []).filter(d => d.id !== dev);
     // يحلّ الجهاز الجديد محل الجهاز القديم من النوع نفسه فقط (الجوال بدل الجوال، والكمبيوتر بدل الكمبيوتر)
-    let keep = me.isHead ? cur.slice(-(DEV_MAX_HEAD_ - 1)) : cur.filter(d => d.kind && d.kind !== kind).slice(-1);
-    devSave_(me.name, keep.concat([{ id: dev, kind, at: nowText_() }])); });
+    // المعلم: يبقى كمبيوتره وآخر جوال له، ويُضاف الجهاز الجديد
+    let keep = me.isHead ? cur.slice(-(DEV_MAX_HEAD_ - 1)) : cur.filter(d => d.kind && d.kind !== kind).slice(-1).concat(kind === "M" ? cur.filter(d => d.kind === "M").slice(-1) : []);
+    devSave_(me.name, keep.concat([{ id: dev, kind, fp, at: nowText_() }])); });
   return true;
 }
 
