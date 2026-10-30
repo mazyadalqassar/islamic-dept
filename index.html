@@ -1600,7 +1600,7 @@ $("export-btn").onclick = async () => {
 let ACH = null, ACH_ALL = null, achSub = "mine", PHOTOS = [];
 const photoCache = {};
 
-$("ach-type").innerHTML = ACH_TYPES.map(t => `<option>${t}</option>`).join("");
+$("ach-type").innerHTML = '<option value="" selected>— اختر نوع الإنجاز —</option>' + ACH_TYPES.map(t => `<option>${t}</option>`).join("");
 // رئيس الشعبة: قائمة «الإنجاز عن» (نفسه مؤشَّر عليه مبدئيًا)
 function achForInit(reset) {
   if (!ME || !ME.isHead) { $("ach-for-wrap").hidden = true; return; }
@@ -1652,13 +1652,14 @@ renderPreviews();
 $("ach-form").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("ach-msg"), btn = $("ach-submit");
+  if (!$("ach-type").value) { msg.textContent = "اختر نوع الإنجاز."; $("ach-type").focus(); return; }
   if (!PHOTOS.length) { msg.textContent = "أضف صورة واحدة على الأقل للنشاط."; return; }
   btn.disabled = true; msg.textContent = "جارٍ حفظ التقرير ورفع الصور…";
   try {
     const forT = ME.isHead ? [...$("ach-for").querySelectorAll("input:checked")].map(x => x.value) : [];
     if (ME.isHead && !forT.length) { msg.textContent = "اختر المعلم (أو نفسك) في «الإنجاز عن»."; btn.disabled = false; return; }
     const r = await run("submitAchievement", CODE, { type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS, teachers: forT });
-    PHOTOS = []; renderPreviews(); $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
+    PHOTOS = []; renderPreviews(); $("ach-type").value = ""; $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
     ACH = null; ACH_ALL = null; await loadMyAch();
     msg.innerHTML = `حُفظ التقرير. <button class="btn sm" type="button" id="ach-new-pdf">تنزيل التقرير PDF</button>`;
     let a = (ACH || []).find(x => x.id === r.id);
