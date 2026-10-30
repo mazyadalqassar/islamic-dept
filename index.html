@@ -3767,20 +3767,22 @@ function dashData() {
 // مستجدات اليوم: استئذانات يومها اليوم، وتبديلات تخص اليوم أو قُدّمت اليوم
 function renderToday() {
   const box = $("today-box"); if (!box) return;
-  const T = todayISO(), item = (sec, html, small, act) => `<div class="ditem t-${sec}" data-act="${esc(act)}"><span class="dic">${ICONS[sec]}</span><span class="dtx">${html}${small ? `<small>${small}</small>` : ""}</span></div>`;
+  // الجمعة والسبت: مستجدات أقرب يوم دوام (الأحد)
+  const D0 = todayISO(), T = nextWorkISO(D0), isToday = T === D0, tw = isToday ? "اليوم" : dayName(T);
+  const item = (sec, html, small, act) => `<div class="ditem t-${sec}" data-act="${esc(act)}"><span class="dic">${ICONS[sec]}</span><span class="dtx">${html}${small ? `<small>${small}</small>` : ""}</span></div>`;
   const lvs = (LEAVES || []).filter(l => !l.demo && l.date === T && l.status !== LV_ST.no)
     .sort((a, b) => LV_TYPES.indexOf(a.type) - LV_TYPES.indexOf(b.type) || String(a.createdAt).localeCompare(String(b.createdAt)));
-  const sws = (SWAPS || []).filter(x => !x.demo && (x.date === T || x.otherDate === T || String(x.at).slice(0, 10) === T))
+  const sws = (SWAPS || []).filter(x => !x.demo && (x.date === T || x.otherDate === T || String(x.at).slice(0, 10) === D0))
     .sort((a, b) => String(a.at).localeCompare(String(b.at)));
   const lvTime = l => l.type === LV_TYPES[0] ? (l.to ? `الحضور تقريبًا ${hm12(l.to)}` : "") : l.type === LV_TYPES[2] ? (l.from ? `الانصراف تقريبًا ${hm12(l.from)}` : "") : l.from ? `من ${hm12(l.from)} إلى ${hm12(l.to)}` : "";
-  const slot = (d, p, c) => `الحصة ${ar(p)}${c ? " · " + esc(cls_(c)) : ""} · ${dayName(d)} ${fmtDate(d)}${d === T ? " (اليوم)" : ""}`;
-  box.innerHTML = `<h3>مستجدات اليوم · ${dayName(T)} ${fmtDate(T)}</h3>
+  const slot = (d, p, c) => `الحصة ${ar(p)}${c ? " · " + esc(cls_(c)) : ""} · ${dayName(d)} ${fmtDate(d)}${d === T && isToday ? " (اليوم)" : ""}`;
+  box.innerHTML = `<h3>${isToday ? "مستجدات اليوم" : "مستجدات يوم " + dayName(T) + " (أقرب يوم دوام)"} · ${dayName(T)} ${fmtDate(T)}</h3>
     <h4>الاستئذانات (${ar(lvs.length)})</h4>
     ${lvs.length ? `<div class="dlist">${lvs.map(l => item("lv", `أ. ${esc(l.teacher)} · ${esc(l.type)}`,
-      [lvTime(l), "قُدّم " + relTime(parseStamp(l.createdAt)), l.status !== LV_ST.ok ? `<span style="color:var(--late)">${esc(l.status)}</span>` : ""].filter(Boolean).join(" · "), "lv")).join("")}</div>` : '<div class="none">لا توجد استئذانات اليوم.</div>'}
+      [lvTime(l), "قُدّم " + relTime(parseStamp(l.createdAt)), l.status !== LV_ST.ok ? `<span style="color:var(--late)">${esc(l.status)}</span>` : ""].filter(Boolean).join(" · "), "lv")).join("")}</div>` : '<div class="none">لا توجد استئذانات ${isToday ? "اليوم" : "ليوم " + dayName(T)}.</div>'}
     <h4>تبديل الحصص (${ar(sws.length)})</h4>
     ${sws.length ? `<div class="dlist">${sws.map(x => item("swap", `أ. ${esc(x.teacher)} بدّل حصته مع أ. ${esc(x.other)}`,
-      `حصته: ${slot(x.date, x.period, x.classes)}<br>مقابل حصة أ. ${esc(x.other.split(" ")[0])}: ${slot(x.otherDate, x.otherPeriod, "")}<br>سُجّل ${relTime(parseStamp(x.at))}`, "swaplog")).join("")}</div>` : '<div class="none">لا توجد تبديلات تخص اليوم.</div>'}`;
+      `حصته: ${slot(x.date, x.period, x.classes)}<br>مقابل حصة أ. ${esc(x.other.split(" ")[0])}: ${slot(x.otherDate, x.otherPeriod, "")}<br>سُجّل ${relTime(parseStamp(x.at))}`, "swaplog")).join("")}</div>` : '<div class="none">لا توجد تبديلات تخص ${isToday ? "اليوم" : "يوم " + dayName(T)}.</div>'}`;
   box.querySelectorAll("[data-act]").forEach(el => { el.style.cursor = "pointer"; el.onclick = () => dashAct(el.dataset.act); });
 }
 function renderDash() {
