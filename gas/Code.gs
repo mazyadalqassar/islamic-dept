@@ -71,7 +71,7 @@ function doGet() {
 // ======================= واجهة الموقع الخارجي (GitHub Pages) =======================
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
-  getPhoto, listMinutes, getMinute, minuteFile, saveMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
+  getPhoto, listMinutes, getMinute, minuteFile, saveMinute, remindMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, notifyAssigned, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
   setMyEmail, listLeaves, saveLeave, decideLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf, leavesRecent, leavesPickPdf,
@@ -298,8 +298,10 @@ function headData(code) { head_(code); return readEntries_(); }
 // 0 المعرف | 1 المعلم | 2 التاريخ | 3 النوع | 4 العنوان | 5 الفئة المستهدفة | 6 وصف المعلم
 // 7 الصور (معرفات Drive مفصولة بفاصلة) | 8 الحالة | 9 التقرير | 10 تاريخ الرفع | 11 تاريخ الصياغة
 
+const achNames_ = v => String(v || "").split("|").filter(Boolean);
 function achObj_(r, withReport) {
-  const o = { id: r[0], teacher: r[1], date: r[2], type: r[3], title: r[4], target: r[5], desc: r[6],
+  const names = achNames_(r[1]);
+  const o = { id: r[0], teacher: names.join("، أ. "), teachers: names, date: r[2], type: r[3], title: r[4], target: r[5], desc: r[6],
     photos: r[7] ? r[7].split(",").filter(Boolean) : [], status: r[8] || ST_PENDING, createdAt: r[10], reportedAt: r[11] };
   if (withReport) o.report = r[9];
   return o;
@@ -311,6 +313,13 @@ function submitAchievement(code, a) {
   const desc = String(a.desc || "").trim().slice(0, 3000);
   if (!title) throw new Error("اكتب عنوان النشاط.");
   if (desc.length < 10) throw new Error("اكتب وصفًا للنشاط ولو بسطرين.");
+  // رئيس الشعبة يضيف الإنجاز عن معلم أو أكثر (يظهر عند كل واحد منهم)
+  let owners = [me.name];
+  if (me.isHead && Array.isArray(a.teachers) && a.teachers.length) {
+    const names = TEACHERS.map(t => t[0]);
+    owners = a.teachers.map(String).filter((n, i, arr) => names.indexOf(n) !== -1 && arr.indexOf(n) === i).slice(0, 20);
+    if (!owners.length) throw new Error("اختر المعلم.");
+  }
   const photos = (a.photos || []).slice(0, 4);
   const folder = folder_();
   const id = newId_();
@@ -320,9 +329,10 @@ function submitAchievement(code, a) {
     blobs.push(blob);
     return folder.createFile(blob).getId();
   });
-  const row = [id, me.name, String(a.date || "").slice(0, 10), String(a.type || "").slice(0, 60), title,
+  const row = [id, owners.join("|"), String(a.date || "").slice(0, 10), String(a.type || "").slice(0, 60), title,
     String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, "", nowText_(), ""];
   withLock_(() => appendText_(sh_(SHEET_ACH), row));
+  if (me.isHead) return { id };
   notify_(me, `إنجاز جديد: ${title} — أ. ${me.name}`, `
     <p>رفع <b>أ. ${esc_(me.name)}</b> إنجازًا جديدًا في موقع الشعبة، ويستطيع تنزيل تقريره بصياغته مباشرة. ويمكنك تعديل الصياغة من ركن الإنجازات متى شئت.</p>
     <table cellpadding="6" style="border-collapse:collapse;border:1px solid #e6e1db">
@@ -339,7 +349,7 @@ function submitAchievement(code, a) {
 /** إنجازات المعلم نفسه — بدون نص التقرير */
 function myAchievements(code) {
   const me = who_(code);
-  return rows_(SHEET_ACH).slice(1).filter(r => r[0] && r[1] === me.name).map(r => achObj_(r, true)).reverse();
+  return rows_(SHEET_ACH).slice(1).filter(r => r[0] && achNames_(r[1]).indexOf(me.name) !== -1).map(r => achObj_(r, true)).reverse();
 }
 
 function deleteAchievement(code, id) {
@@ -348,7 +358,7 @@ function deleteAchievement(code, id) {
     const sh = sh_(SHEET_ACH), row = findRow_(sh, 1, id);
     if (row < 0) throw new Error("الإنجاز غير موجود.");
     const r = sh.getRange(row, 1, 1, 12).getDisplayValues()[0];
-    if (!me.isHead && (r[1] !== me.name || r[8] === ST_READY)) throw new Error("لا يمكن حذف هذا الإنجاز.");
+    if (!me.isHead && (achNames_(r[1]).indexOf(me.name) === -1 || r[8] === ST_READY)) throw new Error("لا يمكن حذف هذا الإنجاز.");
     (r[7] || "").split(",").filter(Boolean).forEach(fid => { try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {} });
     sh.deleteRow(row);
     return true;
@@ -392,10 +402,14 @@ function minObj_(r) {
   try { att = JSON.parse(r[5] || "[]"); } catch (e) {}
   const required = r[0] === DEMO_MINUTE ? Object.keys(DEMOS) : TEACHERS.filter(t => !t[2]).map(t => t[0]);
   return { id: r[0], title: r[1], date: r[2], time: r[3], place: r[4], attendees: att, required, agenda: r[6], discussion: r[7], decisions: r[8], createdAt: r[9],
-    fileId: r[10] || "", fileName: r[11] || "", mime: r[12] || "", hasFile: !!r[10] };
+    fileId: r[10] || "", fileName: r[11] || "", mime: r[12] || "", hasFile: !!r[10], kind: MIN_KINDS_.indexOf(r[13]) !== -1 ? r[13] : MIN_KINDS_[0] };
 }
 const MIN_FILE_HEAD_ = ["ملف المحضر", "اسم الملف", "نوع الملف"];
-function minFileHeaders_(sh) { if (!sh.getRange(1, 11).getDisplayValue()) sh.getRange(1, 11, 1, 3).setValues([MIN_FILE_HEAD_]); }
+const MIN_KINDS_ = ["اجتماع القسم", "اجتماع الإدارة"];
+function minFileHeaders_(sh) {
+  if (!sh.getRange(1, 11).getDisplayValue()) sh.getRange(1, 11, 1, 3).setValues([MIN_FILE_HEAD_]);
+  if (!sh.getRange(1, 14).getDisplayValue()) sh.getRange(1, 14).setValue("نوع الاجتماع");
+}
 function sigRows_() { return rows_(SHEET_SIG).slice(1).filter(r => r[0]); }
 
 function listMinutes(code) {
@@ -404,7 +418,7 @@ function listMinutes(code) {
   return rows_(SHEET_MIN).slice(1).filter(r => r[0] && (me.isDemo ? r[0] === DEMO_MINUTE : r[0] !== DEMO_MINUTE)).map(r => {
     const m = minObj_(r);
     const mine = sigs.find(s => s[0] === m.id && s[1] === me.name);
-    return { id: m.id, title: m.title, date: m.date, attendees: m.attendees, required: m.required, hasFile: m.hasFile,
+    return { id: m.id, title: m.title, date: m.date, attendees: m.attendees, required: m.required, hasFile: m.hasFile, kind: m.kind,
       signedCount: sigs.filter(s => s[0] === m.id && m.required.indexOf(s[1]) !== -1).length, mySignedAt: mine ? mine[2] : "" };
   }).reverse();
 }
@@ -450,7 +464,7 @@ function saveMinute(code, m) {
     minFileHeaders_(sh);
     const id = m.id || newId_();
     const row = m.id ? findRow_(sh, 1, m.id) : -1;
-    const old = row > 0 ? sh.getRange(row, 1, 1, 13).getDisplayValues()[0] : [];
+    const old = row > 0 ? sh.getRange(row, 1, 1, 14).getDisplayValues()[0] : [];
     const created = row > 0 ? old[9] : nowText_();
     let fileId = old[10] || "", fileName = old[11] || "", mime = old[12] || "";
     if (fm || m.removeFile) {
@@ -464,7 +478,7 @@ function saveMinute(code, m) {
     }
     const values = [id, title, String(m.date || "").slice(0, 10), String(m.time || "").slice(0, 20), String(m.place || "").slice(0, 100),
       JSON.stringify(att), String(m.agenda || "").slice(0, 5000), String(m.discussion || "").slice(0, 15000), String(m.decisions || "").slice(0, 8000), created,
-      fileId, fileName, mime];
+      fileId, fileName, mime, MIN_KINDS_.indexOf(m.kind) !== -1 ? m.kind : MIN_KINDS_[0]];
     if (row > 0) writeRow_(sh, row, values); else appendText_(sh, values);
     return { id, isNew: row < 0 };
   });
@@ -479,6 +493,22 @@ function saveMinute(code, m) {
   return { id: saved.id };
 }
 
+/** رئيس الشعبة: تنبيه معلم لم يوقّع على المحضر */
+function remindMinute(code, id, teacher) {
+  const me = head_(code);
+  const r = rows_(SHEET_MIN).slice(1).find(x => x[0] === id);
+  if (!r) throw new Error("المحضر غير موجود.");
+  const m = minObj_(r);
+  if (m.required.indexOf(teacher) === -1) throw new Error("هذا المعلم ليس ضمن المطلوب توقيعهم.");
+  if (sigRows_().some(s => s[0] === id && s[1] === teacher)) throw new Error("وقّع هذا المعلم من قبل.");
+  const attendee = m.attendees.indexOf(teacher) !== -1;
+  const ok = notifyTeacher_(teacher, `تذكير: محضر بانتظار توقيعك — ${m.title}`, `
+    <p>الأستاذ الفاضل/ ${esc_(teacher)} المحترم،</p>
+    <p>نذكّركم باستكمال ${attendee ? "التوقيع على" : "التوقيع بالعلم على"} محضر <b>${esc_(m.title)}</b>${m.date ? " بتاريخ " + esc_(dmy_(m.date)) : ""}، في موقع الشعبة (ركن «محاضر الاجتماعات»).</p>
+    <p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`);
+  if (!ok) throw new Error(`لم يسجّل أ. ${teacher} إيميله في الموقع، فلم يصله التنبيه.`);
+  return { sent: 1 };
+}
 function deleteMinute(code, id) {
   head_(code);
   return withLock_(() => {
@@ -1280,8 +1310,9 @@ function leavesRecent(code) {
   do { d.setDate(d.getDate() - 1); } while (d.getDay() === 5 || d.getDay() === 6);
   const from = Utilities.formatDate(d, "Asia/Kuwait", "yyyy-MM-dd");
   const sh = sh_(SHEET_LEAVE); if (!sh) return { today, from, list: [] };
+  const printed = {}; if (sh.getLastColumn() >= 17 && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 17).getDisplayValues().forEach(r => { if (r[0] && r[16]) printed[r[0]] = r[16]; });
   const list = rows_(SHEET_LEAVE).slice(1).filter(r => r[0] && !isDemo_(r[1]) && String(r[10]).slice(0, 10) >= from).map(leaveObj_).filter(o => o.status !== LV_ST_.no)
-    .map(o => ({ id: o.id, teacher: o.teacher, type: o.type, date: o.date, from: o.from, to: o.to, status: o.status, createdAt: o.createdAt }))
+    .map(o => ({ id: o.id, teacher: o.teacher, type: o.type, date: o.date, from: o.from, to: o.to, status: o.status, createdAt: o.createdAt, printedAt: printed[o.id] || "" }))
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
   return { today, from, list };
 }
@@ -1294,6 +1325,12 @@ function leavesPickPdf(code, ids) {
   const list = rows_(SHEET_LEAVE).slice(1).filter(r => ids.indexOf(String(r[0])) !== -1).map(leaveObj_)
     .sort((a, b) => a.date.localeCompare(b.date) || LV_TYPES_.indexOf(a.type) - LV_TYPES_.indexOf(b.type) || String(a.createdAt).localeCompare(String(b.createdAt)));
   const b = leavesPdfBlob_(date, list);
+  // يُسجَّل وقت تحميل الكشف عند كل استئذان، ليظهر لرئيس الشعبة «سبق تحميله في كشف»
+  withLock_(() => {
+    const sh = sh_(SHEET_LEAVE); if (!sh.getRange(1, 17).getDisplayValue()) sh.getRange(1, 17).setValue("حُمّل في كشف");
+    const at = nowText_(), vals = sh.getRange(1, 1, sh.getLastRow(), 1).getDisplayValues();
+    vals.forEach((v, i) => { if (i > 0 && ids.indexOf(v[0]) !== -1) sh.getRange(i + 1, 17).setNumberFormat("@").setValue(at); });
+  });
   return { name: b.getName(), count: list.length, b64: Utilities.base64Encode(b.getBytes()) };
 }
 /** لرئيس الشعبة من الموقع: كشف يوم معيّن PDF (base64) */
@@ -1571,9 +1608,10 @@ function signCircular(code, id, image) {
 }
 
 /** رئيس الشعبة: تذكير من لم يوقّع */
-function remindCircular(code, id) {
+function remindCircular(code, id, teacher) {
   const me = head_(code), c = circFind_(me, id), sigs = circSigs_().filter(s => s[0] === id).map(s => s[1]);
-  const left = c.targets.filter(n => sigs.indexOf(n) === -1);
+  const left = c.targets.filter(n => sigs.indexOf(n) === -1 && (!teacher || n === teacher));
+  if (teacher && !left.length) throw new Error("وقّع هذا المعلم من قبل.");
   let sent = 0;
   left.forEach(n => { if (notifyTeacher_(n, `تذكير: تعميم بانتظار توقيعك — ${c.title}`, `
     <p>الأستاذ الفاضل/ ${esc_(n)} المحترم،</p><p>نذكّركم بالاطلاع على تعميم <b>${esc_(c.title)}</b> والتوقيع بالعلم في موقع الشعبة (ركن «النشرات والتعاميم»).</p>
@@ -1585,7 +1623,7 @@ function remindCircular(code, id) {
 // ======================= ربط الحساب بجهاز واحد =======================
 // كل معلم يُربط حسابه بأول جهاز يدخل منه، ويُرفض أي جهاز آخر (ويصل رئيس الشعبة تنبيه).
 // رئيس الشعبة: حتى ٣ أجهزة. إعادة التعيين من لوحة «الأجهزة والتعهدات».
-const DEV_MAX_HEAD_ = 3;
+const DEV_MAX_HEAD_ = 5;
 function devCache_() { try { return CacheService.getScriptCache(); } catch (e) { return null; } }
 function devMap_() {
   const c = devCache_(), hit = c && c.get("devmap");

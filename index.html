@@ -662,6 +662,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
         <form id="ach-form" class="card">
           <h2>إضافة إنجاز</h2>
           <div class="sub">اختر نوع النشاط، وارفع صوره واكتب وصفه، ثم احفظ التقرير ونزّله PDF مباشرة.</div>
+          <div id="ach-for-wrap" hidden><label class="f">الإنجاز عن <span class="sub">(اختر معلمًا أو أكثر، ويظهر الإنجاز عند كل واحد منهم)</span></label><div class="attlist" id="ach-for"></div></div>
           <div class="grid2">
             <div><label class="f" for="ach-type">نوع النشاط</label><select id="ach-type"></select></div>
             <div><label class="f" for="ach-date">تاريخ النشاط</label><input type="date" id="ach-date" required></div>
@@ -702,6 +703,8 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
       <form class="card" id="min-form" hidden>
         <h2 id="mf-heading">محضر جديد</h2>
         <input type="hidden" id="mf-id">
+        <label class="f" for="mf-kind">نوع الاجتماع</label>
+        <select id="mf-kind"><option>اجتماع القسم</option><option>اجتماع الإدارة</option></select>
         <label class="f" for="mf-title">عنوان الاجتماع</label>
         <input type="text" id="mf-title" maxlength="150" placeholder="مثال: الاجتماع الدوري الثالث لشعبة التربية الإسلامية" required>
         <div class="grid3">
@@ -1031,6 +1034,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <button id="sr-week" role="tab" aria-selected="true" type="button">هذا الأسبوع</button>
           <button id="sr-all" role="tab" aria-selected="false" type="button">الفصل كله</button>
         </nav>
+        <div class="row-actions" style="margin-top:10px"><button class="btn" type="button" id="subs-pdf">تنزيل تقرير الغياب والاحتياط PDF</button><span class="saved" id="subs-pdf-msg"></span></div>
         <div class="summary three" id="subs-sum"></div>
         <h3 class="list-title">الغياب لكل معلم</h3>
         <div class="tablebox"><table class="subs-table"><thead><tr><th>المعلم</th><th>أيام الغياب</th><th>حصص الغياب</th><th>غُطّيت</th><th>بلا بديل</th></tr></thead><tbody id="subs-abs"></tbody></table></div>
@@ -1337,7 +1341,7 @@ const WEEK = currentWeek(NOW);
 const HEAD_NAME = "مزيد حمد خليفة القصار";
 const PRINCIPAL = "فيصل عبدالله المحمد";
 const HEAD_SIGN = "مزيد حمد القصار"; // اسم رئيس الشعبة كما يظهر في النماذج
-const ACH_TYPES = ["إذاعة مدرسية", "مسابقة", "ورشة عمل", "تنمية مهنية", "محاضرة أو ندوة", "تكريم", "درس نموذجي", "نشاط صفي", "معرض", "مبادرة", "زيارة أو رحلة", "أخرى"];
+const ACH_TYPES = ["حلقة نقاشية", "نشاط مدرسي", "نشاط داخل المسجد", "إذاعة مدرسية", "مسابقة", "ورشة عمل", "تنمية مهنية", "محاضرة أو ندوة", "تكريم", "درس نموذجي", "نشاط صفي", "معرض", "مبادرة", "زيارة أو رحلة", "أخرى"];
 const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 let CODE = "", ME = null, MINE = {}, ALL = {};
 
@@ -1597,6 +1601,14 @@ let ACH = null, ACH_ALL = null, achSub = "mine", PHOTOS = [];
 const photoCache = {};
 
 $("ach-type").innerHTML = ACH_TYPES.map(t => `<option>${t}</option>`).join("");
+// رئيس الشعبة: قائمة «الإنجاز عن» (نفسه مؤشَّر عليه مبدئيًا)
+function achForInit(reset) {
+  if (!ME || !ME.isHead) { $("ach-for-wrap").hidden = true; return; }
+  $("ach-for-wrap").hidden = false;
+  if ($("ach-for").children.length && !reset) return;
+  $("ach-for").innerHTML = [ME.name, ...TEACHERS.map(t => t[0]).filter(n => n !== ME.name)].map((n, i) =>
+    `<label class="check"><input type="checkbox" value="${esc(n)}"${i === 0 ? " checked" : ""}> ${i === 0 ? "نفسي (رئيس الشعبة)" : esc(n)}</label>`).join("");
+}
 $("ach-date").value = todayISO();
 
 function achTab(which) {
@@ -1605,7 +1617,7 @@ function achTab(which) {
   $("achtab-all").setAttribute("aria-selected", which === "all");
   $("ach-mine").hidden = which !== "mine";
   $("ach-all").hidden = which !== "all";
-  if (which === "mine") loadMyAch(); else loadAllAch();
+  if (which === "mine") { achForInit(); loadMyAch(); } else loadAllAch();
 }
 $("achtab-mine").onclick = () => achTab("mine");
 $("achtab-all").onclick = () => achTab("all");
@@ -1643,11 +1655,15 @@ $("ach-form").addEventListener("submit", async e => {
   if (!PHOTOS.length) { msg.textContent = "أضف صورة واحدة على الأقل للنشاط."; return; }
   btn.disabled = true; msg.textContent = "جارٍ حفظ التقرير ورفع الصور…";
   try {
-    const r = await run("submitAchievement", CODE, { type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS });
+    const forT = ME.isHead ? [...$("ach-for").querySelectorAll("input:checked")].map(x => x.value) : [];
+    if (ME.isHead && !forT.length) { msg.textContent = "اختر المعلم (أو نفسك) في «الإنجاز عن»."; btn.disabled = false; return; }
+    const r = await run("submitAchievement", CODE, { type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS, teachers: forT });
     PHOTOS = []; renderPreviews(); $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
     ACH = null; ACH_ALL = null; await loadMyAch();
     msg.innerHTML = `حُفظ التقرير. <button class="btn sm" type="button" id="ach-new-pdf">تنزيل التقرير PDF</button>`;
-    const a = (ACH || []).find(x => x.id === r.id);
+    let a = (ACH || []).find(x => x.id === r.id);
+    if (!a && ME.isHead) { try { ACH_ALL = await run("allAchievements", CODE); a = ACH_ALL.find(x => x.id === r.id); } catch (e) {} }
+    if (ME.isHead) achForInit(true);
     if (a) $("ach-new-pdf").onclick = () => achDownload(a, msg); else $("ach-new-pdf").remove();
   } catch (x) { msg.textContent = cleanErr(x); }
   finally { btn.disabled = false; }
@@ -1675,7 +1691,8 @@ const ACH_KIND = { "مبادرة": ["مبادرة", "المبادرة"], "ورش
 const achKind = t => ACH_KIND[t] || ["إنجاز", "الإنجاز"];
 function achAutoReport(a) {
   const k = achKind(a.type)[1];
-  return `## نبذة عن ${k}\nنفّذ الأستاذ ${tName(a.teacher)} ${a.type || "نشاطًا"} بعنوان «${a.title}» بتاريخ ${fmtDate(a.date, true)}${a.target ? `، واستهدف ${a.target}` : ""}.\n## وصف ${k}\n${a.desc || ""}`;
+  const many = (a.teachers || []).length > 1;
+  return `## نبذة عن ${k}\nنفّذ ${many ? "الأساتذة" : "الأستاذ"} ${many ? a.teachers.map(tName).join("، ") : tName(a.teacher)} ${a.type || "نشاطًا"} بعنوان «${a.title}» بتاريخ ${fmtDate(a.date, true)}${a.target ? `، واستهدف ${a.target}` : ""}.\n## وصف ${k}\n${a.desc || ""}`;
 }
 const achText = a => String(a.report || "").trim() ? a.report : achAutoReport(a);
 async function achDownload(a, m) {
@@ -1762,7 +1779,7 @@ async function loadMinutes(force) {
     const pill = ME.isHead ? `<span class="pill ${m.signedCount >= total ? "ok" : "none"}">وقّع ${ar(m.signedCount)} من ${ar(total)}</span>`
       : !req ? "" : m.mySignedAt ? `<span class="pill ok">وقّعت</span>` : `<span class="pill late">${attendee ? "بانتظار توقيعك" : "لم تحضر · وقّع بالعلم"}</span>`;
     const need = !ME.isHead && req && !m.mySignedAt;
-    return `<button class="li li-btn ${need ? "need" : ME.isHead ? "" : "done"}" data-open="${m.id}"><div class="li-main"><b>${need ? '<span class="rdot" aria-label="لم توقّع"></span>' : ""}${esc(m.title)}</b><span class="sub">${fmtDate(m.date, true)}${m.hasFile ? " · 📎 ملف مرفق" : ""}</span></div>${pill}</button>`;
+    return `<button class="li li-btn ${need ? "need" : ME.isHead ? "" : "done"}" data-open="${m.id}"><div class="li-main"><b>${need ? '<span class="rdot" aria-label="لم توقّع"></span>' : ""}${esc(m.title)}</b><span class="sub"><span class="pill ${m.kind === "اجتماع الإدارة" ? "ahead" : "none"}" style="font-size:11.5px">${esc(m.kind || "اجتماع القسم")}</span> ${fmtDate(m.date, true)}${m.hasFile ? " · 📎 ملف مرفق" : ""}</span></div>${pill}</button>`;
   }).join("");
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openMinute(b.dataset.open));
 }
@@ -1771,7 +1788,7 @@ $("min-new").onclick = () => editMinute(null);
 
 function minuteHtml(m) {
   const ag = lines(m.agenda), dec = lines(m.decisions);
-  return `<h2>${esc(m.title)}</h2>
+  return `<span class="pill ${m.kind === "اجتماع الإدارة" ? "ahead" : "none"}">${esc(m.kind || "اجتماع القسم")}</span><h2>${esc(m.title)}</h2>
     <dl class="meta-grid"><div><dt>التاريخ</dt><dd>${fmtDate(m.date, true)}</dd></div><div><dt>الوقت</dt><dd>${esc(ar(m.time || "—"))}</dd></div><div><dt>المكان</dt><dd>${esc(m.place || "—")}</dd></div><div><dt>رئيس الاجتماع</dt><dd>أ. ${HEAD_NAME}</dd></div></dl>
     ${ag.length ? `<h3>جدول الأعمال</h3><ol>${ag.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
     ${m.discussion ? `<h3>ما دار في الاجتماع</h3><div class="min-disc">${reportBodyHtml(m.discussion)}</div>` : ""}
@@ -1800,12 +1817,15 @@ async function openMinute(id) {
   if (ME.isHead) {
     const reqList = m.required || m.attendees;
     html += `<div class="card"><h3>حالة التوقيع (${ar(reqList.filter(n => signed[n]).length)} من ${ar(reqList.length)})</h3>
-      ${reqList.map(n => `<div class="acct"><span>${esc(n)}${m.attendees.indexOf(n) === -1 ? ' <span class="pill none">لم يحضر</span>' : ""}</span>${signed[n] ? `<span class="pill ok">وقّع ${fmtStamp(signed[n].signedAt)}</span>` : `<span class="pill late">لم يوقّع</span>`}</div>`).join("")}
+      ${reqList.map(n => `<div class="acct"><span>${esc(n)}${m.attendees.indexOf(n) === -1 ? ' <span class="pill none">لم يحضر</span>' : ""}</span>${signed[n] ? `<span class="pill ok">وقّع ${fmtStamp(signed[n].signedAt)}</span>` : `<span class="row-actions" style="gap:6px"><span class="pill late">لم يوقّع</span><button class="btn ghost sm" type="button" data-remind="${esc(n)}">تنبيه المعلم</button></span>`}</div>`).join("")}
       <div class="row-actions" style="margin-top:12px"><button class="btn" id="min-word">${m.hasFile ? "تنزيل المحضر بالتواقيع PDF" : "تنزيل المحضر PDF"}</button><button class="btn ghost" id="min-edit">تعديل</button><button class="btn ghost" id="min-del">حذف</button></div>
       <div class="saved" id="min-dmsg"></div></div>`;
   }
   d.innerHTML = html;
   $("min-back").onclick = () => loadMinutes(true);
+  d.querySelectorAll("[data-remind]").forEach(b => b.onclick = async () => { const msg = $("min-dmsg"); b.disabled = true; msg.textContent = "جارٍ إرسال التنبيه…";
+    try { await run("remindMinute", CODE, m.id, b.dataset.remind); b.textContent = "أُرسل التنبيه"; msg.textContent = `وصل أ. ${b.dataset.remind} إيميل باستكمال التوقيع.`; }
+    catch (e) { msg.textContent = cleanErr(e); b.disabled = false; } });
   if (m.hasFile) {
     showMinuteFile(m.id).catch(e => { if ($("min-pages")) $("min-pages").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; });
     $("min-fopen").onclick = async () => {
@@ -1965,13 +1985,14 @@ function editMinute(m) {
   if ($("mf-rm")) $("mf-rm").onclick = () => { MF_REMOVE = true; $("mf-cur").textContent = "سيُزال الملف الحالي عند الحفظ."; };
   $("mf-msg").textContent = m ? "تعديل المحضر لا يحذف التواقيع السابقة." : "";
   $("mf-heading").textContent = m ? "تعديل المحضر" : "محضر جديد";
+  $("mf-kind").value = m && m.kind ? m.kind : "اجتماع القسم";
 }
 $("mf-cancel").onclick = () => loadMinutes();
 $("min-form").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("mf-msg"), btn = $("mf-save");
   const data = { id: $("mf-id").value, title: $("mf-title").value, date: $("mf-date").value, time: $("mf-time").value, place: $("mf-place").value,
-    agenda: $("mf-agenda").value, discussion: $("mf-discussion").value, decisions: $("mf-decisions").value,
+    agenda: $("mf-agenda").value, discussion: $("mf-discussion").value, decisions: $("mf-decisions").value, kind: $("mf-kind").value,
     attendees: [...$("mf-att").querySelectorAll("input:checked")].map(i => i.value) };
   const f = $("mf-file").files[0];
   if (f) {
@@ -2690,6 +2711,37 @@ function subsDetail(n, kind, recs) {
   });
   d.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+// تقرير الغياب والاحتياط PDF للفترة المختارة (هذا الأسبوع أو الفصل كله)، بتوقيع رئيس الشعبة والمدير فقط
+$("subs-pdf").onclick = async () => {
+  const msg = $("subs-pdf-msg"), btn = $("subs-pdf"); btn.disabled = true; msg.textContent = "جارٍ إنشاء التقرير…";
+  try {
+    if (!SUBS) await loadSubs(true);
+    const recs = SUBS.filter(r => subsRange === "all" || weekOf(r.date) === WEEK).sort((a, b) => a.date.localeCompare(b.date) || a.teacher.localeCompare(b.teacher, "ar") || a.period - b.period);
+    const covered = recs.filter(r => r.sub).length, days = new Set(recs.map(r => r.absence)).size;
+    const abs = staffNames().map(n => { const rs = recs.filter(r => r.teacher === n); return { n, days: new Set(rs.map(r => r.date)).size, total: rs.length, cov: rs.filter(r => r.sub).length }; })
+      .filter(x => x.total).sort((a, b) => b.days - a.days || b.total - a.total);
+    const cov = staffNames().map(n => ({ n, rs: recs.filter(r => r.sub === n) })).filter(x => x.rs.length).sort((a, b) => b.rs.length - a.rs.length);
+    const period = subsRange === "all" ? "الفصل الدراسي الأول كاملًا" : (WEEK >= 1 && WEEK <= WEEKS ? `الأسبوع ${WEEK_NAMES[WEEK]} (${weekRange(WEEK)})` : "الأسبوع الحالي");
+    const sn = n => esc(tName(n));
+    const html = pdfHead("الفصل الدراسي الأول") + `<h1>تقرير الغياب والاحتياط</h1><div class="sub">${period} · تاريخ التقرير: ${fmtDate(todayISO())}</div>
+      <table><tr>${["أيام الغياب", "حصص الغياب", "غُطّيت", "بلا بديل"].map(t => `<th class="c">${t}</th>`).join("")}</tr>
+      <tr>${[days, recs.length, covered, recs.length - covered].map(n => `<td class="c b">${ar(n)}</td>`).join("")}</tr></table>
+      <h2>أولًا: الغياب لكل معلم</h2>
+      ${abs.length ? `<table><colgroup><col style="width:6%"><col style="width:40%"><col style="width:14%"><col style="width:14%"><col style="width:13%"><col style="width:13%"></colgroup>
+        <thead><tr>${["م", "المعلم", "أيام الغياب", "حصص الغياب", "غُطّيت", "بلا بديل"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
+        <tbody>${abs.map((x, i) => `<tr><td class="c">${ar(i + 1)}</td><td>أ. ${sn(x.n)}</td><td class="c">${ar(x.days)}</td><td class="c">${ar(x.total)}</td><td class="c">${ar(x.cov)}</td><td class="c b"${x.total - x.cov ? ' style="color:#B4382B"' : ""}>${ar(x.total - x.cov)}</td></tr>`).join("")}</tbody></table>` : '<p class="mut">لا يوجد غياب في هذه الفترة.</p>'}
+      <h2>ثانيًا: حصص الاحتياط لكل معلم</h2>
+      ${cov.length ? `<table><colgroup><col style="width:6%"><col style="width:34%"><col style="width:14%"><col style="width:46%"></colgroup>
+        <thead><tr>${["م", "المعلم", "حصص الاحتياط", "بدلًا من"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
+        <tbody>${cov.map((x, i) => `<tr><td class="c">${ar(i + 1)}</td><td>أ. ${sn(x.n)}</td><td class="c">${ar(x.rs.length)}</td><td>${[...new Set(x.rs.map(r => "أ. " + tName(r.teacher)))].map(esc).join("، ")}</td></tr>`).join("")}</tbody></table>` : '<p class="mut">لا توجد حصص احتياط في هذه الفترة.</p>'}
+      <h2>ثالثًا: تفاصيل حصص الغياب</h2>
+      ${recs.length ? `<table style="font-size:12px"><colgroup><col style="width:5%"><col style="width:16%"><col style="width:20%"><col style="width:8%"><col style="width:11%"><col style="width:20%"><col style="width:20%"></colgroup>
+        <thead><tr>${["م", "اليوم والتاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "الدرس"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
+        <tbody>${recs.map((r, i) => `<tr><td class="c">${ar(i + 1)}</td><td class="c">${DAYS[isoDay(r.date)] || ""} ${fmtDate(r.date)}</td><td>أ. ${sn(r.teacher)}</td><td class="c">${ar(r.period)}</td><td class="c">${esc(classLabel(r.classId))}</td><td>${r.sub ? "أ. " + sn(r.sub) : '<span style="color:#B4382B">بلا بديل</span>'}</td><td>${esc(r.lesson || "—")}</td></tr>`).join("")}</tbody></table>` : '<p class="mut">لا توجد حصص غياب في هذه الفترة.</p>'}
+      ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
+    await deliver(await htmlPdf(html, { css: PDF_COMPACT }), `تقرير الغياب والاحتياط - ${subsRange === "all" ? "الفصل كله" : "الأسبوع " + (WEEK >= 1 && WEEK <= WEEKS ? WEEK : "")}.pdf`, msg);
+  } catch (e) { msg.textContent = "لم يتم إنشاء التقرير: " + cleanErr(e); } finally { btn.disabled = false; }
+};
 $("sr-week").onclick = () => { subsRange = "week"; renderSubsLog(); };
 $("sr-all").onclick = () => { subsRange = "all"; renderSubsLog(); };
 
@@ -2801,15 +2853,16 @@ function renderSwapMine() {
     swapPick = b.dataset.k; renderSwapResults();
   });
 }
-// المرشحون: يدرّسون الفصل نفسه، وليست لديهم حصة وقت حصتي، ولهم حصة مع الفصل في الأسبوع نفسه أكون فيها متفرغًا
+// المرشحون: يدرّسون الفصل نفسه، وليست لديهم حصة وقت حصتي، ولهم حصة مع الفصل في الأسبوع نفسه أو الأسبوع القادم أكون فيها متفرغًا
+// كل خيار: [مفتاح الحصة، بيانات الحصة، الأسبوع (٠ هذا الأسبوع، ١ القادم)]
 function swapCandidates(k) {
-  const me = schoolOf(swapMe()), start = weekStart($("sw-date").value), today = todayISO();
+  const me = schoolOf(swapMe()), start = weekStart($("sw-date").value), today = todayISO(), myDate = dayISO(start, +k[0]);
   const mySlot = me.slots[k], classes = mySlot[0].split(",");
   const out = [];
   for (const t of SCHOOL) {
     if (t.name === me.name || t.slots[k]) continue;
-    const opts = Object.entries(t.slots).filter(([k2, s]) => s[0] && !isElective(s) && s[0].split(",").some(c => classes.indexOf(c) !== -1)
-      && !me.slots[k2] && k2 !== k && dayISO(start, +k2[0]) >= today).sort();
+    const base = Object.entries(t.slots).filter(([k2, s]) => s[0] && !isElective(s) && s[0].split(",").some(c => classes.indexOf(c) !== -1) && !me.slots[k2]).sort();
+    const opts = [0, 1].flatMap(w => base.filter(([k2]) => !(w === 0 && k2 === k) && dayISO(start, +k2[0] + 7 * w) >= today && dayISO(start, +k2[0] + 7 * w) !== myDate).map(([k2, s]) => [k2, s, w]));
     if (opts.length) out.push({ t, opts });
   }
   return out.sort((a, b) => a.t.dept.localeCompare(b.t.dept, "ar") || a.t.name.localeCompare(b.t.name, "ar"));
@@ -2819,18 +2872,18 @@ function renderSwapResults() {
   const mySlot = me.slots[k], d = +k[0], p = +k[1];
   const list = swapCandidates(k);
   const head = `<h3 class="list-title">من يستطيع أخذ حصتك: ${DAYS[d]} ${fmtDate(dayISO(start, d))} · الحصة ${ar(p)} · ${esc(mySlot[0].split(",").map(classLabel).join("، "))}</h3>`;
-  if (!list.length) { box.innerHTML = head + '<div class="empty">لا يوجد معلم يدرّس هذا الفصل ومتاح في هذا الوقت ضمن هذا الأسبوع.</div>'; return; }
+  if (!list.length) { box.innerHTML = head + '<div class="empty">لا يوجد معلم يدرّس هذا الفصل ومتاح في هذا الوقت ضمن هذا الأسبوع أو الأسبوع القادم.</div>'; return; }
   box.innerHTML = head + `<div class="sub">${ar(list.length)} ${list.length > 10 ? "معلمًا" : list.length > 2 ? "معلمين" : list.length === 2 ? "معلمان" : "معلم"}</div>` + list.map((c, i) => `<div class="card sw-t"><h3>أ. ${esc(c.t.name)}</h3><div class="sub">${esc(deptName(c.t.dept))}</div>
-    ${c.opts.map(([k2, s]) => `<div class="sw-opt"><div class="o-main">تأخذ حصته: <b>${DAYS[+k2[0]]} ${fmtDate(dayISO(start, +k2[0]))} · الحصة ${ar(+k2[1])}</b>
+    ${c.opts.map(([k2, s, w]) => `<div class="sw-opt"><div class="o-main">تأخذ حصته: <b>${DAYS[+k2[0]]} ${fmtDate(dayISO(start, +k2[0] + 7 * w))} · الحصة ${ar(+k2[1])}</b> <span class="pill ${w ? "ahead" : "none"}" style="font-size:11.5px">${w ? "الأسبوع القادم" : "هذا الأسبوع"}</span>
       <small>${esc(s[1] || "")} · ${esc(s[0].split(",").map(classLabel).join("، "))} · ${ar(slotTime(+k2[0], +k2[1]))}</small></div>
-      <button class="btn sm" type="button" data-i="${i}" data-k2="${k2}">نموذج التبديل PDF</button></div>`).join("")}</div>`).join("");
-  box.querySelectorAll("[data-k2]").forEach(b => b.onclick = () => swapDoc(list[+b.dataset.i].t, b.dataset.k2));
+      <button class="btn sm" type="button" data-i="${i}" data-k2="${k2}" data-w="${w}">نموذج التبديل PDF</button></div>`).join("")}</div>`).join("");
+  box.querySelectorAll("[data-k2]").forEach(b => b.onclick = () => swapDoc(list[+b.dataset.i].t, b.dataset.k2, +b.dataset.w));
 }
-async function swapDoc(other, k2) {
+async function swapDoc(other, k2, w = 0) {
   const msg = $("sw-msg");
   const me = schoolOf(swapMe()), start = weekStart($("sw-date").value), k = swapPick;
   const info = { me: { name: swapMe(), dept: deptName(me.dept), subject: me.slots[k][1], d: +k[0], p: +k[1], date: dayISO(start, +k[0]), classes: me.slots[k][0] },
-    other: { name: other.name, dept: deptName(other.dept), subject: other.slots[k2][1], d: +k2[0], p: +k2[1], date: dayISO(start, +k2[0]), classes: other.slots[k2][0] } };
+    other: { name: other.name, dept: deptName(other.dept), subject: other.slots[k2][1], d: +k2[0], p: +k2[1], date: dayISO(start, +k2[0] + 7 * w), classes: other.slots[k2][0] } };
   msg.textContent = "جارٍ تسجيل الطلب وإنشاء النموذج…";
   try {
     const blob = await htmlPdf(swapPdfHtml(info), { landscape: true });
@@ -3306,10 +3359,10 @@ $("lv-daypdf").onclick = async () => {
   const t12 = s => { const t = String(s).slice(11, 16); if (!t) return ""; const h = +t.slice(0, 2); return ar(`${h > 12 ? h - 12 : h || 12}:${t.slice(3, 5)}`) + (h >= 12 ? " م" : " ص"); };
   const leaveTag = d => d === T ? '<span class="lv-tag today">اليوم</span>' : d === N ? '<span class="lv-tag next">باكر</span>' : d < T ? '<span class="lv-tag">سابق</span>' : "";
   if (!r.list.length) { box.innerHTML = `<h3>كشف الاستئذانات</h3><div class="sub">لا توجد استئذانات مقدَّمة منذ ${esc(subDay(r.from) === "أمس" ? "أمس" : dayName(r.from))}.</div><div class="row-actions" style="margin-top:10px"><button class="btn ghost sm" type="button" id="lvp-close">إغلاق</button></div>`; $("lvp-close").onclick = () => box.hidden = true; return; }
-  box.innerHTML = `<h3>اختر الاستئذانات التي تدخل الكشف</h3><div class="sub">المقدَّمة ${subDay(r.from) === "أمس" ? "أمس" : "منذ " + dayName(r.from)} واليوم. المؤشَّر عليها مبدئيًا: التي يومها اليوم.</div>
-    ${r.list.map(o => `<label class="lv-prow"><input type="checkbox" value="${esc(o.id)}"${o.date === T ? " checked" : ""}>
+  box.innerHTML = `<h3>اختر الاستئذانات التي تدخل الكشف</h3><div class="sub">المقدَّمة ${subDay(r.from) === "أمس" ? "أمس" : "منذ " + dayName(r.from)} واليوم. المؤشَّر عليها مبدئيًا: التي يومها اليوم ولم تُحمَّل في كشف من قبل.</div>
+    ${r.list.map(o => `<label class="lv-prow"><input type="checkbox" value="${esc(o.id)}"${o.date === T && !o.printedAt ? " checked" : ""}>
       <span class="who"><b>أ. ${esc(o.teacher)}</b><span>${esc(o.type)} · يوم الإذن: ${dayName(o.date)} ${fmtDate(o.date)} ${leaveTag(o.date)}</span><br>
-      <span>قُدّم <b style="display:inline;color:var(--ink)">${subDay(o.createdAt)}</b> ${t12(o.createdAt)}${o.status !== LV_ST.ok ? ` · <span style="color:var(--late)">${esc(o.status)}</span>` : ""}</span></span></label>`).join("")}
+      <span>قُدّم <b style="display:inline;color:var(--ink)">${subDay(o.createdAt)}</b> ${t12(o.createdAt)}${o.status !== LV_ST.ok ? ` · <span style="color:var(--late)">${esc(o.status)}</span>` : ""}</span>${o.printedAt ? `<br><span style="color:var(--ahead);font-weight:700">(سبق تحميله في كشف ${subDay(o.printedAt)} ${t12(o.printedAt)})</span>` : ""}</span></label>`).join("")}
     <div class="row-actions" style="margin-top:12px"><button class="btn" type="button" id="lvp-go">تحميل الكشف</button><button class="btn ghost sm" type="button" id="lvp-close">إغلاق</button><span class="saved" id="lvp-msg"></span></div>`;
   $("lvp-close").onclick = () => box.hidden = true;
   $("lvp-go").onclick = async () => {
@@ -4098,7 +4151,7 @@ async function openCircular(id) {
   if (c.status) {
     const n = c.status.filter(s => s.signedAt).length;
     html += `<div class="card"><h3>حالة التوقيع بالعلم (${ar(n)} من ${ar(c.status.length)})</h3>
-      ${c.status.map(s => `<div class="acct"><span>${esc(s.teacher)}</span>${s.signedAt ? `<span class="pill ok">وقّع ${fmtStamp(s.signedAt)}</span>` : `<span class="pill late">لم يوقّع</span>`}</div>`).join("")}
+      ${c.status.map(s => `<div class="acct"><span>${esc(s.teacher)}</span>${s.signedAt ? `<span class="pill ok">وقّع ${fmtStamp(s.signedAt)}</span>` : `<span class="row-actions" style="gap:6px"><span class="pill late">لم يوقّع</span>${ME.isHead ? `<button class="btn ghost sm" type="button" data-cremind="${esc(s.teacher)}">تنبيه المعلم</button>` : ""}</span>`}</div>`).join("")}
       ${ME.isHead ? `<div class="row-actions" style="margin-top:12px"><button class="btn" id="ci-pdf">تنزيل التعميم بالتواقيع PDF</button>${n < c.status.length ? '<button class="btn ghost" id="ci-remind">تذكير من لم يوقّع</button>' : ""}<button class="btn ghost" id="ci-del">حذف التعميم</button></div>` : ""}
       <div class="saved" id="ci-dmsg"></div></div>`;
   }
@@ -4112,6 +4165,10 @@ async function openCircular(id) {
     catch (e) { m.textContent = cleanErr(e); }
   };
   if (c.mustSign && !c.mine) setupPad(async img => { await run("signCircular", CODE, c.id, img); CIRC = null; openCircular(c.id); }, "أكّد اطلاعك على التعميم أولًا.");
+  d.querySelectorAll("[data-cremind]").forEach(b => b.onclick = async () => { const msg = $("ci-dmsg"); b.disabled = true; msg.textContent = "جارٍ إرسال التنبيه…";
+    try { const r = await run("remindCircular", CODE, c.id, b.dataset.cremind); b.textContent = "أُرسل التنبيه";
+      msg.textContent = r.sent ? `وصل أ. ${b.dataset.cremind} إيميل باستكمال التوقيع.` : `لم يسجّل أ. ${b.dataset.cremind} إيميله في الموقع، فلم يصله التنبيه.`; }
+    catch (e) { msg.textContent = cleanErr(e); b.disabled = false; } });
   if ($("ci-pdf")) $("ci-pdf").onclick = async () => {
     const m = $("ci-dmsg"); m.textContent = "جارٍ إنشاء الملف…"; $("ci-pdf").disabled = true;
     try { const blob = await circularSignedPdf(c); await deliver(blob, `تعميم ${c.title}${c.date ? " - " + c.date : ""}.pdf`, m); }
@@ -4335,16 +4392,16 @@ function achPdfHtml(a, imgs) {
   if (n) ph = `<h2>صور من ${KIND[1]}</h2><div class="avoid" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">${imgs.map(s => `<img src="${s}" style="width:calc(${n === 1 ? 60 : 100 / cols}% - 8px);height:${mh}px;object-fit:contain;border-radius:6px">`).join("")}</div>`;
   return pdfHead() + `<div class="kicker">تقرير ${KIND[0]}</div><h1>${esc(titleLine)}</h1>
     <table><colgroup><col style="width:17%"><col style="width:33%"><col style="width:17%"><col style="width:33%"></colgroup>
-    <tr><td class="k">${byHead ? "رئيس الشعبة" : "المعلم"}</td><td>أ. ${esc(tName(a.teacher))}</td><td class="k">التاريخ</td><td>${fmtDate(a.date, true)}</td></tr>
+    <tr><td class="k">${byHead ? "رئيس الشعبة" : (a.teachers || []).length > 1 ? "المعلمون" : "المعلم"}</td><td>أ. ${esc((a.teachers || [a.teacher]).map(tName).join("، أ. "))}</td><td class="k">التاريخ</td><td>${fmtDate(a.date, true)}</td></tr>
     <tr><td class="k">النوع</td><td>${esc(a.type)}</td><td class="k">الفئة المستهدفة</td><td>${esc(a.target || "طلاب المدرسة")}</td></tr></table>
     <div style="margin-top:10px">${reportBodyHtml(a.report)}</div>${ph}
-    ${pdfSigns([...(byHead ? [] : [["المعلم", "أ. " + tName(a.teacher)]]), ["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
+    ${pdfSigns([...(byHead || (a.teachers || []).length > 1 ? [] : [["المعلم", "أ. " + tName(a.teacher)]]), ["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
 }
 
 // ---------- محضر الاجتماع ----------
 function minutePdfHtml(m) {
   const ag = lines(m.agenda), dec = lines(m.decisions), sigs = Object.fromEntries((m.signatures || []).map(s => [s.teacher, s]));
-  return pdfHead() + `<div class="kicker">محضر اجتماع</div><h1>${esc(m.title)}</h1>
+  return pdfHead() + `<div class="kicker">محضر ${esc(m.kind || "اجتماع القسم")}</div><h1>${esc(m.title)}</h1>
     <table><colgroup><col style="width:17%"><col style="width:33%"><col style="width:17%"><col style="width:33%"></colgroup>
     <tr><td class="k">التاريخ</td><td>${fmtDate(m.date, true)}</td><td class="k">الوقت</td><td>${esc(ar(m.time || "—"))}</td></tr>
     <tr><td class="k">المكان</td><td>${esc(m.place || "—")}</td><td class="k">رئيس الاجتماع</td><td>أ. ${esc(HEAD_SIGN)}</td></tr></table>
@@ -4396,7 +4453,7 @@ async function showMinuteFile(id) {
 }
 // صفحة التواقيع التي تُلحق بملف المحضر عند الطباعة
 function minuteSigPagePdfHtml(m) {
-  return pdfHead() + `<div class="kicker">ملحق محضر اجتماع</div><h1>توقيعات المعلمين على المحضر</h1>
+  return pdfHead() + `<div class="kicker">ملحق محضر ${esc(m.kind || "اجتماع القسم")}</div><h1>توقيعات المعلمين على المحضر</h1>
     <table><colgroup><col style="width:17%"><col style="width:83%"></colgroup>
     <tr><td class="k">عنوان الاجتماع</td><td>${esc(m.title)}</td></tr></table>
     <table style="margin-top:-1px"><colgroup><col style="width:17%"><col style="width:33%"><col style="width:17%"><col style="width:33%"></colgroup>
