@@ -242,6 +242,10 @@ nav.seg button[aria-selected="true"] { background: var(--ink); color: var(--bg);
 .ditem .dtx small { display: block; color: var(--muted); font-size: 12.5px; }
 .ditem .btn { margin-right: auto; flex: 0 0 auto; }
 .ditem time { margin-right: auto; flex: 0 0 auto; color: var(--muted); font-size: 12px; }
+.today-box { margin-bottom: 14px; }
+.today-box h3 { font-family: var(--f-display); font-size: 16px; margin: 0 0 8px; }
+.today-box h4 { font-size: 13.5px; color: var(--muted); margin: 10px 0 6px; font-weight: 700; }
+.today-box .none { font-size: 13px; color: var(--muted); padding: 2px 4px; }
 .dmore { text-align: center; font-size: 13px; color: var(--muted); padding: 4px; }
 
 .secbar { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; border-right: 7px solid var(--tc, var(--accent)); }
@@ -595,6 +599,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
       <div class="mail-line" id="mail-line" hidden>إشعاراتك تصل إلى: <b id="mail-show"></b> <button class="linkbtn" type="button" id="mail-change">تغيير</button></div>
 
       <section id="dash" class="head-only" hidden>
+        <div id="today-box" class="today-box"></div>
         <nav class="seg" role="tablist">
           <button id="dt-tasks" role="tab" aria-selected="true" type="button">مهامك اليوم</button>
           <button id="dt-feed" role="tab" aria-selected="false" type="button">آخر التحديثات</button>
@@ -3692,6 +3697,7 @@ const ICONS = {
   curr: SVG('<path d="M4 5.5C4 4.7 4.7 4 5.5 4H11v15H5.5C4.7 19 4 18.3 4 17.5zM13 4h5.5c.8 0 1.5.7 1.5 1.5v12c0 .8-.7 1.5-1.5 1.5H13zM15.5 8h2M15.5 11h2"/>'),
   ach: SVG('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/>'),
   min: SVG('<path d="M6 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 6 20zM9 12h5M9 15.5h3"/>'),
+  swap: SVG('<path d="M4 8h13l-3-3M20 16H7l3 3"/>'),
   subs: SVG('<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 11l2 2 4-4"/>'),
   vis: SVG('<rect x="4" y="4" width="16" height="17" rx="2.5"/><path d="M9 3v3h6V3M8 11.5l2 2 4-4M8 17h8"/>'),
   search: SVG('<circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/>'),
@@ -3734,10 +3740,10 @@ async function loadDash(force) {
     if (!DASH) $("dash-list").innerHTML = '<div class="empty">جارٍ تجهيز ملخص الشعبة…</div>';
     try {
       const code = CODE;
-      const [ach, min, vis, plan, subs, stu, lvs] = await Promise.all([run("allAchievements", code), run("listMinutes", code), run("listVisits", code),
-        run("visitPlan", code).catch(() => []), run("subsList", code).catch(() => []), run("listStudents", code).catch(() => []), run("listLeaves", code).catch(() => [])]);
+      const [ach, min, vis, plan, subs, stu, lvs, sws] = await Promise.all([run("allAchievements", code), run("listMinutes", code), run("listVisits", code),
+        run("visitPlan", code).catch(() => []), run("subsList", code).catch(() => []), run("listStudents", code).catch(() => []), run("listLeaves", code).catch(() => []), run("listSwaps", code).catch(() => [])]);
       if (code !== CODE) return;
-      ACH_ALL = ach; MIN = min; VIS = vis; VPLAN = plan; SUBS = subs; STU = stu; LEAVES = lvs;
+      ACH_ALL = ach; MIN = min; VIS = vis; VPLAN = plan; SUBS = subs; STU = stu; LEAVES = lvs; SWAPS = sws;
       DASH = { at: Date.now() };
     } catch (e) { if (!DASH && ME && ME.isHead) $("dash-list").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
   }
@@ -3758,7 +3764,27 @@ function dashData() {
   return { late, none, pendAch, openMin, unvisited, unsigned, visReal };
 }
 
+// مستجدات اليوم: استئذانات يومها اليوم، وتبديلات تخص اليوم أو قُدّمت اليوم
+function renderToday() {
+  const box = $("today-box"); if (!box) return;
+  const T = todayISO(), item = (sec, html, small, act) => `<div class="ditem t-${sec}" data-act="${esc(act)}"><span class="dic">${ICONS[sec]}</span><span class="dtx">${html}${small ? `<small>${small}</small>` : ""}</span></div>`;
+  const lvs = (LEAVES || []).filter(l => !l.demo && l.date === T && l.status !== LV_ST.no)
+    .sort((a, b) => LV_TYPES.indexOf(a.type) - LV_TYPES.indexOf(b.type) || String(a.createdAt).localeCompare(String(b.createdAt)));
+  const sws = (SWAPS || []).filter(x => !x.demo && (x.date === T || x.otherDate === T || String(x.at).slice(0, 10) === T))
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  const lvTime = l => l.type === LV_TYPES[0] ? (l.to ? `الحضور تقريبًا ${hm12(l.to)}` : "") : l.type === LV_TYPES[2] ? (l.from ? `الانصراف تقريبًا ${hm12(l.from)}` : "") : l.from ? `من ${hm12(l.from)} إلى ${hm12(l.to)}` : "";
+  const slot = (d, p, c) => `الحصة ${ar(p)}${c ? " · " + esc(cls_(c)) : ""} · ${dayName(d)} ${fmtDate(d)}${d === T ? " (اليوم)" : ""}`;
+  box.innerHTML = `<h3>مستجدات اليوم · ${dayName(T)} ${fmtDate(T)}</h3>
+    <h4>الاستئذانات (${ar(lvs.length)})</h4>
+    ${lvs.length ? `<div class="dlist">${lvs.map(l => item("lv", `أ. ${esc(l.teacher)} · ${esc(l.type)}`,
+      [lvTime(l), "قُدّم " + relTime(parseStamp(l.createdAt)), l.status !== LV_ST.ok ? `<span style="color:var(--late)">${esc(l.status)}</span>` : ""].filter(Boolean).join(" · "), "lv")).join("")}</div>` : '<div class="none">لا توجد استئذانات اليوم.</div>'}
+    <h4>تبديل الحصص (${ar(sws.length)})</h4>
+    ${sws.length ? `<div class="dlist">${sws.map(x => item("swap", `أ. ${esc(x.teacher)} بدّل حصته مع أ. ${esc(x.other)}`,
+      `حصته: ${slot(x.date, x.period, x.classes)}<br>مقابل حصة أ. ${esc(x.other.split(" ")[0])}: ${slot(x.otherDate, x.otherPeriod, "")}<br>سُجّل ${relTime(parseStamp(x.at))}`, "swaplog")).join("")}</div>` : '<div class="none">لا توجد تبديلات تخص اليوم.</div>'}`;
+  box.querySelectorAll("[data-act]").forEach(el => { el.style.cursor = "pointer"; el.onclick = () => dashAct(el.dataset.act); });
+}
 function renderDash() {
+  renderToday();
   const d = dashData();
   setSub("curr", d.late.length ? `متأخر عن الخطة: ${ar(d.late.length)}` : d.none.length ? `لم يُحدَّث: ${ar(d.none.length)}` : "كل الفصول مطابقة أو متقدمة", d.late.length > 0);
   setSub("ach", (ACH_ALL || []).length ? `الإنجازات: ${ar(ACH_ALL.length)}` : "لا جديد", false);
@@ -3831,6 +3857,7 @@ async function dashAct(act) {
   else if (k === "curr") { go("curr"); setTab("head"); }
   else if (k === "subs") { subsSub = "new"; go("subs"); }
   else if (k === "lv") { lvSub = "list"; go("lv"); }
+  else if (k === "swaplog") { go("swap"); swapTab("log"); }
   else if (k === "stu") { stuSub = "list"; go("stu"); await loadStu(); openStu(id); }
   else if (k === "planlist") { visSub = "plan"; go("vis"); }
   else if (k === "plan") { const [n, c] = id.split("|"); go("vis"); startVisitFor(n, c); }
