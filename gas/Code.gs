@@ -75,7 +75,7 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, notifyAssigned, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
   setMyEmail, listLeaves, saveLeave, decideLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf, leavesRecent, leavesPickPdf,
-  gradesGet, gradesSave, gradesApprove, gradesOverview,
+  gradesGet, gradesSave, gradesApprove, gradesOverview, gradesFeed,
   listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular,
   listDevices, resetDevice, setDeviceFree, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent,
   notifyAbsence, subsOpen, claimSub, unclaimSub, removeSub, headNews, markSeen };
@@ -1465,6 +1465,21 @@ function gradesApprove(code, sem, cls, subj, on) {
 }
 
 /** رئيس الشعبة: ملخص كل الكشوف لفصل دراسي: [{classId, subject, teacher, filled, total, approvedAt, editedAfter}] */
+/** رئيس الشعبة: آخر تعديلات كشوف الدرجات (آخر ١٤ يومًا)، مجمّعة لكل معلم وفصل ومادة في اليوم */
+function gradesFeed(code) {
+  head_(code);
+  const sh = sh_(SHEET_GRLOG); if (!sh || sh.getLastRow() < 2) return [];
+  const n = Math.min(3000, sh.getLastRow() - 1), rows = sh.getRange(sh.getLastRow() - n + 1, 1, n, 7).getDisplayValues();
+  const from = Utilities.formatDate(new Date(Date.now() - 14 * 864e5), "Asia/Kuwait", "yyyy-MM-dd"), g = {};
+  rows.forEach(r => {
+    if (!r[0] || String(r[0]).slice(0, 10) < from || isDemo_(r[1])) return;
+    const k = [String(r[0]).slice(0, 10), r[1], r[2], r[3], r[4]].join("|");
+    const o = g[k] = g[k] || { at: r[0], teacher: r[1], sem: r[2], cls: r[3], subject: r[4], students: [] };
+    if (r[0] > o.at) o.at = r[0];
+    if (o.students.indexOf(r[5]) === -1) o.students.push(r[5]);
+  });
+  return Object.values(g).sort((a, b) => a.at < b.at ? 1 : -1).slice(0, 60).map(o => ({ at: o.at, teacher: o.teacher, sem: o.sem, cls: o.cls, subject: o.subject, count: o.students.length, sample: o.students.slice(0, 2) }));
+}
 function gradesOverview(code, sem) {
   head_(code); sem = String(sem);
   const sh = sh_(SHEET_GRADES), rows = sh ? rows_(SHEET_GRADES).slice(1) : [];

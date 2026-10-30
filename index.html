@@ -3710,7 +3710,7 @@ const ICONS = {
 };
 const TEACHER_SUBS = { curr: "سجّل آخر ما وصلت إليه", ach: "ارفع أنشطتك وفعالياتك", min: "اطّلع على المحاضر ووقّع", vis: "زياراتك الصفية" };
 const HEAD_SUBS = { curr: "متابعة الخطة", ach: "الأنشطة والفعاليات", min: "الاطلاع والتوقيع", vis: "بطاقات الزيارة" };
-let DASH = null, dashTab = "tasks";
+let DASH = null, dashTab = "tasks", GR_FEED = [];
 
 function parseStamp(s) {
   if (!s) return null;
@@ -3740,10 +3740,10 @@ async function loadDash(force) {
     if (!DASH) $("dash-list").innerHTML = '<div class="empty">جارٍ تجهيز ملخص الشعبة…</div>';
     try {
       const code = CODE;
-      const [ach, min, vis, plan, subs, stu, lvs, sws] = await Promise.all([run("allAchievements", code), run("listMinutes", code), run("listVisits", code),
-        run("visitPlan", code).catch(() => []), run("subsList", code).catch(() => []), run("listStudents", code).catch(() => []), run("listLeaves", code).catch(() => []), run("listSwaps", code).catch(() => [])]);
+      const [ach, min, vis, plan, subs, stu, lvs, sws, grf] = await Promise.all([run("allAchievements", code), run("listMinutes", code), run("listVisits", code),
+        run("visitPlan", code).catch(() => []), run("subsList", code).catch(() => []), run("listStudents", code).catch(() => []), run("listLeaves", code).catch(() => []), run("listSwaps", code).catch(() => []), run("gradesFeed", code).catch(() => [])]);
       if (code !== CODE) return;
-      ACH_ALL = ach; MIN = min; VIS = vis; VPLAN = plan; SUBS = subs; STU = stu; LEAVES = lvs; SWAPS = sws;
+      ACH_ALL = ach; MIN = min; VIS = vis; VPLAN = plan; SUBS = subs; STU = stu; LEAVES = lvs; SWAPS = sws; GR_FEED = grf;
       DASH = { at: Date.now() };
     } catch (e) { if (!DASH && ME && ME.isHead) $("dash-list").innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
   }
@@ -3838,7 +3838,9 @@ function renderDash() {
       const p = ALL[k], [cid, s] = k.split("__");
       if (p && p.updatedAt) ev.push({ t: parseStamp(p.updatedAt), sec: "curr", html: `حدّث أ. ${esc(p.teacher)} ما قطع في ${esc(classLabel(cid))} (${esc(SUBJECTS[s] || "")})`, act: "curr" });
     });
-    const list = ev.filter(e => e.t).sort((a, b) => b.t - a.t).slice(0, 10);
+    (GR_FEED || []).forEach(g => ev.push({ t: parseStamp(g.at), sec: "grd",
+      html: `رصد أ. ${esc(g.teacher)} درجات ${esc(ar(g.cls))} (${esc(g.subject)}) لـ ${g.count === 1 ? "الطالب " + esc(g.sample[0]) : ar(g.count) + " طلاب"}${g.sem && g.sem !== "1" ? " · الفصل الدراسي " + esc(ar(g.sem)) : ""}`, act: "grd" }));
+    const list = ev.filter(e => e.t).sort((a, b) => b.t - a.t).slice(0, 15);
     box.innerHTML = list.length ? list.map(e => item(e.sec, "", e.html, "", `<time>${relTime(e.t, e.dateOnly)}</time>`, e.act)).join("") : '<div class="empty">لا توجد تحديثات بعد.</div>';
   }
   box.querySelectorAll("[data-act]").forEach(el => { el.style.cursor = "pointer"; el.onclick = () => dashAct(el.dataset.act); });
@@ -3858,6 +3860,7 @@ async function dashAct(act) {
   else if (k === "subs") { subsSub = "new"; go("subs"); }
   else if (k === "lv") { lvSub = "list"; go("lv"); }
   else if (k === "swaplog") { go("swap"); swapTab("log"); }
+  else if (k === "grd") { go("grd"); grdTab("ov"); }
   else if (k === "stu") { stuSub = "list"; go("stu"); await loadStu(); openStu(id); }
   else if (k === "planlist") { visSub = "plan"; go("vis"); }
   else if (k === "plan") { const [n, c] = id.split("|"); go("vis"); startVisitFor(n, c); }
