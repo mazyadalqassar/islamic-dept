@@ -2899,13 +2899,13 @@ function renderSwapMine() {
 // المرشحون: يدرّسون الفصل نفسه، وليست لديهم حصة وقت حصتي، ولهم حصة مع الفصل في الأسبوع نفسه أو الأسبوع القادم أكون فيها متفرغًا
 // كل خيار: [مفتاح الحصة، بيانات الحصة، الأسبوع (٠ هذا الأسبوع، ١ القادم)]
 function swapCandidates(k) {
-  const me = schoolOf(swapMe()), start = weekStart($("sw-date").value), today = todayISO(), myDate = dayISO(start, +k[0]);
+  const me = schoolOf(swapMe()), start = weekStart($("sw-date").value), today = todayISO();
   const mySlot = me.slots[k], classes = mySlot[0].split(",");
   const out = [];
   for (const t of SCHOOL) {
     if (t.name === me.name || t.slots[k]) continue;
     const base = Object.entries(t.slots).filter(([k2, s]) => s[0] && !isElective(s) && s[0].split(",").some(c => classes.indexOf(c) !== -1) && !me.slots[k2]).sort();
-    const opts = [0, 1].flatMap(w => base.filter(([k2]) => !(w === 0 && k2 === k) && dayISO(start, +k2[0] + 7 * w) >= today && dayISO(start, +k2[0] + 7 * w) !== myDate).map(([k2, s]) => [k2, s, w]));
+    const opts = [0, 1].flatMap(w => base.filter(([k2]) => !(w === 0 && k2 === k) && dayISO(start, +k2[0] + 7 * w) >= today).map(([k2, s]) => [k2, s, w]));
     if (opts.length) out.push({ t, opts });
   }
   return out.sort((a, b) => a.t.dept.localeCompare(b.t.dept, "ar") || a.t.name.localeCompare(b.t.name, "ar"));
