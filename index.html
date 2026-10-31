@@ -670,8 +670,10 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <div id="ach-for-wrap" hidden><label class="f">الإنجاز عن <span class="sub">(اختر معلمًا أو أكثر، ويظهر الإنجاز عند كل واحد منهم)</span></label><div class="attlist" id="ach-for"></div></div>
           <div class="grid2">
             <div><label class="f" for="ach-type">نوع النشاط</label><select id="ach-type"></select></div>
-            <div><label class="f" for="ach-date">تاريخ النشاط</label><input type="date" id="ach-date" required></div>
+            <div><label class="f" for="ach-date">تاريخ النشاط <span class="sub">(أو بدايته)</span></label><input type="date" id="ach-date" required></div>
           </div>
+          <label class="check" style="margin-top:8px"><input type="checkbox" id="ach-multi"> النشاط امتد أكثر من يوم</label>
+          <div id="ach-to-wrap" hidden><label class="f" for="ach-to">إلى تاريخ</label><input type="date" id="ach-to"></div>
           <label class="f" for="ach-title">عنوان النشاط</label>
           <input type="text" id="ach-title" maxlength="150" placeholder="مثال: إذاعة مدرسية عن فضل العلم" required>
           <label class="f" for="ach-target">الفئة المستهدفة (اختياري)</label>
@@ -1648,6 +1650,14 @@ function achForInit(reset) {
     `<label class="check"><input type="checkbox" value="${esc(n)}"${i === 0 ? " checked" : ""}> ${i === 0 ? "نفسي (رئيس الشعبة)" : esc(n)}</label>`).join("");
 }
 $("ach-date").value = todayISO();
+$("ach-multi").onchange = () => { $("ach-to-wrap").hidden = !$("ach-multi").checked; if (!$("ach-multi").checked) $("ach-to").value = ""; };
+// تاريخ النشاط: يوم واحد، أو فترة «من … إلى …» مع عدد الأيام
+function achWhen(a, withDay) {
+  if (!a.dateTo || a.dateTo <= a.date) return fmtDate(a.date, withDay);
+  const [y1, m1, d1] = a.date.split("-").map(Number), [y2, m2, d2] = a.dateTo.split("-").map(Number);
+  const n = Math.round((new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1)) / 864e5) + 1;
+  return `${fmtDate(a.date, withDay)} – ${fmtDate(a.dateTo, withDay)} (${n === 2 ? "يومان" : ar(n) + (n <= 10 ? " أيام" : " يومًا")})`;
+}
 
 function achTab(which) {
   achSub = which;
@@ -1696,8 +1706,10 @@ $("ach-form").addEventListener("submit", async e => {
   try {
     const forT = ME.isHead ? [...$("ach-for").querySelectorAll("input:checked")].map(x => x.value) : [];
     if (ME.isHead && !forT.length) { msg.textContent = "اختر المعلم (أو نفسك) في «الإنجاز عن»."; btn.disabled = false; return; }
-    const r = await run("submitAchievement", CODE, { type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS, teachers: forT });
-    PHOTOS = []; renderPreviews(); $("ach-type").value = ""; $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
+    const dTo = $("ach-multi").checked ? $("ach-to").value : "";
+    if ($("ach-multi").checked && (!dTo || dTo <= $("ach-date").value)) { msg.textContent = "اختر تاريخ نهاية النشاط بعد تاريخ بدايته."; btn.disabled = false; return; }
+    const r = await run("submitAchievement", CODE, { dateTo: dTo, type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS, teachers: forT });
+    PHOTOS = []; renderPreviews(); $("ach-multi").checked = false; $("ach-to").value = ""; $("ach-to-wrap").hidden = true; $("ach-type").value = ""; $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
     ACH = null; ACH_ALL = null; await loadMyAch();
     msg.innerHTML = `حُفظ التقرير. <button class="btn sm" type="button" id="ach-new-pdf">تنزيل التقرير PDF</button>`;
     let a = (ACH || []).find(x => x.id === r.id);
@@ -1713,7 +1725,7 @@ async function loadMyAch() {
   if (!ACH) { box.innerHTML = '<div class="empty">جارٍ التحميل…</div>'; try { ACH = await run("myAchievements", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; } }
   if (!ACH.length) { box.innerHTML = '<div class="empty">لم ترفع أي إنجاز بعد. استخدم النموذج أعلاه لإضافة أول إنجاز.</div>'; return; }
   box.innerHTML = ACH.map(a => `<div class="li">
-      <div class="li-main"><b>${esc(a.title)}</b><span class="sub">${esc(a.type)} · ${fmtDate(a.date)}${a.photos.length ? " · " + ar(a.photos.length) + " صور" : ""}</span></div>
+      <div class="li-main"><b>${esc(a.title)}</b><span class="sub">${esc(a.type)} · ${achWhen(a)}${a.photos.length ? " · " + ar(a.photos.length) + " صور" : ""}</span></div>
       <div class="row-actions">${a.status === ST_READY ? '<span class="pill ok">عدّل رئيس الشعبة الصياغة</span>' : ""}
       <button class="btn sm" data-pdf="${a.id}">تقرير PDF</button>${a.status === ST_READY ? "" : `<button class="btn ghost sm" data-del="${a.id}">حذف</button>`}</div><div class="saved" data-pmsg="${a.id}"></div></div>`).join("");
   box.querySelectorAll("[data-pdf]").forEach(b => b.onclick = () => achDownload(ACH.find(a => a.id === b.dataset.pdf), box.querySelector(`[data-pmsg="${b.dataset.pdf}"]`)));
@@ -1731,7 +1743,7 @@ const achKind = t => ACH_KIND[t] || ["إنجاز", "الإنجاز"];
 function achAutoReport(a) {
   const k = achKind(a.type)[1];
   const many = (a.teachers || []).length > 1;
-  return `## نبذة عن ${k}\nنفّذ ${many ? "الأساتذة" : "الأستاذ"} ${many ? a.teachers.map(tName).join("، ") : tName(a.teacher)} ${a.type || "نشاطًا"} بعنوان «${a.title}» بتاريخ ${fmtDate(a.date, true)}${a.target ? `، واستهدف ${a.target}` : ""}.\n## وصف ${k}\n${a.desc || ""}`;
+  return `## نبذة عن ${k}\nنفّذ ${many ? "الأساتذة" : "الأستاذ"} ${many ? a.teachers.map(tName).join("، ") : tName(a.teacher)} ${a.type || "نشاطًا"} بعنوان «${a.title}» ${a.dateTo && a.dateTo > a.date ? "خلال الفترة من " + fmtDate(a.date, true) + " إلى " + fmtDate(a.dateTo, true) : "بتاريخ " + fmtDate(a.date, true)}${a.target ? `، واستهدف ${a.target}` : ""}.\n## وصف ${k}\n${a.desc || ""}`;
 }
 const achText = a => String(a.report || "").trim() ? a.report : achAutoReport(a);
 async function achDownload(a, m) {
@@ -1760,7 +1772,7 @@ async function loadAllAch(force) {
   const list = ACH_ALL.filter(a => !achFilter || (achFilter === "ready" ? a.status === ST_READY : a.status !== ST_READY));
   if (!list.length) { box.innerHTML = `<div class="empty">لا توجد إنجازات.</div>`; return; }
   box.innerHTML = list.map(a => `<button class="li li-btn" data-open="${a.id}">
-      <div class="li-main"><b>${esc(a.title)}</b><span class="sub">أ. ${esc(a.teacher)} · ${esc(a.type)} · ${fmtDate(a.date)}</span></div>
+      <div class="li-main"><b>${esc(a.title)}</b><span class="sub">أ. ${esc(a.teacher)} · ${esc(a.type)} · ${achWhen(a)}</span></div>
       ${a.status === ST_READY ? '<span class="pill ok">عدّلتَ صياغته</span>' : '<span class="pill none">بصياغة المعلم</span>'}</button>`).join("");
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openAch(b.dataset.open));
 }
@@ -1776,7 +1788,7 @@ async function openAch(id) {
   const d = $("ach-detail");
   d.innerHTML = `<button class="btn ghost sm" id="ach-back">→ رجوع للقائمة</button>
     <h2 style="margin-top:10px">${esc(a.title)}</h2>
-    <div class="sub">أ. ${esc(a.teacher)} · ${esc(a.type)} · ${fmtDate(a.date, true)}${a.target ? " · " + esc(a.target) : ""} · رُفع ${fmtStamp(a.createdAt)}</div>
+    <div class="sub">أ. ${esc(a.teacher)} · ${esc(a.type)} · ${achWhen(a, true)}${a.target ? " · " + esc(a.target) : ""} · رُفع ${fmtStamp(a.createdAt)}</div>
     <div class="gallery" id="ach-gallery">${a.photos.map(p => `<div class="ph" data-ph="${p}"><span class="sub">جارٍ تحميل الصورة…</span></div>`).join("")}</div>
     <h3>وصف المعلم</h3><p class="teacher-desc">${esc(a.desc)}</p>
     <h3>صياغة التقرير (اختياري)</h3>
@@ -4462,7 +4474,7 @@ function achPdfHtml(a, imgs) {
   if (n) ph = `<h2>صور من ${KIND[1]}</h2><div class="avoid" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">${imgs.map(s => `<img src="${s}" style="width:calc(${n === 1 ? 60 : 100 / cols}% - 8px);height:${mh}px;object-fit:contain;border-radius:6px">`).join("")}</div>`;
   return pdfHead() + `<div class="kicker">تقرير ${KIND[0]}</div><h1>${esc(titleLine)}</h1>
     <table><colgroup><col style="width:17%"><col style="width:33%"><col style="width:17%"><col style="width:33%"></colgroup>
-    <tr><td class="k">${byHead ? "رئيس الشعبة" : (a.teachers || []).length > 1 ? "المعلمون" : "المعلم"}</td><td>أ. ${esc((a.teachers || [a.teacher]).map(tName).join("، أ. "))}</td><td class="k">التاريخ</td><td>${fmtDate(a.date, true)}</td></tr>
+    <tr><td class="k">${byHead ? "رئيس الشعبة" : (a.teachers || []).length > 1 ? "المعلمون" : "المعلم"}</td><td>أ. ${esc((a.teachers || [a.teacher]).map(tName).join("، أ. "))}</td><td class="k">${a.dateTo && a.dateTo > a.date ? "الفترة" : "التاريخ"}</td><td>${achWhen(a, true)}</td></tr>
     <tr><td class="k">النوع</td><td>${esc(a.type)}</td><td class="k">الفئة المستهدفة</td><td>${esc(a.target || "طلاب المدرسة")}</td></tr></table>
     <div style="margin-top:10px">${reportBodyHtml(a.report)}</div>${ph}
     ${pdfSigns([...(byHead || (a.teachers || []).length > 1 ? [] : [["المعلم", "أ. " + tName(a.teacher)]]), ["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;

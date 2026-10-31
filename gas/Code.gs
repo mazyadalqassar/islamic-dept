@@ -302,7 +302,7 @@ const achNames_ = v => String(v || "").split("|").filter(Boolean);
 function achObj_(r, withReport) {
   const names = achNames_(r[1]);
   const o = { id: r[0], teacher: names.join("، أ. "), teachers: names, date: r[2], type: r[3], title: r[4], target: r[5], desc: r[6],
-    photos: r[7] ? r[7].split(",").filter(Boolean) : [], status: r[8] || ST_PENDING, createdAt: r[10], reportedAt: r[11] };
+    photos: r[7] ? r[7].split(",").filter(Boolean) : [], status: r[8] || ST_PENDING, createdAt: r[10], reportedAt: r[11], dateTo: r[12] && r[12] > r[2] ? r[12] : "" };
   if (withReport) o.report = r[9];
   return o;
 }
@@ -330,7 +330,8 @@ function submitAchievement(code, a) {
     return folder.createFile(blob).getId();
   });
   const row = [id, owners.join("|"), String(a.date || "").slice(0, 10), String(a.type || "").slice(0, 60), title,
-    String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, "", nowText_(), ""];
+    String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, "", nowText_(), "", /^\d{4}-\d{2}-\d{2}$/.test(String(a.dateTo || "")) && String(a.dateTo) > String(a.date || "") ? String(a.dateTo) : ""];
+  { const sh = sh_(SHEET_ACH); if (!sh.getRange(1, 13).getDisplayValue()) sh.getRange(1, 13).setValue("تاريخ النهاية"); }
   withLock_(() => appendText_(sh_(SHEET_ACH), row));
   if (me.isHead) return { id };
   notify_(me, `إنجاز جديد: ${title} — أ. ${me.name}`, `
