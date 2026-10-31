@@ -870,12 +870,26 @@ function saveSwap(code, s, docB64) {
   const p1 = Number(s.period), p2 = Number(s.otherPeriod);
   if (!(p1 >= 1 && p1 <= 7 && p2 >= 1 && p2 <= 7)) throw new Error("رقم الحصة غير صحيح.");
   const clip = (v, n) => String(v || "").slice(0, n);
-  const row = [newId_(), nowText_(), me.name, clip(s.subject, 60), clip(s.classes, 60), s.date, p1, clip(s.other, 80), clip(s.otherDept, 80), clip(s.otherSubject, 60), s.otherDate, p2, clip(s.schoolName, 80)];
+  // رئيس الشعبة يسجّل التبديل عن أحد معلمي الشعبة
+  let who = me.name;
+  if (me.isHead && s.teacher && s.teacher !== me.name) {
+    if (!TEACHERS.some(t => t[0] === s.teacher)) throw new Error("اختر المعلم من القائمة.");
+    who = s.teacher;
+  }
+  const row = [newId_(), nowText_(), who, clip(s.subject, 60), clip(s.classes, 60), s.date, p1, clip(s.other, 80), clip(s.otherDept, 80), clip(s.otherSubject, 60), s.otherDate, p2, clip(s.schoolName, 80)];
   withLock_(() => appendText_(swapSheet_(), row));
   const o = swapObj_(row.map(String));
   let att = [];
   if (docB64 && String(docB64).length < 2000000) {
     try { att = [Utilities.newBlob(Utilities.base64Decode(String(docB64).replace(/^data:[^,]+,/, "")), docMime_(docB64), `نموذج طلب تبديل الحصة - ${me.name}.${docExt_(docB64)}`)]; } catch (e) {}
+  }
+  if (who !== me.name) {
+    notifyTeacher_(who, `تبديل حصة سجّله رئيس الشعبة: مع أ. ${o.other} · ${dayOf_(o.date)} ${dmy_(o.date)}`, `
+      <p>الأستاذ الفاضل/ ${esc_(who)} المحترم،</p>
+      <p>سجّل رئيس الشعبة عنكم تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${esc_(clip(s.classLabel, 60) || o.classes)}:</p>
+      <p>حصتكم: الحصة ${ORD_[p1]} يوم ${dayOf_(o.date)} ${dmy_(o.date)}<br>مقابل حصة أ. ${esc_(o.other)}: الحصة ${ORD_[p2]} يوم ${dayOf_(o.otherDate)} ${dmy_(o.otherDate)}</p>
+      <p>النموذج مرفق، وتجده في الموقع: بدّل حصتي ← تبديلاتي.</p><p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`, att);
+    return o;
   }
   notify_(me, `طلب تبديل حصة: أ. ${me.name} مع أ. ${o.other}`, `
     <p>سجّل <b>أ. ${esc_(me.name)}</b> طلب تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${esc_(clip(s.classLabel, 60) || o.classes)}:</p>
@@ -1108,11 +1122,11 @@ function setMyEmail(code, email) {
   return email;
 }
 /** يرسل إشعارًا لمعلم على إيميله المسجّل (لا يُرسل للحسابات التجريبية ولا لمن لم يسجّل إيميله) */
-function notifyTeacher_(name, subject, html) {
+function notifyTeacher_(name, subject, html, attachments) {
   if (isDemo_(name)) return false;
   const to = emailOf_(name); if (!to) return false;
   try {
-    MailApp.sendEmail({ to, subject, name: "موقع شعبة التربية الإسلامية",
+    MailApp.sendEmail({ to, subject, name: "موقع شعبة التربية الإسلامية", attachments: attachments && attachments.length ? attachments : undefined,
       htmlBody: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:14px;line-height:1.8;color:#2b2b2b">${html}
         <p><a href="${SITE_URL}" style="color:#c8641c">فتح موقع الشعبة</a></p></div>` });
     return true;

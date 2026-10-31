@@ -807,7 +807,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
         <div class="sub">اختر الأسبوع ثم الحصة التي تريد تبديلها، فيظهر لك المعلمون الذين يدرّسون الفصل نفسه وليست لديهم حصة في ذلك الوقت، مع الحصة التي تأخذها منهم بدلًا عنها وأنت متفرغ فيها.</div>
         <div class="grid2">
           <div><label class="f" for="sw-date">الأسبوع (اختر أي يوم فيه)</label><input type="date" id="sw-date"></div>
-          <div id="sw-who-wrap" hidden><label class="f" for="sw-who">المعلم (للتجربة)</label><select id="sw-who"></select></div>
+          <div id="sw-who-wrap" hidden><label class="f" for="sw-who" id="sw-who-label">المعلم (للتجربة)</label><select id="sw-who"></select></div>
         </div>
         <label class="f">حصتي التي أريد تبديلها</label>
         <div id="sw-mine" class="sw-mine"></div>
@@ -2855,7 +2855,7 @@ function slotTime(d, p) { const r = (daySchedule(d) || {})[p]; return r ? `${r[0
 let SCHOOL = null, swapPick = null;
 const deptName = s => String(s || "").replace(/^قسم\s+/, "شعبة ");
 
-function swapMe() { return ME.isDemo ? $("sw-who").value : ME.name; }
+function swapMe() { return ME.isDemo || ME.isHead ? ($("sw-who").value || ME.name) : ME.name; }
 function weekStart(iso) {
   const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return null;
   const d = new Date(+m[1], +m[2] - 1, +m[3], 12); let wd = d.getDay();
@@ -2867,8 +2867,12 @@ function schoolOf(name) { return (SCHOOL || []).find(t => t.name === SCHOOL_NAME
 const isElective = s => /اختيار/.test(s[1] || "");
 
 async function initSwap() {
-  $("sw-who-wrap").hidden = !ME.isDemo;
-  if (ME.isDemo && !$("sw-who").options.length) $("sw-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
+  $("sw-who-wrap").hidden = !ME.isDemo && !ME.isHead;
+  if (ME.isHead) {
+    $("sw-who-label").textContent = "التبديل عن";
+    if (!$("sw-who").options.length || $("sw-who").options[0].value !== ME.name)
+      $("sw-who").innerHTML = `<option value="${esc(ME.name)}">نفسي (رئيس الشعبة)</option>` + TEACHERS.filter(t => t[0] !== ME.name).map(t => `<option value="${esc(t[0])}">${esc(t[0])}</option>`).join("");
+  } else if (ME.isDemo && (!$("sw-who").options.length || $("sw-who").options[0].value !== TEACHERS[0][0])) $("sw-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
   if (!$("sw-date").value) $("sw-date").value = todayISO();
   if (!SCHOOL) {
     $("sw-mine").innerHTML = '<div class="empty">جارٍ تحميل جدول المدرسة…</div>';
@@ -2927,10 +2931,10 @@ async function swapDoc(other, k2, w = 0) {
   try {
     const blob = await htmlPdf(swapPdfHtml(info), { landscape: true });
     await run("saveSwap", CODE, { subject: info.me.subject, classes: info.me.classes, classLabel: cls_(info.me.classes), date: info.me.date, period: info.me.p, other: other.name, otherDept: deptName(other.dept),
-      otherSubject: info.other.subject, otherDate: info.other.date, otherPeriod: info.other.p, schoolName: me.name }, await blobToDataURL(blob));
+      otherSubject: info.other.subject, otherDate: info.other.date, otherPeriod: info.other.p, schoolName: me.name, teacher: ME.isHead && swapMe() !== ME.name ? swapMe() : undefined }, await blobToDataURL(blob));
     SWAPS = null;
     await deliver(blob, `نموذج طلب تبديل الحصة - ${info.me.name.split(" ")[0]} و${other.name.split(" ")[0]} - ${info.me.date}.pdf`, msg);
-    msg.insertAdjacentHTML("afterbegin", "سُجّل طلب التبديل ووصل رئيس الشعبة إشعار به. ");
+    msg.insertAdjacentHTML("afterbegin", ME.isHead && swapMe() !== ME.name ? `سُجّل التبديل عن أ. ${esc(swapMe())}، ووصله إيميل بالنموذج إن كان مسجّلًا إيميله. ` : "سُجّل طلب التبديل ووصل رئيس الشعبة إشعار به. ");
   } catch (e) { msg.textContent = "لم يتم تسجيل الطلب: " + cleanErr(e); }
   msg.scrollIntoView({ behavior: "smooth", block: "center" });
 }
