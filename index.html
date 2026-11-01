@@ -2976,7 +2976,7 @@ async function swapSubmit(info, mode, msg, payload, rerender) {
     const fname = `نموذج طلب تبديل الحصة - ${names} - ${info.me.date}.pdf`;
     if (mode === "doc") {
       await deliver(blob, fname, msg);
-      msg.insertAdjacentHTML("afterbegin", "هذا نموذج غير معتمد، ولم يُسجَّل أي طلب. ");
+      msg.insertAdjacentHTML("afterbegin", `تنزيل النموذج وحده لا يعني اعتماد ${info.kind === "extra" ? "الحصة الإضافية" : "التبديل"}. لازم تقدّم الطلب وتنتظر اعتماد رئيس الشعبة. `);
     } else {
       await run("saveSwap", CODE, payload, await blobToDataURL(blob));
       SWAPS = null;
@@ -3147,6 +3147,7 @@ async function loadSwaps(force) {
       const info = swapInfo(s);
       if (info.state === "approved") { try { info.sig = await run("swapHeadSig", CODE); } catch (e) {} }
       await deliver(await htmlPdf(swapPdfHtml(info), { landscape: true, onePage: true }), `نموذج طلب تبديل الحصة - ${s.teacher.split(" ")[0]} و${s.other.split(" ")[0]} - ${s.date}.pdf`, m);
+      if (info.state === "draft") m.insertAdjacentHTML("afterbegin", `تنزيل النموذج وحده لا يعني اعتماد ${info.kind === "extra" ? "الحصة الإضافية" : "التبديل"}. ${s.status === "rejected" ? "هذا الطلب لم يُعتمد. " : "الطلب بانتظار اعتماد رئيس الشعبة. "}`);
     } catch (e) { m.textContent = "لم يتم إنشاء النموذج: " + cleanErr(e); }
   });
   const decide = async (b, ok, i) => {
@@ -4500,12 +4501,11 @@ function swapPdfHtml(x) {
   const same = x.me.dept === x.other.dept;
   const sig = (role, name, sub, img) => `<div><b>${role}</b><i class="mut" style="font-size:12px">${String(sub || "").trim() ? esc(sub) : "&nbsp;"}</i><i>${name ? "أ. " + esc(name) : "&nbsp;"}</i>${img ? `<i><img src="${img}" style="max-height:52px;max-width:170px"></i>` : '<i class="ln">التوقيع: ....................</i>'}<i class="mut" style="margin-top:8px">الختم</i></div>`;
   const note = extra ? `<p style="margin:10px 0 0;font-size:13.5px">ملاحظة: سيأخذ أ. ${esc(tName(x.me.name))} هذه الحصة كحصة إضافية دون تبديلها، ولا يأخذ أ. ${esc(tName(x.other.name))} حصة بدلًا منها.</p>` : "";
-  const warn = x.state === "draft" ? `<div class="avoid" style="margin-top:10px;border:1px solid #e0b9a0;background:#fdf3ec;border-radius:8px;padding:6px 12px;font-size:12.5px;line-height:1.7"><b>تنبيه:</b> تنزيل هذا النموذج أو طباعته لا يعني اعتماد ${extra ? "الحصة الإضافية" : "التبديل"}. يُعتمد بعد تقديم الطلب في الموقع وموافقة رئيس الشعبة.</div>` : "";
   return pdfHead() + `<h1 style="margin-top:4px">نموذج طلب تبديل الحصة</h1>
     <div class="sub">تاريخ الطلب: ${DAYS[isoDayIdx(x.at || todayISO())] || ""} ${fmtDate(x.at || todayISO())}</div>
     <table><colgroup><col style="width:21%"><col style="width:12%"><col style="width:11%"><col style="width:10%"><col style="width:10%"><col style="width:20%"><col style="width:16%"></colgroup>
     <thead><tr>${["اسم المعلم", "المادة", "الفصل", "من الحصة", "إلى الحصة", "اليوم والتاريخ", "التوقيع"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
-    <tbody>${rows}</tbody></table>${note}${warn}
+    <tbody>${rows}</tbody></table>${note}
     <h2 style="border:0;margin-top:16px">سبب التبديل:</h2>
     <div class="avoid" style="border-bottom:2px dotted #b9b2aa;height:30px"></div><div class="avoid" style="border-bottom:2px dotted #b9b2aa;height:30px"></div>
     <div class="signs avoid" style="margin-top:14px">${sig("رئيس الشعبة", HEAD_SIGN, "شعبة التربية الإسلامية", x.state === "approved" ? x.sig : "")}${sig("رئيس الشعبة", same ? HEAD_SIGN : "", x.other.dept)}${sig("المدير المساعد", "", " ")}</div>`;
