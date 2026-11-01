@@ -2972,7 +2972,7 @@ async function swapSubmit(info, mode, msg, payload, rerender) {
   try {
     info.state = headDirect ? "approved" : "draft";
     if (headDirect) { try { info.sig = await run("swapHeadSig", CODE); } catch (e) {} }
-    const blob = await htmlPdf(swapPdfHtml(info), { landscape: true });
+    const blob = await htmlPdf(swapPdfHtml(info), { landscape: true, onePage: true });
     const fname = `نموذج طلب تبديل الحصة - ${names} - ${info.me.date}.pdf`;
     if (mode === "doc") {
       await deliver(blob, fname, msg);
@@ -3146,7 +3146,7 @@ async function loadSwaps(force) {
     try {
       const info = swapInfo(s);
       if (info.state === "approved") { try { info.sig = await run("swapHeadSig", CODE); } catch (e) {} }
-      await deliver(await htmlPdf(swapPdfHtml(info), { landscape: true }), `نموذج طلب تبديل الحصة - ${s.teacher.split(" ")[0]} و${s.other.split(" ")[0]} - ${s.date}.pdf`, m);
+      await deliver(await htmlPdf(swapPdfHtml(info), { landscape: true, onePage: true }), `نموذج طلب تبديل الحصة - ${s.teacher.split(" ")[0]} و${s.other.split(" ")[0]} - ${s.date}.pdf`, m);
     } catch (e) { m.textContent = "لم يتم إنشاء النموذج: " + cleanErr(e); }
   });
   const decide = async (b, ok, i) => {
@@ -4495,7 +4495,7 @@ function swapPdfHtml(x) {
   const cls = c => String(c).split(",").map(classLabel).join("، ");
   const extra = x.kind === "extra";
   const dateCell = (a, b) => a.date === b.date ? `<b>${DAYS[a.d]}</b><br>${fmtDate(a.date)}` : `${DAYS[a.d]} ${fmtDate(a.date)}<br><span class="mut">إلى</span><br>${DAYS[b.d]} ${fmtDate(b.date)}`;
-  const row = (a, b, pf, pt) => `<tr style="height:74px"><td class="b">أ. ${esc(tName(a.name))}</td><td class="c">${esc(a.subject || "—")}</td><td class="c">${esc(cls(a.classes))}</td><td class="c">${pf}</td><td class="c">${pt}</td><td class="c">${dateCell(a, b)}</td><td></td></tr>`;
+  const row = (a, b, pf, pt) => `<tr style="height:66px"><td class="b">أ. ${esc(tName(a.name))}</td><td class="c">${esc(a.subject || "—")}</td><td class="c">${esc(cls(a.classes))}</td><td class="c">${pf}</td><td class="c">${pt}</td><td class="c">${dateCell(a, b)}</td><td></td></tr>`;
   const rows = extra ? row(x.me, x.other, "—", ORD[x.me.p]) + row(x.other, x.me, ORD[x.other.p], "—") : row(x.me, x.other, ORD[x.me.p], ORD[x.other.p]) + row(x.other, x.me, ORD[x.other.p], ORD[x.me.p]);
   const same = x.me.dept === x.other.dept;
   const sig = (role, name, sub, img) => `<div><b>${role}</b><i class="mut" style="font-size:12px">${String(sub || "").trim() ? esc(sub) : "&nbsp;"}</i><i>${name ? "أ. " + esc(name) : "&nbsp;"}</i>${img ? `<i><img src="${img}" style="max-height:52px;max-width:170px"></i>` : '<i class="ln">التوقيع: ....................</i>'}<i class="mut" style="margin-top:8px">الختم</i></div>`;
@@ -4507,7 +4507,7 @@ function swapPdfHtml(x) {
     <thead><tr>${["اسم المعلم", "المادة", "الفصل", "من الحصة", "إلى الحصة", "اليوم والتاريخ", "التوقيع"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
     <tbody>${rows}</tbody></table>${note}${warn}
     <h2 style="border:0;margin-top:16px">سبب التبديل:</h2>
-    <div class="avoid" style="border-bottom:2px dotted #b9b2aa;height:34px"></div><div class="avoid" style="border-bottom:2px dotted #b9b2aa;height:34px"></div>
+    <div class="avoid" style="border-bottom:2px dotted #b9b2aa;height:30px"></div><div class="avoid" style="border-bottom:2px dotted #b9b2aa;height:30px"></div>
     <div class="signs avoid" style="margin-top:14px">${sig("رئيس الشعبة", HEAD_SIGN, "شعبة التربية الإسلامية", x.state === "approved" ? x.sig : "")}${sig("رئيس الشعبة", same ? HEAD_SIGN : "", x.other.dept)}${sig("المدير المساعد", "", " ")}</div>`;
 }
 
