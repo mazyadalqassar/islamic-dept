@@ -834,6 +834,8 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <div><label class="f" for="sx-date">الأسبوع (اختر أي يوم فيه)</label><input type="date" id="sx-date"></div>
           <div id="sx-who-wrap" hidden><label class="f" for="sx-who" id="sx-who-label">المعلم (للتجربة)</label><select id="sx-who"></select></div>
         </div>
+        <label class="f" for="sx-t">المعلم الذي تأخذ حصته</label>
+        <select id="sx-t"></select>
       </div>
       <div class="saved" id="sx-msg"></div>
       <div id="sx-results"></div>
@@ -3029,10 +3031,13 @@ function renderExtra() {
   $("sx-msg").textContent = "";
   if (!me) { box.innerHTML = '<div class="empty">لم يُعثر على جدولك في جدول المدرسة.</div>'; return; }
   if (!start) { box.innerHTML = ""; return; }
-  const mine = exClasses(me), list = extraCandidates();
+  const mine = exClasses(me), list = extraCandidates(), sel = $("sx-t"), keep = sel.value;
+  sel.innerHTML = `<option value="">اختر المعلم…</option>` + list.map(c => `<option value="${esc(c.t.name)}">أ. ${esc(c.t.name)} · ${esc(deptName(c.t.dept))}</option>`).join("");
+  if (list.some(c => c.t.name === keep)) sel.value = keep;
   if (!list.length) { box.innerHTML = '<div class="empty">لا توجد حصص لمعلمين آخرين في فصولك ضمن هذا الأسبوع أو الأسبوع القادم.</div>'; return; }
+  if (!sel.value) { box.innerHTML = `<div class="empty">اختر المعلم أولًا، فتظهر لك الحصص التي يمكنك أخذها منه. عدد المعلمين الذين يدرّسون فصولك: ${ar(list.length)}.</div>`; return; }
   const reqLabel = ME.isHead ? "تسجيل واعتماد" : "طلب حصة إضافية";
-  box.innerHTML = `<div class="sub" style="margin-top:12px">${ar(list.length)} ${list.length > 10 ? "معلمًا" : list.length > 2 ? "معلمين" : list.length === 2 ? "معلمان" : "معلم"} يدرّسون فصولك</div>` + list.map((c, i) => `<div class="card sw-t"><h3>أ. ${esc(c.t.name)}</h3><div class="sub">${esc(deptName(c.t.dept))}</div>
+  box.innerHTML = list.map((c, i) => c.t.name !== sel.value ? "" : `<div class="card sw-t"><h3>أ. ${esc(c.t.name)}</h3><div class="sub">${esc(deptName(c.t.dept))}</div>
     ${c.opts.map(([k2, s, w]) => {
       const date = dayISO(start, +k2[0] + 7 * w), busy = !!me.slots[k2], cl = s[0].split(",").filter(x => mine.has(x)).map(classLabel).join("، ");
       return `<div class="sw-opt${busy ? " off" : ""}"><div class="o-main">حصته: <b>${DAYS[+k2[0]]} ${fmtDate(date)} · الحصة ${ar(+k2[1])}</b> <span class="pill ${w ? "ahead" : "none"}" style="font-size:11.5px">${w ? "الأسبوع القادم" : "هذا الأسبوع"}</span>
@@ -3156,6 +3161,7 @@ async function loadSwaps(force) {
   }));
 }
 $("sx-date").onchange = renderExtra;
+$("sx-t").onchange = renderExtra;
 $("sx-who").onchange = renderExtra;
 $("sw-date").onchange = renderSwapMine;
 $("sw-who").onchange = renderSwapMine;
