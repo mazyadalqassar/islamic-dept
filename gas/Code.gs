@@ -72,7 +72,7 @@ function doGet() {
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
 const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, minuteFile, saveMinute, remindMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
-  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, notifyAssigned, visitPlan, schoolTable, importSchool, saveSwap, listSwaps, deleteSwap,
+  saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, notifyAssigned, visitPlan, schoolTable, importSchool, saveSwap, decideSwap, swapTaken, swapHeadSig, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
   setMyEmail, listLeaves, saveLeave, decideLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf, leavesRecent, leavesPickPdf,
   gradesGet, gradesSave, gradesApprove, gradesOverview, gradesFeed,
@@ -120,7 +120,7 @@ function setup() {
   sheet_(SHEET_SUBS, ["الغياب", "التاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "سجّله", "وقت التسجيل", "الدرس"], true);
   subsLessonHeader_(sh_(SHEET_SUBS));
   sheet_(SHEET_SCHOOL, ["المعلم", "الشعبة", "الجدول (اليوم والحصة ← الفصل والمادة)"], true);
-  sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true);
+  sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة", "النوع", "الحالة", "وقت القرار", "ملاحظة رئيس الشعبة"], true);
   sheet_(SHEET_STU, STU_HEAD_, true);
   sheet_(SHEET_ROSTER, ["الفصل", "م", "اسم الطالب"], true);
   sheet_(SHEET_LEAVE, LEAVE_HEAD_, true);
@@ -857,16 +857,26 @@ function importSchool(code, b64) {
 const ORD_ = ["", "الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة"];
 const DAYS_ = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 function swapObj_(r) { return { id: r[0], at: r[1], teacher: r[2], subject: r[3], classes: r[4], date: r[5], period: Number(r[6]),
-  other: r[7], otherDept: r[8], otherSubject: r[9], otherDate: r[10], otherPeriod: Number(r[11]), schoolName: r[12], demo: isDemo_(r[2]) }; }
-function swapSheet_() { return sh_(SHEET_SWAP) || sheet_(SHEET_SWAP, ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة"], true); }
+  other: r[7], otherDept: r[8], otherSubject: r[9], otherDate: r[10], otherPeriod: Number(r[11]), schoolName: r[12], demo: isDemo_(r[2]),
+  kind: r[13] === "extra" ? "extra" : "swap", status: SW_ST_.indexOf(r[14]) !== -1 ? r[14] : "legacy", decidedAt: r[15] || "", note: r[16] || "" }; }
+// حالة الطلب: pending بانتظار الاعتماد، approved معتمد، rejected مرفوض، (فارغ = تبديل قديم سابق للنظام الجديد ويُعدّ معتمدًا)
+const SW_ST_ = ["pending", "approved", "rejected"];
+const SW_HEAD_ = ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة", "النوع", "الحالة", "وقت القرار", "ملاحظة رئيس الشعبة"];
+function swapSheet_() {
+  const sh = sh_(SHEET_SWAP) || sheet_(SHEET_SWAP, SW_HEAD_, true);
+  if (!sh.getRange(1, 14).getDisplayValue()) sh.getRange(1, 14, 1, 4).setValues([SW_HEAD_.slice(13)]);
+  return sh;
+}
 function dayOf_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? DAYS_[new Date(+m[1], +m[2] - 1, +m[3]).getDay()] : ""; }
 function dmy_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[3]}/${+m[2]}/${m[1]}` : iso; }
 
-/** يسجّل طلب تبديل ويرسل إيميلًا لرئيس الشعبة مع النموذج (PDF) */
+/** يسجّل طلب تبديل أو حصة إضافية «بانتظار الاعتماد» ويرسل إيميلًا لرئيس الشعبة مع النموذج (PDF). تبديل رئيس الشعبة يُعتمد مباشرة */
 function saveSwap(code, s, docB64) {
   const me = who_(code);
   s = s || {};
+  const extra = s.kind === "extra";
   const iso = /^\d{4}-\d{2}-\d{2}$/;
+  if (extra) { s.otherDate = s.date; s.otherPeriod = s.period; }
   if (!iso.test(s.date) || !iso.test(s.otherDate)) throw new Error("التاريخ غير صحيح.");
   const p1 = Number(s.period), p2 = Number(s.otherPeriod);
   if (!(p1 >= 1 && p1 <= 7 && p2 >= 1 && p2 <= 7)) throw new Error("رقم الحصة غير صحيح.");
@@ -877,29 +887,91 @@ function saveSwap(code, s, docB64) {
     if (!TEACHERS.some(t => t[0] === s.teacher)) throw new Error("اختر المعلم من القائمة.");
     who = s.teacher;
   }
-  const row = [newId_(), nowText_(), who, clip(s.subject, 60), clip(s.classes, 60), s.date, p1, clip(s.other, 80), clip(s.otherDept, 80), clip(s.otherSubject, 60), s.otherDate, p2, clip(s.schoolName, 80)];
-  withLock_(() => appendText_(swapSheet_(), row));
+  const approved = !!me.isHead;
+  const row = [newId_(), nowText_(), who, clip(s.subject, 60), clip(s.classes, 60), s.date, p1, clip(s.other, 80), clip(s.otherDept, 80), clip(s.otherSubject, 60), s.otherDate, p2, clip(s.schoolName, 80),
+    extra ? "extra" : "swap", approved ? "approved" : "pending", approved ? nowText_() : "", ""];
+  withLock_(() => {
+    const sh = swapSheet_();
+    // منع تكرار الطلب نفسه (ضغطتان أو جهازان)
+    const dup = rows_(SHEET_SWAP).slice(1).some(r => r[0] && r[14] !== "rejected" && r[2] === who && r[5] === String(s.date) && Number(r[6]) === p1 && r[7] === row[7] && r[10] === String(s.otherDate) && Number(r[11]) === p2 && (r[13] === "extra") === extra);
+    if (dup) throw new Error("سبق تسجيل هذا الطلب.");
+    appendText_(sh, row);
+  });
   const o = swapObj_(row.map(String));
   let att = [];
   if (docB64 && String(docB64).length < 2000000) {
     try { att = [Utilities.newBlob(Utilities.base64Decode(String(docB64).replace(/^data:[^,]+,/, "")), docMime_(docB64), `نموذج طلب تبديل الحصة - ${me.name}.${docExt_(docB64)}`)]; } catch (e) {}
   }
-  if (who !== me.name) {
-    notifyTeacher_(who, `تبديل حصة سجّله رئيس الشعبة: مع أ. ${o.other} · ${dayOf_(o.date)} ${dmy_(o.date)}`, `
-      <p>الأستاذ الفاضل/ ${esc_(who)} المحترم،</p>
-      <p>سجّل رئيس الشعبة عنكم تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${esc_(clip(s.classLabel, 60) || o.classes)}:</p>
-      <p>حصتكم: الحصة ${ORD_[p1]} يوم ${dayOf_(o.date)} ${dmy_(o.date)}<br>مقابل حصة أ. ${esc_(o.other)}: الحصة ${ORD_[p2]} يوم ${dayOf_(o.otherDate)} ${dmy_(o.otherDate)}</p>
-      <p>النموذج مرفق، وتجده في الموقع: بدّل حصتي ← تبديلاتي.</p><p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`, att);
+  const cl = esc_(clip(s.classLabel, 60) || o.classes);
+  if (me.isHead) {
+    if (who !== me.name) {
+      notifyTeacher_(who, extra ? `حصة إضافية سجّلها رئيس الشعبة: ${dayOf_(o.date)} ${dmy_(o.date)} · الحصة ${ORD_[p1]}` : `تبديل حصة سجّله رئيس الشعبة: مع أ. ${o.other} · ${dayOf_(o.date)} ${dmy_(o.date)}`, `
+        <p>الأستاذ الفاضل/ ${esc_(who)} المحترم،</p>
+        ${extra ? `<p>سجّل رئيس الشعبة عنكم <b>حصة إضافية</b> تأخذونها من أ. ${esc_(o.other)} (${esc_(o.otherDept)}) في الفصل ${cl}، دون تبديلها:</p>
+        <p>الحصة ${ORD_[p1]} يوم ${dayOf_(o.date)} ${dmy_(o.date)}</p>` : `<p>سجّل رئيس الشعبة عنكم تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${cl}:</p>
+        <p>حصتكم: الحصة ${ORD_[p1]} يوم ${dayOf_(o.date)} ${dmy_(o.date)}<br>مقابل حصة أ. ${esc_(o.other)}: الحصة ${ORD_[p2]} يوم ${dayOf_(o.otherDate)} ${dmy_(o.otherDate)}</p>`}
+        <p>النموذج مرفق، وتجده في الموقع: بدّل حصتي ← تبديلاتي.</p><p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`, att);
+    }
     return o;
   }
-  notify_(me, `طلب تبديل حصة: أ. ${me.name} مع أ. ${o.other}`, `
-    <p>سجّل <b>أ. ${esc_(me.name)}</b> طلب تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${esc_(clip(s.classLabel, 60) || o.classes)}:</p>
+  notify_(me, extra ? `طلب حصة إضافية بانتظار اعتمادك: أ. ${me.name} من أ. ${o.other}` : `طلب تبديل حصة بانتظار اعتمادك: أ. ${me.name} مع أ. ${o.other}`, `
+    ${extra ? `<p>طلب <b>أ. ${esc_(me.name)}</b> أخذ <b>حصة إضافية</b> من <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${cl}، دون تبديلها:</p>
+    <table style="border-collapse:collapse" cellpadding="6" border="1">
+      <tr style="background:#fbeee3"><th>المعلم</th><th>المادة</th><th>الحصة الإضافية</th><th>اليوم والتاريخ</th><th>صاحب الحصة</th></tr>
+      <tr><td>أ. ${esc_(me.name)}</td><td>${esc_(o.subject)}</td><td>${ORD_[p1]}</td><td>${dayOf_(o.date)} ${dmy_(o.date)}</td><td>أ. ${esc_(o.other)}</td></tr>
+    </table>` : `<p>طلب <b>أ. ${esc_(me.name)}</b> تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${cl}:</p>
     <table style="border-collapse:collapse" cellpadding="6" border="1">
       <tr style="background:#fbeee3"><th>المعلم</th><th>المادة</th><th>من الحصة</th><th>إلى الحصة</th><th>اليوم والتاريخ</th></tr>
       <tr><td>أ. ${esc_(me.name)}</td><td>${esc_(o.subject)}</td><td>${ORD_[p1]}</td><td>${ORD_[p2]}</td><td>${dayOf_(o.date)} ${dmy_(o.date)}${o.date !== o.otherDate ? " ← " + dayOf_(o.otherDate) + " " + dmy_(o.otherDate) : ""}</td></tr>
       <tr><td>أ. ${esc_(o.other)}</td><td>${esc_(o.otherSubject)}</td><td>${ORD_[p2]}</td><td>${ORD_[p1]}</td><td>${dayOf_(o.otherDate)} ${dmy_(o.otherDate)}${o.date !== o.otherDate ? " ← " + dayOf_(o.date) + " " + dmy_(o.date) : ""}</td></tr>
-    </table><p>النموذج مرفق بصيغة PDF للطباعة والتوقيع، وتجده أيضًا في الموقع: بدّل حصتي ← سجل التبديلات.</p>`, att);
+    </table>`}
+    <p><b>الطلب بانتظار اعتمادك.</b> اعتمده أو ارفضه من الموقع: بدّل حصتي ← سجل التبديلات. النموذج المرفق غير معتمد إلى أن تعتمد الطلب.</p>`, att);
   return o;
+}
+
+/** رئيس الشعبة: اعتماد طلب التبديل/الحصة الإضافية أو رفضه، ويصل المعلم إيميل بالقرار */
+function decideSwap(code, id, ok, note) {
+  const me = head_(code);
+  const res = withLock_(() => {
+    const sh = swapSheet_(), row = findRow_(sh, 1, String(id));
+    if (row < 0) throw new Error("الطلب غير موجود.");
+    const cur = sh.getRange(row, 15).getDisplayValue();
+    if (cur === "approved" || cur === "rejected") throw new Error("سبق اتخاذ قرار في هذا الطلب.");
+    const at = nowText_();
+    sh.getRange(row, 15, 1, 3).setNumberFormat("@").setValues([[ok ? "approved" : "rejected", at, String(note || "").slice(0, 200)]]);
+    return swapObj_(sh.getRange(row, 1, 1, 17).getDisplayValues()[0]);
+  });
+  const extra = res.kind === "extra", what = extra ? "طلب الحصة الإضافية" : "طلب تبديل الحصة";
+  const when = `${dayOf_(res.date)} ${dmy_(res.date)} · الحصة ${ORD_[res.period]}`;
+  notifyTeacher_(res.teacher, `${ok ? "اعتماد" : "عدم اعتماد"} ${what}: ${when}`, `
+    <p>الأستاذ الفاضل/ ${esc_(res.teacher)} المحترم،</p>
+    <p>${ok ? "تم اعتماد" : "لم يُعتمد"} ${what}${extra ? ` (حصة أ. ${esc_(res.other)})` : ` مع أ. ${esc_(res.other)}`} — ${when}.</p>
+    ${res.note ? `<p>ملاحظة رئيس الشعبة: ${esc_(res.note)}</p>` : ""}
+    ${ok ? "<p>يمكنكم تنزيل النموذج المعتمد من الموقع: بدّل حصتي ← تبديلاتي.</p>" : ""}
+    <p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`);
+  // صاحب الحصة: يصله إعلام إن كان مسجّلًا إيميله في الموقع (معلمو الشعبة فقط)
+  if (ok && extra) notifyTeacher_(res.other, `حصتك أخذها معلم آخر كحصة إضافية: ${when}`, `
+    <p>الأستاذ الفاضل/ ${esc_(res.other)} المحترم،</p>
+    <p>اعتُمد أخذ أ. ${esc_(res.teacher)} حصتكم يوم ${dayOf_(res.date)} ${dmy_(res.date)} (الحصة ${ORD_[res.period]}) كحصة إضافية، دون تبديل حصة بدلًا منها.</p>
+    <p>رئيس الشعبة<br>أ. ${esc_(CIRC_HEAD_NAME_)}</p>`);
+  return res;
+}
+
+/** توقيع رئيس الشعبة الإلكتروني للنموذج المعتمد (فارغ إن لم يكن محفوظًا) */
+function swapHeadSig(code) { who_(code); return headSigImg_(); }
+
+/** الحصص التي عليها طلبات غير مرفوضة منذ اليوم: لتنبيه المعلم عند اختيار حصة سبق تبديلها أو عليها طلب معلّق */
+function swapTaken(code) {
+  who_(code);
+  if (!sh_(SHEET_SWAP)) return [];
+  const today = Utilities.formatDate(new Date(), "Asia/Kuwait", "yyyy-MM-dd"), out = [];
+  rows_(SHEET_SWAP).slice(1).forEach(r => {
+    if (!r[0] || r[14] === "rejected") return;
+    const st = r[14] === "pending" ? "pending" : "approved", extra = r[13] === "extra";
+    if (r[10] >= today) out.push({ n: r[7], d: r[10], p: Number(r[11]), s: st });
+    if (!extra && r[5] >= today) out.push({ n: r[12] || r[2], d: r[5], p: Number(r[6]), s: st });
+  });
+  return out;
 }
 
 /** رئيس الشعبة: كل التبديلات (التجريبية معلّمة) · المعلم: تبديلاته فقط */
@@ -915,6 +987,7 @@ function deleteSwap(code, id) {
     if (row < 0) throw new Error("الطلب غير موجود.");
     const owner = sh.getRange(row, 3).getDisplayValue();
     if (!me.isHead && owner !== me.name) throw new Error("لا يمكن حذف هذا الطلب.");
+    if (!me.isHead && sh.getRange(row, 15).getDisplayValue() === "approved") throw new Error("هذا الطلب معتمد، ولا يحذفه إلا رئيس الشعبة.");
     sh.deleteRow(row);
     return true;
   });
