@@ -2132,7 +2132,7 @@ const VIS_CARDS = {
 };
 const VIS_LEVELS = ["ممتاز", "جيد جدًا", "جيد", "متابع", "متدني"];
 const VIS_TYPES = ["استطلاعية", "توجيهية", "تقويمية"];
-const DEMO_CLASSES = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"], "مشاري بدر العبد الهادي": ["10-3", "11s-2", "12l-1"] };
+const DEMO_CLASSES = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"], "تجريبي ٣": ["10-1", "11s-1", "12l-1"], "مشاري بدر العبد الهادي": ["10-3", "11s-2", "12l-1"] };
 function visItems(card) { const out = []; VIS_CARDS[card].groups.forEach(([g, items]) => items.forEach(t => out.push({ group: g, text: t }))); return out; }
 function hijri(iso) {
   const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return "";
