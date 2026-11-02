@@ -769,9 +769,9 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <input type="text" id="vf-lesson" list="vf-lessons" maxlength="200" placeholder="اختر من خطة المنهج أو اكتب">
           <datalist id="vf-lessons"></datalist>
           <div class="grid3">
-            <div><label class="f" for="vf-lessonno" id="vf-lessonno-label">رقم الدرس</label><input type="text" id="vf-lessonno" maxlength="20"></div>
-            <div><label class="f" for="vf-unit">رقم الوحدة</label><input type="text" id="vf-unit" maxlength="40" placeholder="الأولى"></div>
-            <div id="vf-domain-wrap"><label class="f" for="vf-domain">المجال</label><input type="text" id="vf-domain" maxlength="60"></div>
+            <div id="vf-lessonno-wrap"><label class="f" for="vf-lessonno" id="vf-lessonno-label">رقم الدرس</label><input type="text" id="vf-lessonno" maxlength="20"></div>
+            <div id="vf-unit-wrap"><label class="f" for="vf-unit">رقم الوحدة</label><input type="text" id="vf-unit" maxlength="40" placeholder="الأولى"></div>
+            <div id="vf-domain-wrap"><label class="f" for="vf-domain" id="vf-domain-label">المجال</label><input type="text" id="vf-domain" maxlength="100"></div>
           </div>
           <div class="vis-head-row"><h3>بنود التقويم</h3>
             <div class="row-actions"><select id="vf-all-level" aria-label="المستوى"><option>ممتاز</option><option>جيد جدًا</option><option>جيد</option><option>متابع</option><option>متدني</option></select><button class="btn ghost sm" type="button" id="vf-allgood">تعبئة الفارغ بهذا المستوى</button></div></div>
@@ -2133,7 +2133,28 @@ const VIS_CARDS = {
 const VIS_LEVELS = ["ممتاز", "جيد جدًا", "جيد", "متابع", "متدني"];
 const VIS_TYPES = ["استطلاعية", "توجيهية", "تقويمية"];
 const DEMO_CLASSES = { "تجريبي ١": ["11s-1", "12s-2"], "تجريبي ٢": ["10-1", "11l-1"], "تجريبي ٣": ["10-1", "11s-1", "12l-1"], "مشاري بدر العبد الهادي": ["10-3", "11s-2", "12l-1"] };
-function visItems(card) { const out = []; VIS_CARDS[card].groups.forEach(([g, items]) => items.forEach(t => out.push({ group: g, text: t }))); return out; }
+// نموذجا «توصيف أداء معلم داخل الفصل» (التوجيه الفني) للصفين الحادي عشر والثاني عشر؛ العاشر يبقى على بطاقة الزيارة أعلاه (٢/١١/٢٠٢٦).
+// يُخزَّن في السجل بالبطاقة نفسها (ie أو qr) فلا يتغير الخادم، ويُعرف النموذج من صف الفصل. حقل «domain» يحمل «المجال» في التربية الإسلامية و«السورة - الآية» في القرآن.
+const VIS_FORM2 = {
+  ie: { sub: "مادة التربية الإسلامية ( ثانوي )", field: "المجال", items: ["المظهر والشخصية", "إدارة وضبط الصف", "الإعداد الكتابي", "الإعداد الذهني", "التمهيد", "استخدام الوسائل التعليمية", "التمكن من المادة العلمية",
+    "تطبيق استراتيجيات التعلم", "استخدام اللغة العربية الميسرة", "ربط الدرس بالواقع", "التواصل مع المتعلمين وتحفيزهم وتشجيعهم", "تحقيق الأهداف التربوية للمادة", "التقويم البنائي (استخلاص الحقائق والمعلومات)",
+    "استخلاص القيمة ومظاهرها السلوكية", "تفعيل مهارات التفكير", "مراعاة الفروق الفردية", "متابعة الأعمال التحريرية", "التقويم النهائي", "مراعاة زمن الحصة", "استخدام وتفعيل دفتر المتابعة"] },
+  qr: { sub: "مادة القرآن الكريم ( ثانوي )", field: "السورة - الآية", items: ["المظهر والشخصية", "ضبط الفصل", "تهيئة الجو القرآني المناسب", "متابعة حفظ ما سبق", "التمهيد", "الإعداد الكتابي", "الإعداد الذهني",
+    "استخدام الوسائل التعليمية", "معرفة أحكام التجويد نظريًا", "تطبيق أحكام التجويد عمليًا", "تنوع أساليب الأداء", "بيان المعنى الإجمالي للآيات", "تحقيق الأهداف", "الإبداع والابتكار",
+    "مراعاة الفروق الفردية", "التقويم النهائي (التحقق من حفظ المتعلمين)", "مراعاة زمن الحصة", "استخدام وتفعيل دفتر المتابعة"] }
+};
+// يرجع تعريف النموذج الجديد إن كان الفصل حاديًا عشر أو ثانيًا عشر؛ وزيارة محفوظة قبل التغيير (عدد بنودها غير عدد بنود النموذج) تبقى على بطاقتها القديمة
+function visForm2(card, classId, nRatings) {
+  const f = VIS_FORM2[card]; if (!f || !classId) return null;
+  let g = 0; try { g = classInfo(classId).grade; } catch (e) { return null; }
+  if (g < 11) return null;
+  if (nRatings != null && nRatings !== f.items.length) return null;
+  return f;
+}
+function visItems(card, f2) {
+  if (f2) return f2.items.map(t => ({ group: null, text: t }));
+  const out = []; VIS_CARDS[card].groups.forEach(([g, items]) => items.forEach(t => out.push({ group: g, text: t }))); return out;
+}
 function hijri(iso) {
   const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return "";
   try { return new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura-nu-arab", { day: "numeric", month: "numeric", year: "numeric" }).format(new Date(+m[1], +m[2] - 1, +m[3])).replace(/\s*هـ/, "") + "هـ"; }
@@ -2143,6 +2164,7 @@ function dayName(iso) { const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{
 function classLabel(id) { try { return classInfo(id).label; } catch (e) { return id; } }
 
 let VIS = null, visSub = "new", visTeacherFilter = "";
+let vfF2 = null;
 
 function visTab(which) {
   visSub = which;
@@ -2184,32 +2206,47 @@ function fillVisClasses(sel) {
   $("vf-class").innerHTML = cls.length ? cls.map(c => `<option value="${c}"${c === sel ? " selected" : ""}>${classLabel(c)}</option>`).join("") : '<option value="">اختر المعلم أولًا</option>';
   fillLessons();
 }
+// قائمة دروس الخطة للصف والمادة المختارين، ويتقدّمها درس أسبوع تاريخ الزيارة (ويمكن اختيار أي درس غيره)
 function fillLessons() {
   const c = $("vf-class").value, card = $("vf-card").value;
   if (!c) { $("vf-lessons").innerHTML = ""; return; }
   const grade = classInfo(c).grade, key = (card === "ie" ? "ie" : "qr") + grade;
-  const seen = new Set(), opts = [];
+  const wk = weekOf($("vf-date").value), seen = new Set(), opts = [];
   (SLOTS[key] || []).forEach(s => { if (!seen.has(s.lesson)) { seen.add(s.lesson); opts.push(s); } });
-  $("vf-lessons").innerHTML = opts.map(s => `<option value="${esc(s.lesson)}">${esc(s.unit || "")}</option>`).join("");
+  opts.sort((a, b) => (b.week === wk) - (a.week === wk));
+  $("vf-lessons").innerHTML = opts.map(s => `<option value="${esc(s.lesson)}">${esc((s.unit || "") + " · الأسبوع " + (WEEK_NAMES[s.week] || ar(s.week)))}</option>`).join("");
 }
 function onLessonPicked() {
   const c = $("vf-class").value; if (!c) return;
   const card = $("vf-card").value, key = (card === "ie" ? "ie" : "qr") + classInfo(c).grade;
   const s = (SLOTS[key] || []).find(x => x.lesson === $("vf-lesson").value); if (!s) return;
+  const f2 = vfF2;
   const num = (s.lesson.match(/^([\d٠-٩]+)\s*-\s*/) || [])[1];
+  if (f2 && card === "qr") {
+    // دروس القرآن في الخطة بصيغة «العنوان · السورة (الآيات)»: العنوان في عنوان الدرس، والسورة والآيات في خانتها
+    const [title, ...rest] = s.lesson.split("·").map(x => x.trim());
+    $("vf-lesson").value = title; $("vf-domain").value = rest.join(" · "); $("vf-lessonno").value = ""; $("vf-unit").value = "";
+    return;
+  }
   if (num) { $("vf-lessonno").value = num; $("vf-lesson").value = s.lesson.replace(/^[\d٠-٩]+\s*-\s*/, ""); }
+  else if (f2) $("vf-lessonno").value = "";
   const parts = String(s.unit || "").split("·").map(x => x.trim());
+  if (f2) { $("vf-domain").value = parts[parts.length - 1] || ""; $("vf-unit").value = ""; return; }
   if (parts.length === 2) { $("vf-unit").value = parts[0].replace(/^الوحدة\s*/, ""); $("vf-domain").value = parts[1]; }
   else if (parts[0]) { $("vf-domain").value = parts[0]; }
 }
 function onCardChange(ratings) {
   const card = $("vf-card").value;
-  const ie = card === "ie";
-  $("vf-domain-wrap").hidden = !ie;
-  $("vf-lessonno-label").textContent = ie ? "رقم الدرس" : "رقم الدرس";
-  $("vf-lesson-label").textContent = ie ? "عنوان الدرس" : "اسم السورة والآيات";
+  const ie = card === "ie", f2 = visForm2(card, $("vf-class").value, ratings ? ratings.length : null);
+  vfF2 = f2; // نموذج التوصيف المعروض الآن (null = بطاقة الزيارة القديمة)
+  $("vf-domain-wrap").hidden = !(ie || f2);
+  $("vf-domain-label").textContent = f2 ? f2.field : "المجال";
+  $("vf-unit-wrap").hidden = !!f2;
+  $("vf-lessonno-wrap").hidden = !!f2 && card === "qr";
+  $("vf-lessonno-label").textContent = "رقم الدرس";
+  $("vf-lesson-label").textContent = (ie || f2) ? "عنوان الدرس" : "اسم السورة والآيات";
   fillLessons();
-  const items = visItems(card);
+  const items = visItems(card, f2);
   let html = "", last = undefined, i = 0;
   items.forEach(it => {
     if (it.group !== last && it.group) html += `<div class="vis-group">${esc(it.group)}</div>`;
@@ -2223,8 +2260,9 @@ function onCardChange(ratings) {
   });
   $("vf-items").innerHTML = html;
 }
-$("vf-teacher").onchange = () => fillVisClasses("");
-$("vf-class").onchange = fillLessons;
+$("vf-teacher").onchange = () => { fillVisClasses(""); onCardChange(null); };
+$("vf-class").onchange = () => onCardChange(null);
+$("vf-date").addEventListener("change", fillLessons);
 $("vf-card").onchange = () => onCardChange(null);
 $("vf-lesson").addEventListener("change", onLessonPicked);
 $("vf-allgood").onclick = () => {
@@ -2260,7 +2298,7 @@ $("vis-form").addEventListener("submit", async e => {
   const msg = $("vf-msg"), btn = $("vf-save");
   if (!$("vf-teacher").value || !$("vf-class").value) { msg.textContent = "اختر المعلم والفصل."; return; }
   if (!$("vf-type").value) { msg.textContent = "اختر نوع الزيارة."; return; }
-  const n = visItems($("vf-card").value).length, ratings = [];
+  const n = visItems($("vf-card").value, vfF2).length, ratings = [];
   for (let i = 0; i < n; i++) { const r = document.querySelector(`input[name="lv${i}"]:checked`); ratings.push([r ? r.value : "", ""]); }
   const missing = ratings.filter(r => !r[0]).length;
   const sig = padImage("vf-sig");
@@ -2311,7 +2349,8 @@ $("vis-mine-reload").onclick = () => loadVisits("mine", true);
 
 function visNotes(v) { return v.notes || (v.ratings || []).filter(r => r[1]).map(r => r[1]).join("\n"); }
 function visCardHtml(v) {
-  const items = visItems(v.card), ie = v.card === "ie";
+  const f2 = visForm2(v.card, v.classId, (v.ratings || []).length);
+  const items = visItems(v.card, f2), ie = v.card === "ie";
   let rows = "", last;
   items.forEach((it, i) => {
     const r = v.ratings[i] || ["", ""];
@@ -2319,6 +2358,17 @@ function visCardHtml(v) {
     last = it.group;
     rows += `<tr><td>${it.group ? "" : ar(i + 1) + ". "}${esc(it.text)}</td><td class="lv">${esc(r[0] || "—")}</td></tr>`;
   });
+  if (f2) return `<h2>توصيف أداء معلم داخل الفصل · ${esc(f2.sub)}</h2>
+    <dl class="meta-grid">
+      <div><dt>المعلم</dt><dd>أ. ${esc(v.teacher)}</dd></div><div><dt>الصف</dt><dd>${classLabel(v.classId)}</dd></div>
+      <div><dt>نوع الزيارة</dt><dd>${esc(v.type || "—")}</dd></div><div><dt>رقم الزيارة</dt><dd>${ar(v.number)}</dd></div>
+      <div><dt>التاريخ</dt><dd>${fmtDate(v.date, true)}</dd></div><div><dt>الحصة</dt><dd>${v.period ? ar(v.period) : "—"}</dd></div>
+      <div><dt>${esc(f2.field)}</dt><dd>${esc(v.domain || "—")}</dd></div>
+      <div><dt>عنوان الدرس</dt><dd>${esc((ie && v.lessonNo ? ar(v.lessonNo) + "- " : "") + (v.lesson || "—"))}</dd></div>
+    </dl>
+    <div class="tablebox"><table class="vis-table"><thead><tr><th>بنود التوصيف</th><th>مستوى الأداء</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${visNotes(v) ? `<h3>الملاحظات</h3><p class="teacher-desc">${esc(visNotes(v))}</p>` : ""}
+    ${v.recommendations ? `<h3>التوصيات</h3><p class="teacher-desc">${esc(v.recommendations)}</p>` : ""}`;
   return `<h2>بطاقة زيارة معلم · ${esc(VIS_CARDS[v.card].sub)}</h2>
     <dl class="meta-grid">
       <div><dt>المعلم</dt><dd>أ. ${esc(v.teacher)}</dd></div><div><dt>الصف</dt><dd>${classLabel(v.classId)}</dd></div>
@@ -2368,7 +2418,8 @@ async function openVisit(id) {
     $("vis-word").onclick = async () => {
       const m = $("vis-dmsg"); m.textContent = "جارٍ إنشاء الملف…";
       try {
-        const blob = await htmlPdf(visitPdfHtml(v), { css: PDF_COMPACT + "td{font-size:11.5px}" });
+        const f2 = visForm2(v.card, v.classId, (v.ratings || []).length);
+        const blob = await htmlPdf(visitPdfHtml(v), f2 ? { css: PDF_FORM2_CSS, onePage: true } : { css: PDF_COMPACT + "td{font-size:11.5px}" });
         await deliver(blob, `بطاقة زيارة ${v.teacher} - الزيارة ${v.number}.pdf`, m);
       } catch (e) { m.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
     };
@@ -4737,7 +4788,30 @@ async function minuteMergedPdf(m) {
 }
 
 // ---------- بطاقة الزيارة الصفية ----------
+const BLUE = "#2f5f9e", BLUE_SOFT = "#d3e2f3";
+const PDF_FORM2_CSS = `body{padding:22px 34px 0;font-size:12px;line-height:1.5;color:#111}.f2 td,.f2 th{border:1.2px solid #222;padding:2px 7px}.f2 th{background:${BLUE_SOFT};color:#111;font-family:"Noto Kufi Arabic";font-weight:700;text-align:center}`;
+// «توصيف أداء معلم داخل الفصل» للحادي عشر والثاني عشر، بتصميم نموذج التوجيه الفني (أزرق) وبصفحة A4 واحدة
+function visitPdfHtmlForm2(v, f2) {
+  const ie = v.card === "ie", items = visItems(v.card, f2), n = items.length, notes = visNotes(v), hij = hijri(v.date);
+  const rowH = n === 20 ? 36 : 40;
+  const hd = (t, w) => `<th style="${w ? `width:${w}px;` : ""}font-size:11.5px;white-space:nowrap">${t}</th>`, val = (t, extra) => `<td ${extra || ""} style="font-weight:700;text-align:center;font-size:11.5px">${esc(t || "")}</td>`;
+  const rows = items.map((it, i) => `<tr style="height:${rowH}px"><td class="c b" style="width:34px">${ar(i + 1)}</td><td style="font-size:13px">${esc(it.text)}</td><td class="c b" style="color:${BLUE}">${esc((v.ratings[i] || [""])[0] || "")}</td>${i === 0 ? `<td rowspan="${n}" style="vertical-align:top;font-size:11.5px;line-height:1.9;padding:8px 10px">${esc(notes || "")}${v.recommendations ? `<div style="margin-top:8px"><b>التوصيات: </b>${esc(v.recommendations)}</div>` : ""}</td>` : ""}</tr>`).join("");
+  const sig = (label, img) => `<div style="text-align:center;min-width:190px"><div style="height:46px;display:flex;align-items:flex-end;justify-content:center">${pdfSigImg(img)}</div><div style="font-size:12.5px">${label}</div></div>`;
+  return `<div class="f2">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div style="width:200px;font-size:11px;line-height:1.65;font-weight:700"><img src="data:image/png;base64,${MOE_B64}" style="width:44px;height:44px;display:block;margin-bottom:3px">وزارة التربية<br>التوجيه الفني العام للتربية الإسلامية<br>الإدارة العامة لمنطقة <u>حولي</u> التعليمية<br>مدرسة : <u>ثانوية أحمد الربعي للبنين</u></div>
+      <div style="border:2px solid ${BLUE};border-radius:14px;padding:7px 20px;text-align:center;white-space:nowrap;font-family:'Noto Kufi Arabic';font-weight:700;font-size:14px;line-height:1.7;margin-top:6px">توصيف أداء معلم داخل الفصل<br>${esc(f2.sub)}</div>
+      <div style="width:200px;font-size:11px;padding-top:62px">العام الدراسي : ١٤٤٨هـ / ٢٠٢٦ - ٢٠٢٧م</div></div>
+    <table style="margin-top:12px;table-layout:auto"><tr style="height:30px">${hd("اسم المعلم / ـة", 112)}<td colspan="3" style="font-weight:700;font-size:12.5px">أ / ${esc(tName(v.teacher))}</td>${hd("اليوم", 52)}${val(dayName(v.date))}${hd("التاريخ", 56)}<td style="font-size:10.5px;font-weight:700;line-height:1.5;text-align:center;width:128px">${esc(hij || "")}<br>${fmtDate(v.date)}م</td></tr>
+    <tr style="height:30px">${hd("البيئة الصفية")}<td colspan="3" style="font-weight:700;text-align:center">${esc(classLabel(v.classId))}</td>${hd("الحصة")}<td colspan="3" style="font-weight:700;text-align:center">${v.period ? ar(v.period) : ""}</td></tr>
+    <tr style="height:30px">${hd(esc(f2.field))}<td style="font-weight:700;text-align:center;font-size:${ie ? 12 : 11}px">${esc(v.domain || "")}</td>${hd("عنوان الدرس")}<td colspan="5" style="font-weight:700;font-size:12px;text-align:center">${esc((ie && v.lessonNo ? ar(v.lessonNo) + "- " : "") + (v.lesson || ""))}</td></tr></table>
+    <table style="margin-top:12px;table-layout:fixed"><colgroup><col style="width:34px"><col><col style="width:84px"><col style="width:36%"></colgroup>
+    <tr style="height:44px"><th>م</th><th>بنود التوصيف</th><th>مستوى الأداء</th><th>الملاحظات والتوصيات</th></tr>${rows}</table>
+    <div style="display:flex;justify-content:space-between;margin-top:16px;padding:0 6px">${sig("توقيع المعلم", v.teacherSig)}${sig("توقيع رئيس الشعبة / الموجه الفني", v.headSig)}</div></div>`;
+}
 function visitPdfHtml(v) {
+  const f2 = visForm2(v.card, v.classId, (v.ratings || []).length);
+  if (f2) return visitPdfHtmlForm2(v, f2);
   const card = VIS_CARDS[v.card], ie = v.card === "ie", items = visItems(v.card), notes = visNotes(v);
   const kv = (k, val, span) => `<td${span ? ` colspan="${span}"` : ""} style="background:#faf7f3;border:2px solid #fff"><div class="mut" style="font-size:11px">${k}</div><div class="b">${esc(val || "—")}</div></td>`;
   const hij = hijri(v.date);
