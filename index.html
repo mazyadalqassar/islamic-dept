@@ -1064,6 +1064,8 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <button id="sr-week" role="tab" aria-selected="true" type="button">هذا الأسبوع</button>
           <button id="sr-all" role="tab" aria-selected="false" type="button">الفصل كله</button>
         </nav>
+        <div class="row-actions" style="margin-top:10px"><label for="sr-past" style="font-weight:700">أسبوع منتهٍ:</label>
+          <select id="sr-past"></select></div>
         <div class="row-actions" style="margin-top:10px"><button class="btn" type="button" id="subs-pdf">تنزيل تقرير الغياب والاحتياط PDF</button><span class="saved" id="subs-pdf-msg"></span></div>
         <div class="summary three" id="subs-sum"></div>
         <h3 class="list-title">الغياب لكل معلم</h3>
@@ -2618,6 +2620,20 @@ function teachingAt(name, d, p) { return ((TT[name] || {})[d] || {})[p] || ""; }
 function busyAt(name, d, p) { return ((TT_BUSY["*"] || {})[d] || {})[p] || ((TT_BUSY[name] || {})[d] || {})[p] || ""; }
 function weekOf(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? currentWeek(new Date(+m[1], +m[2] - 1, +m[3], 12)) : 0; }
 function staffNames() { return TEACHERS.map(t => t[0]); }
+// نطاق تقرير الغياب: "week" الأسبوع الحالي، "all" الفصل كله، أو رقم أسبوع منتهٍ (من السابع)
+const SUBS_FIRST_WEEK = 7;
+function weekEnded(w) { const fri = new Date(START[0], START[1], START[2] + (w - 1) * 7 + 5); const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()) >= fri; }
+function endedWeeks() { const out = []; for (let w = SUBS_FIRST_WEEK; w <= WEEKS; w++) if (weekEnded(w)) out.push(w); return out; }
+function subsWeekNo() { return typeof subsRange === "number" ? subsRange : WEEK; }
+function inSubsRange(r) { return subsRange === "all" || weekOf(r.date) === subsWeekNo(); }
+function subsPeriodLabel() { if (subsRange === "all") return "الفصل الدراسي الأول كاملًا"; const w = subsWeekNo(); return w >= 1 && w <= WEEKS ? `الأسبوع ${WEEK_NAMES[w]} (${weekRange(w)})` : "الأسبوع الحالي"; }
+function fillPastWeeks() {
+  const sel = $("sr-past"), ws = endedWeeks();
+  sel.innerHTML = '<option value="">— اختر —</option>' + ws.map(w => `<option value="${w}">الأسبوع ${WEEK_NAMES[w]} (${weekRange(w)})</option>`).join("");
+  sel.value = typeof subsRange === "number" ? String(subsRange) : "";
+  sel.disabled = !ws.length;
+  if (!ws.length) sel.innerHTML = '<option value="">لا أسبوع منتهٍ بعد (يبدأ من السابع)</option>';
+}
 
 // المتاحون لحصة معينة، مرتبون: الأقل أخذًا للاحتياط أولًا، ثم الأخف نصابًا في ذلك اليوم
 // ترتيب الأولوية: المعلمون قبل رئيس الشعبة (لا يُقترح إلا إذا لم يوجد غيره)، ثم من يدرّس المرحلة نفسها،
@@ -2785,10 +2801,10 @@ $("sf-del").onclick = () => confirmInline($("sf-del"), "اضغط مرة ثاني
 // ---- السجل والإحصاء ----
 async function renderSubsLog() {
   $("subs-detail").hidden = true;
-  $("sr-week").setAttribute("aria-selected", subsRange === "week"); $("sr-all").setAttribute("aria-selected", subsRange === "all");
+  $("sr-week").setAttribute("aria-selected", subsRange === "week"); $("sr-all").setAttribute("aria-selected", subsRange === "all"); fillPastWeeks();
   $("subs-abs").innerHTML = '<tr><td colspan="5" class="empty">جارٍ التحميل…</td></tr>';
   try { await loadSubs(true); } catch (e) { $("subs-abs").innerHTML = `<tr><td colspan="5" class="empty">${esc(cleanErr(e))}</td></tr>`; return; }
-  const recs = SUBS.filter(r => subsRange === "all" || weekOf(r.date) === WEEK);
+  const recs = SUBS.filter(inSubsRange);
   const days = new Set(recs.map(r => r.absence)).size, covered = recs.filter(r => r.sub).length;
   $("subs-sum").innerHTML = [[days, "أيام غياب"], [recs.length, "حصص غياب"], [recs.length - covered, "بلا بديل"]]
     .map(([n, l], i) => `<button type="button" class="${i === 2 && n ? "late" : ""}" disabled><b>${ar(n)}</b><span>${l}</span></button>`).join("");
@@ -2817,7 +2833,7 @@ function subsDetail(n, kind, recs) {
   d.innerHTML = `<h2>${kind === "abs" ? "غياب" : "حصص احتياط"} أ. ${esc(n)}</h2><div class="tablebox"><table class="subs-table sd-table"><thead><tr><th>التاريخ</th><th>الحصة</th><th>الفصل</th><th>${kind === "abs" ? "البديل" : "بدلًا من"}</th><th>تبديل أو إلغاء</th></tr></thead><tbody>
     ${rs.map(r => `<tr><td>${DAYS[isoDay(r.date)]} ${fmtDate(r.date)}</td><td>${ar(r.period)}</td><td>${esc(classLabel(r.classId))}</td><td>${kind === "abs" ? (r.sub ? "أ. " + esc(r.sub) : '<span class="pill late">بلا بديل</span>') : "أ. " + esc(r.teacher)}</td><td>${act(r)}</td></tr>`).join("")}</tbody></table></div>
     <div class="sub" style="margin-top:6px">«إلغاء» يُخرج المعلم من الحصة ويصله إيميل بذلك، وتعود الحصة مفتوحة للمعلمين. «تبديل» يلغي المعلم الحالي ويضع المعلم الذي تختاره.</div>`;
-  const refresh = () => { renderSubsLog().then(() => { const rr = SUBS.filter(r => subsRange === "all" || weekOf(r.date) === WEEK); subsDetail(n, kind, rr); }); };
+  const refresh = () => { renderSubsLog().then(() => { const rr = SUBS.filter(inSubsRange); subsDetail(n, kind, rr); }); };
   d.querySelectorAll(".sd-act [data-do]").forEach(btn => {
     const box = btn.closest(".sd-act"), id = box.dataset.a, p = +box.dataset.p, m = box.querySelector(".saved");
     const go_ = async () => {
@@ -2841,12 +2857,12 @@ $("subs-pdf").onclick = async () => {
   const msg = $("subs-pdf-msg"), btn = $("subs-pdf"); btn.disabled = true; msg.textContent = "جارٍ إنشاء التقرير…";
   try {
     if (!SUBS) await loadSubs(true);
-    const recs = SUBS.filter(r => subsRange === "all" || weekOf(r.date) === WEEK).sort((a, b) => a.date.localeCompare(b.date) || a.teacher.localeCompare(b.teacher, "ar") || a.period - b.period);
+    const recs = SUBS.filter(inSubsRange).sort((a, b) => a.date.localeCompare(b.date) || a.teacher.localeCompare(b.teacher, "ar") || a.period - b.period);
     const covered = recs.filter(r => r.sub).length, days = new Set(recs.map(r => r.absence)).size;
     const abs = staffNames().map(n => { const rs = recs.filter(r => r.teacher === n); return { n, days: new Set(rs.map(r => r.date)).size, total: rs.length, cov: rs.filter(r => r.sub).length }; })
       .filter(x => x.total).sort((a, b) => b.days - a.days || b.total - a.total);
     const cov = staffNames().map(n => ({ n, rs: recs.filter(r => r.sub === n) })).filter(x => x.rs.length).sort((a, b) => b.rs.length - a.rs.length);
-    const period = subsRange === "all" ? "الفصل الدراسي الأول كاملًا" : (WEEK >= 1 && WEEK <= WEEKS ? `الأسبوع ${WEEK_NAMES[WEEK]} (${weekRange(WEEK)})` : "الأسبوع الحالي");
+    const period = subsPeriodLabel();
     const sn = n => esc(tName(n));
     const html = pdfHead("الفصل الدراسي الأول") + `<h1>تقرير الغياب والاحتياط</h1><div class="sub">${period} · تاريخ التقرير: ${fmtDate(todayISO())}</div>
       <table><tr>${["أيام الغياب", "حصص الغياب", "غُطّيت", "بلا بديل"].map(t => `<th class="c">${t}</th>`).join("")}</tr>
@@ -2864,10 +2880,11 @@ $("subs-pdf").onclick = async () => {
         <thead><tr>${["م", "اليوم والتاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "الدرس"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
         <tbody>${recs.map((r, i) => `<tr><td class="c">${ar(i + 1)}</td><td class="c">${DAYS[isoDay(r.date)] || ""} ${fmtDate(r.date)}</td><td>أ. ${sn(r.teacher)}</td><td class="c">${ar(r.period)}</td><td class="c">${esc(classLabel(r.classId))}</td><td>${r.sub ? "أ. " + sn(r.sub) : '<span style="color:#B4382B">بلا بديل</span>'}</td><td>${esc(r.lesson || "—")}</td></tr>`).join("")}</tbody></table>` : '<p class="mut">لا توجد حصص غياب في هذه الفترة.</p>'}
       ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
-    await deliver(await htmlPdf(html, { css: PDF_COMPACT }), `تقرير الغياب والاحتياط - ${subsRange === "all" ? "الفصل كله" : "الأسبوع " + (WEEK >= 1 && WEEK <= WEEKS ? WEEK : "")}.pdf`, msg);
+    await deliver(await htmlPdf(html, { css: PDF_COMPACT }), `تقرير الغياب والاحتياط - ${subsRange === "all" ? "الفصل كله" : "الأسبوع " + subsWeekNo()}.pdf`, msg);
   } catch (e) { msg.textContent = "لم يتم إنشاء التقرير: " + cleanErr(e); } finally { btn.disabled = false; }
 };
 $("sr-week").onclick = () => { subsRange = "week"; renderSubsLog(); };
+$("sr-past").onchange = e => { if (e.target.value) { subsRange = +e.target.value; renderSubsLog(); } };
 $("sr-all").onclick = () => { subsRange = "all"; renderSubsLog(); };
 
 // ================= خطة الزيارات (رئيس الشعبة) =================
