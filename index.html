@@ -2893,7 +2893,7 @@ $("subs-pdf").onclick = async () => {
         <thead><tr>${["م", "اليوم والتاريخ", "المعلم الغائب", "الحصة", "الفصل", "المعلم البديل", "الدرس"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
         <tbody>${recs.map((r, i) => `<tr><td class="c">${ar(i + 1)}</td><td class="c">${DAYS[isoDay(r.date)] || ""} ${fmtDate(r.date)}</td><td>أ. ${sn(r.teacher)}</td><td class="c">${ar(r.period)}</td><td class="c">${esc(classLabel(r.classId))}</td><td>${r.sub ? "أ. " + sn(r.sub) : '<span style="color:#B4382B">بلا بديل</span>'}</td><td>${esc(r.lesson || "—")}</td></tr>`).join("")}</tbody></table>` : '<p class="mut">لا توجد حصص غياب في هذه الفترة.</p>'}
       ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
-    await deliver(await htmlPdf(html, { css: PDF_COMPACT }), `تقرير الغياب والاحتياط - ${subsRange === "all" ? "الفصل كله" : "الأسبوع " + subsWeekNo()}.pdf`, msg);
+    await deliver(await htmlPdf(html, { css: PDF_COMPACT, onePage: subsRange !== "all" }), `تقرير الغياب والاحتياط - ${subsRange === "all" ? "الفصل كله" : "الأسبوع " + subsWeekNo()}.pdf`, msg);
   } catch (e) { msg.textContent = "لم يتم إنشاء التقرير: " + cleanErr(e); } finally { btn.disabled = false; }
 };
 $("sr-week").onclick = () => { subsRange = "week"; renderSubsLog(); };
@@ -3662,7 +3662,7 @@ $("ls-pdf").onclick = async () => {
         <thead><tr>${["م", "اليوم والتاريخ", "المعلم", "النوع", "السبب"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
         <tbody>${list.map((l, i) => `<tr><td class="c">${ar(i + 1)}</td><td class="c">${dayName(l.date)} ${fmtDate(l.date)}</td><td>أ. ${esc(tName(l.teacher))}</td><td class="c">${esc(l.type)}</td><td>${esc(l.reason)}</td></tr>`).join("")}</tbody></table>` : '<p class="mut">لا توجد استئذانات في هذه الفترة.</p>'}
       ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
-    await deliver(await htmlPdf(html, { css: PDF_COMPACT }), `سجل الاستئذانات - ${lvStatRange === "all" ? "الفصل كله" : "الأسبوع " + lsWeekNo()}.pdf`, msg);
+    await deliver(await htmlPdf(html, { css: PDF_COMPACT, onePage: lvStatRange !== "all" }), `سجل الاستئذانات - ${lvStatRange === "all" ? "الفصل كله" : "الأسبوع " + lsWeekNo()}.pdf`, msg);
   } catch (e) { msg.textContent = "لم يتم إنشاء التقرير: " + cleanErr(e); } finally { btn.disabled = false; }
 };
 $("lv-reload").onclick = () => loadLeaves(true);
