@@ -1918,7 +1918,7 @@ async function openMinute(id) {
     $("min-word").onclick = async () => {
       const msg = $("min-dmsg"); msg.textContent = "جارٍ إنشاء الملف…";
       try {
-        const blob = CUR_MIN.hasFile ? await minuteMergedPdf(CUR_MIN) : await htmlPdf(minutePdfHtml(CUR_MIN), { css: PDF_DISC });
+        const blob = CUR_MIN.hasFile ? await minuteMergedPdf(CUR_MIN) : await htmlPdf(minutePdfHtml(CUR_MIN), { css: PDF_DISC, maxPages: CUR_MIN.kind === "اجتماع الإدارة" ? 0 : 2 });
         await deliver(blob, `محضر ${CUR_MIN.title} - ${CUR_MIN.date}.pdf`, msg);
       } catch (e) { msg.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
     };
@@ -4493,49 +4493,59 @@ const pdfSigImg = s => s ? `<img class="sig" src="${s}">` : "";
 const PDF_DISC = ".disc h2{font-size:14px;color:#2b2b2b;border:0;margin:8px 0 3px}";
 async function htmlPdf(inner, o = {}) {
   await grLibs();
-  const L = !!o.landscape, W = L ? 1123 : 794, PH = L ? 794 : 1123, TOP = 30, BOT = 40, S = 2.2;
+  const L = !!o.landscape, W0 = L ? 1123 : 794, PH0 = L ? 794 : 1123, TOP0 = 30, BOT0 = 40, S = 2.2;
   const fr = document.createElement("iframe");
-  fr.style.cssText = `position:fixed;left:-20000px;top:0;width:${W}px;height:${PH}px;border:0;visibility:hidden`;
+  fr.style.cssText = `position:fixed;left:-20000px;top:0;width:${W0}px;height:${PH0}px;border:0;visibility:hidden`;
   document.body.appendChild(fr);
   try {
     const doc = fr.contentDocument;
-    doc.open(); doc.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>${PDF_CSS()}${o.css || ""}</style></head><body style="width:${W}px">${inner}</body></html>`); doc.close();
+    doc.open(); doc.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>${PDF_CSS()}${o.css || ""}</style></head><body style="width:${W0}px">${inner}</body></html>`); doc.close();
     await Promise.race([doc.fonts ? doc.fonts.ready : Promise.resolve(), new Promise(r => setTimeout(r, 4000))]);
     await Promise.all([...doc.images].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
     await new Promise(r => setTimeout(r, 150));
-    const body = doc.body, H = Math.ceil(body.scrollHeight);
-    fr.style.height = H + "px";
-    // مواضع لا يجوز القطع داخلها، وفواصل الصفحات الإجبارية
-    const atoms = [...doc.querySelectorAll("tr, p, li, h1, h2, h3, img, .avoid, .lh")].map(e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom]; }).filter(a => a[1] - a[0] < PH * 0.8);
-    const forced = [...doc.querySelectorAll(".pb")].map(e => Math.floor(e.getBoundingClientRect().top)).filter(y => y > 0);
-    const okCut = y => !atoms.some(([a, b]) => a < y - 0.5 && b > y + 0.5);
-    const cuts = [0];
-    let start = o.onePage ? H : 0; if (o.onePage) cuts.push(H);
-    while (start < H - 4) {
-      const avail = (cuts.length === 1 ? PH - BOT : PH - TOP - BOT), limit = start + avail;
-      const f = forced.find(y => y > start + 5 && y <= limit);
-      let cut;
-      if (f) cut = f;
-      else if (limit >= H) cut = H;
-      else {
-        const cands = atoms.flatMap(a => a).filter(y => y > start + avail * 0.4 && y <= limit).sort((a, b) => b - a);
-        cut = cands.find(okCut) || limit;
+    const body = doc.body;
+    // تخطيط الصفحات بمقياس k: عند الحد الأقصى للصفحات يُوسَّع عرض المحتوى ثم يُصغَّر عند الرسم ليتّسع في العدد المطلوب
+    const layout = k => {
+      const W = W0 / k, PH = PH0 / k, TOP = TOP0 / k, BOT = BOT0 / k;
+      fr.style.width = W + "px"; fr.style.height = PH + "px"; body.style.width = W + "px";
+      const H = Math.ceil(body.scrollHeight);
+      fr.style.height = H + "px";
+      // مواضع لا يجوز القطع داخلها، وفواصل الصفحات الإجبارية
+      const atoms = [...doc.querySelectorAll("tr, p, li, h1, h2, h3, img, .avoid, .lh")].map(e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom]; }).filter(a => a[1] - a[0] < PH * 0.8);
+      const forced = [...doc.querySelectorAll(".pb")].map(e => Math.floor(e.getBoundingClientRect().top)).filter(y => y > 0);
+      const okCut = y => !atoms.some(([a, b]) => a < y - 0.5 && b > y + 0.5);
+      const cuts = [0];
+      let start = o.onePage ? H : 0; if (o.onePage) cuts.push(H);
+      while (start < H - 4) {
+        const avail = (cuts.length === 1 ? PH - BOT : PH - TOP - BOT), limit = start + avail;
+        const f = forced.find(y => y > start + 5 && y <= limit);
+        let cut;
+        if (f) cut = f;
+        else if (limit >= H) cut = H;
+        else {
+          const cands = atoms.flatMap(a => a).filter(y => y > start + avail * 0.4 && y <= limit).sort((a, b) => b - a);
+          cut = cands.find(okCut) || limit;
+        }
+        cuts.push(Math.ceil(cut)); start = Math.ceil(cut);
       }
-      cuts.push(Math.ceil(cut)); start = Math.ceil(cut);
-    }
+      return { k, W, PH, TOP, BOT, H, cuts };
+    };
+    let lay = layout(1);
+    if (o.maxPages && !o.onePage) for (let k = 0.97; lay.cuts.length - 1 > o.maxPages && k >= 0.7; k = Math.round((k - 0.02) * 100) / 100) lay = layout(k);
+    const { k, W, PH, TOP, BOT, H, cuts } = lay;
     const canvas = await html2canvas(body, { scale: S, backgroundColor: "#ffffff", width: W, height: H, windowWidth: W, windowHeight: H, useCORS: true, logging: false });
-    const pdf = new jspdf.jsPDF({ orientation: L ? "landscape" : "portrait", unit: "px", format: [W, PH], compress: true, hotfixes: ["px_scaling"] });
+    const pdf = new jspdf.jsPDF({ orientation: L ? "landscape" : "portrait", unit: "px", format: [W0, PH0], compress: true, hotfixes: ["px_scaling"] });
     const n = cuts.length - 1;
     for (let i = 0; i < n; i++) {
       const y0 = cuts[i], y1 = cuts[i + 1], off = i ? TOP : 0;
       const pc = document.createElement("canvas"); pc.width = W * S; pc.height = PH * S;
       const g = pc.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, pc.width, pc.height);
-      if (o.onePage) { const k = Math.min(1, (PH - BOT) / H), dw = W * k; g.drawImage(canvas, 0, 0, W * S, H * S, (W - dw) / 2 * S, 0, dw * S, H * k * S); }
+      if (o.onePage) { const kk = Math.min(1, (PH - BOT) / H), dw = W * kk; g.drawImage(canvas, 0, 0, W * S, H * S, (W - dw) / 2 * S, 0, dw * S, H * kk * S); }
       else g.drawImage(canvas, 0, y0 * S, W * S, (y1 - y0) * S, 0, off * S, W * S, (y1 - y0) * S);
-      g.fillStyle = "#8a847e"; g.font = `${11 * S}px "IBM Plex Sans Arabic", Tahoma, sans-serif`; g.direction = "rtl"; g.textAlign = "center";
-      g.fillText(`شعبة التربية الإسلامية · ثانوية أحمد الربعي للبنين${o.footer ? " · " + o.footer : ""}${n > 1 ? `  —  صفحة ${ar(i + 1)} من ${ar(n)}` : ""}`, W * S / 2, (PH - 16) * S);
-      if (i) pdf.addPage([W, PH], L ? "landscape" : "portrait");
-      pdf.addImage(pc.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, W, PH);
+      g.fillStyle = "#8a847e"; g.font = `${11 / k * S}px "IBM Plex Sans Arabic", Tahoma, sans-serif`; g.direction = "rtl"; g.textAlign = "center";
+      g.fillText(`شعبة التربية الإسلامية · ثانوية أحمد الربعي للبنين${o.footer ? " · " + o.footer : ""}${n > 1 ? `  —  صفحة ${ar(i + 1)} من ${ar(n)}` : ""}`, W * S / 2, (PH - 16 / k) * S);
+      if (i) pdf.addPage([W0, PH0], L ? "landscape" : "portrait");
+      pdf.addImage(pc.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, W0, PH0);
     }
     return pdf.output("blob");
   } finally { fr.remove(); }
