@@ -928,6 +928,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
       <nav class="tabs" role="tablist">
         <button id="lvtab-new" role="tab" aria-selected="true">استئذان جديد</button>
         <button id="lvtab-list" role="tab" aria-selected="false"><span class="head-only" hidden>الاستئذانات</span><span class="teacher-only">استئذاناتي</span></button>
+        <button id="lvtab-stat" class="head-only" role="tab" aria-selected="false" hidden>سجل وإحصاء</button>
       </nav>
       <section id="lv-new">
         <form class="card" id="lv-form" autocomplete="off">
@@ -961,6 +962,18 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           </div>
         </form>
         <div class="saved" id="lv-msg"></div>
+      </section>
+      <section id="lv-stat" hidden>
+        <nav class="seg" role="tablist">
+          <button id="ls-week" role="tab" aria-selected="true" type="button">هذا الأسبوع</button>
+          <button id="ls-all" role="tab" aria-selected="false" type="button">الفصل كله</button>
+        </nav>
+        <div class="row-actions" style="margin-top:10px"><label for="ls-past" style="font-weight:700">أسبوع منتهٍ:</label><select id="ls-past"></select></div>
+        <div class="row-actions" style="margin-top:10px"><button class="btn" type="button" id="ls-pdf">تنزيل سجل الاستئذانات PDF</button><span class="saved" id="ls-pdf-msg"></span></div>
+        <div class="summary three" id="ls-sum"></div>
+        <h3 class="list-title">الاستئذانات لكل معلم (الموافق عليها)</h3>
+        <div class="tablebox"><table class="subs-table"><thead><tr><th>المعلم</th><th>بداية</th><th>أثناء</th><th>نهاية</th><th>المجموع</th></tr></thead><tbody id="ls-body"></tbody></table></div>
+        <div class="saved" id="ls-note"></div>
       </section>
       <section id="lv-list" hidden>
         <div class="row-actions" style="margin-top:12px">
@@ -3595,11 +3608,63 @@ function lvMe() { return ME.isDemo || ME.isHead ? ($("lv-who").value || (ME.isHe
 const hm12 = t => { if (!t) return ""; const [h, m] = t.split(":").map(Number); return ar(`${h > 12 ? h - 12 : h}:${String(m).padStart(2, "0")}`); };
 function lvTab(which) {
   lvSub = which;
-  ["new", "list"].forEach(k => { $("lvtab-" + k).setAttribute("aria-selected", k === which); $("lv-" + k).hidden = k !== which; });
-  if (which === "new") lvInit(); else loadLeaves();
+  ["new", "list", "stat"].forEach(k => { $("lvtab-" + k).setAttribute("aria-selected", k === which); $("lv-" + k).hidden = k !== which; });
+  if (which === "new") lvInit(); else if (which === "stat") renderLvStat(); else loadLeaves();
 }
 $("lvtab-new").onclick = () => lvTab("new");
 $("lvtab-list").onclick = () => lvTab("list");
+$("lvtab-stat").onclick = () => lvTab("stat");
+// ---- سجل وإحصاء الاستئذانات (رئيس الشعبة): أسبوعيًا وفصليًا، دون التجريبي ----
+let lvStatRange = "week";
+const lsWeekNo = () => typeof lvStatRange === "number" ? lvStatRange : WEEK;
+const lsIn = l => !l.demo && (lvStatRange === "all" || weekOf(l.date) === lsWeekNo());
+function lsLabel() { if (lvStatRange === "all") return "الفصل الدراسي الأول كاملًا"; const w = lsWeekNo(); return w >= 1 && w <= WEEKS ? `الأسبوع ${WEEK_NAMES[w]} (${weekRange(w)})` : "الأسبوع الحالي"; }
+function lsData() {
+  const all = (LEAVES || []).filter(lsIn), ok = all.filter(l => l.status === LV_ST.ok);
+  const rows = staffNames().concat(ME.name && !staffNames().includes(ME.name) ? [ME.name] : []).map(n => {
+    const rs = ok.filter(l => l.teacher === n), c = LV_TYPES.map(t => rs.filter(l => l.type === t).length);
+    return { n, c, total: rs.length, rs };
+  }).filter(x => x.total).sort((a, b) => b.total - a.total);
+  const late = ok.filter(l => lvLate(l)).length;
+  return { all, ok, rows, no: all.filter(l => l.status === LV_ST.no).length, pend: all.filter(l => l.status === LV_ST.pending).length, late };
+}
+async function renderLvStat() {
+  const sel = $("ls-past"), ws = endedWeeks();
+  $("ls-week").setAttribute("aria-selected", lvStatRange === "week"); $("ls-all").setAttribute("aria-selected", lvStatRange === "all");
+  sel.innerHTML = ws.length ? '<option value="">— اختر —</option>' + ws.map(w => `<option value="${w}">الأسبوع ${WEEK_NAMES[w]} (${weekRange(w)})</option>`).join("") : '<option value="">لا أسبوع منتهٍ بعد (يبدأ من السابع)</option>';
+  sel.disabled = !ws.length; sel.value = typeof lvStatRange === "number" ? String(lvStatRange) : "";
+  $("ls-body").innerHTML = '<tr><td colspan="5" class="empty">جارٍ التحميل…</td></tr>';
+  try { if (!LEAVES) LEAVES = await run("listLeaves", CODE); } catch (e) { $("ls-body").innerHTML = `<tr><td colspan="5" class="empty">${esc(cleanErr(e))}</td></tr>`; return; }
+  const d = lsData();
+  $("ls-sum").innerHTML = [[d.ok.length, "استئذان موافق عليه"], [d.no, "غير موافق عليه"], [d.pend, "بانتظار الموافقة"]]
+    .map(([n, l], i) => `<button type="button" class="${i === 2 && n ? "late" : ""}" disabled><b>${ar(n)}</b><span>${l}</span></button>`).join("");
+  $("ls-body").innerHTML = d.rows.length ? d.rows.map(x => `<tr><td class="t">أ. ${esc(x.n)}</td>${x.c.map(n => `<td>${n ? ar(n) : "—"}</td>`).join("")}<td><b>${ar(x.total)}</b></td></tr>`).join("") : '<tr><td colspan="5" class="empty">لا توجد استئذانات موافق عليها في هذه الفترة.</td></tr>';
+  $("ls-note").textContent = d.late ? `عدد من تأخر أو انصرف قبل الوقت المذكور (حسب البصمة المسجّلة): ${ar(d.late)}` : "";
+}
+$("ls-week").onclick = () => { lvStatRange = "week"; renderLvStat(); };
+$("ls-all").onclick = () => { lvStatRange = "all"; renderLvStat(); };
+$("ls-past").onchange = e => { if (e.target.value) { lvStatRange = +e.target.value; renderLvStat(); } };
+$("ls-pdf").onclick = async () => {
+  const msg = $("ls-pdf-msg"), btn = $("ls-pdf"); btn.disabled = true; msg.textContent = "جارٍ إنشاء التقرير…";
+  try {
+    if (!LEAVES) LEAVES = await run("listLeaves", CODE);
+    const d = lsData(), list = d.ok.slice().sort((a, b) => a.date.localeCompare(b.date) || a.teacher.localeCompare(b.teacher, "ar"));
+    const tot = LV_TYPES.map((t, i) => d.rows.reduce((s, x) => s + x.c[i], 0));
+    const html = pdfHead("الفصل الدراسي الأول") + `<h1>سجل الاستئذانات</h1><div class="sub">${lsLabel()} · تاريخ التقرير: ${fmtDate(todayISO())}</div>
+      <table><tr>${["الموافق عليها", "غير موافق عليها", "بانتظار الموافقة", "تأخر عن الوقت المذكور"].map(t => `<th class="c">${t}</th>`).join("")}</tr>
+      <tr>${[d.ok.length, d.no, d.pend, d.late].map(n => `<td class="c b">${ar(n)}</td>`).join("")}</tr></table>
+      <h2>أولًا: الاستئذانات لكل معلم</h2>
+      ${d.rows.length ? `<table><thead><tr>${["م", "المعلم", ...LV_TYPES, "المجموع"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
+        <tbody>${d.rows.map((x, i) => `<tr><td class="c">${ar(i + 1)}</td><td>أ. ${esc(tName(x.n))}</td>${x.c.map(n => `<td class="c">${n ? ar(n) : "—"}</td>`).join("")}<td class="c b">${ar(x.total)}</td></tr>`).join("")}
+        <tr><td class="c b" colspan="2">المجموع</td>${tot.map(n => `<td class="c b">${ar(n)}</td>`).join("")}<td class="c b">${ar(d.ok.length)}</td></tr></tbody></table>` : '<p class="mut">لا توجد استئذانات موافق عليها في هذه الفترة.</p>'}
+      <h2>ثانيًا: تفاصيل الاستئذانات</h2>
+      ${list.length ? `<table style="font-size:12px"><colgroup><col style="width:5%"><col style="width:17%"><col style="width:22%"><col style="width:14%"><col style="width:42%"></colgroup>
+        <thead><tr>${["م", "اليوم والتاريخ", "المعلم", "النوع", "السبب"].map(t => `<th class="c">${t}</th>`).join("")}</tr></thead>
+        <tbody>${list.map((l, i) => `<tr><td class="c">${ar(i + 1)}</td><td class="c">${dayName(l.date)} ${fmtDate(l.date)}</td><td>أ. ${esc(tName(l.teacher))}</td><td class="c">${esc(l.type)}</td><td>${esc(l.reason)}</td></tr>`).join("")}</tbody></table>` : '<p class="mut">لا توجد استئذانات في هذه الفترة.</p>'}
+      ${pdfSigns([["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
+    await deliver(await htmlPdf(html, { css: PDF_COMPACT }), `سجل الاستئذانات - ${lvStatRange === "all" ? "الفصل كله" : "الأسبوع " + lsWeekNo()}.pdf`, msg);
+  } catch (e) { msg.textContent = "لم يتم إنشاء التقرير: " + cleanErr(e); } finally { btn.disabled = false; }
+};
 $("lv-reload").onclick = () => loadLeaves(true);
 // كشف الاستئذانات PDF: تظهر الاستئذانات المقدَّمة أمس واليوم، ورئيس الشعبة يختار ما يدخل الكشف
 // (المؤشَّر عليها مبدئيًا: التي يومها اليوم). الكشف التلقائي بالإيميل الساعة ٢ يشمل التي يومها اليوم.
