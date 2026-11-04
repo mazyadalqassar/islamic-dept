@@ -1458,6 +1458,8 @@ function lines(t) { return String(t || "").split(/\n+/).map(s => s.replace(/^\s*
   $("today-line").textContent = `${DAYS[NOW.getDay()]} ${ar(NOW.getDate())} ${MONTHS[NOW.getMonth()]} ${ar(NOW.getFullYear())}`;
 })();
 
+// داخل Apps Script لا تعمل نوافذ blob الجديدة (تظهر صفحة خطأ Drive) فنستخدم التنزيل المباشر
+const IN_GAS = !!(window.google && google.script && google.script.run);
 // تنزيل ملف وورد، مع خيار حفظه في Drive لرئيس الشعبة
 async function deliver(blob, filename, msgEl) {
   try {
@@ -1951,7 +1953,7 @@ async function openMinute(id) {
     $("min-fopen").onclick = async () => {
       const msg = $("min-fmsg"); msg.textContent = "جارٍ فتح الملف…";
       try { const f = await minFile(m.id), blob = new Blob([b64ToBytes(f.b64)], { type: f.mime }), url = URL.createObjectURL(blob);
-        const w = window.open(url, "_blank"); if (!w) await deliver(blob, f.name, msg); else msg.textContent = ""; setTimeout(() => URL.revokeObjectURL(url), 120000); }
+        const w = IN_GAS ? null : window.open(url, "_blank"); if (!w) await deliver(blob, f.name, msg); else msg.textContent = ""; setTimeout(() => URL.revokeObjectURL(url), 120000); }
       catch (e) { msg.textContent = cleanErr(e); }
     };
   }
@@ -4543,7 +4545,7 @@ async function openCircular(id) {
   if ($("ci-open")) $("ci-open").onclick = async () => {
     const m = $("ci-fmsg"); m.textContent = "جارٍ فتح الملف…";
     try { const f = await circFile(); const blob = new Blob([b64ToBytes(f.b64)], { type: f.mime }); const url = URL.createObjectURL(blob);
-      const w = window.open(url, "_blank"); if (!w) await deliver(blob, f.name, m); else m.textContent = ""; setTimeout(() => URL.revokeObjectURL(url), 120000); }
+      const w = IN_GAS ? null : window.open(url, "_blank"); if (!w) await deliver(blob, f.name, m); else m.textContent = ""; setTimeout(() => URL.revokeObjectURL(url), 120000); }
     catch (e) { m.textContent = cleanErr(e); }
   };
   if (c.mustSign && !c.mine) setupPad(async img => { await run("signCircular", CODE, c.id, img); CIRC = null; openCircular(c.id); }, "أكّد اطلاعك على التعميم أولًا.");
