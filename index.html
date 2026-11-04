@@ -1422,7 +1422,7 @@ let CODE = "", ME = null, MINE = {}, ALL = {};
 // داخل Apps Script نستخدم google.script.run، وعلى GitHub Pages نرسل الطلب إلى رابط التطبيق مباشرة
 function run(fn, ...args) {
   if (window.google && google.script && google.script.run) {
-    return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(e => { const err = e && e.message ? e : new Error(String(e)); if (/DEVICE_NEW\|/.test(err.message) && ME && fn !== "login") setTimeout(deviceMoved, 0); rej(err); })[fn](...args));
+    return new Promise((res, rej) => google.script.run.withSuccessHandler(s => { try { res(JSON.parse(s)); } catch (x) { rej(x); } }).withFailureHandler(e => { const err = e && e.message ? e : new Error(String(e)); if (/DEVICE_NEW\|/.test(err.message) && ME && fn !== "login") setTimeout(deviceMoved, 0); rej(err); }).rpc(fn, JSON.stringify(args)));
   }
   return fetch(window.API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ fn, args }) })
     .catch(() => { throw new Error("تعذّر الاتصال بالخادم. تأكد من الإنترنت وحاول مرة أخرى."); })
@@ -1479,7 +1479,7 @@ async function deliver(blob, filename, msgEl) {
 // حفظ دائم: نسخة في localStorage وفي كوكي وفي IndexedDB، فإذا مُسحت إحداها تُستعاد من غيرها
 const PST = {
   get(k) { let v = ""; try { v = localStorage.getItem(k) || ""; } catch (e) {}
-    if (!v) { const m = document.cookie.match(new RegExp("(?:^|; )ps_" + k + "=([^;]*)")); if (m) v = decodeURIComponent(m[1]); }
+    if (!v) { try { const m = document.cookie.match(new RegExp("(?:^|; )ps_" + k + "=([^;]*)")); if (m) v = decodeURIComponent(m[1]); } catch (e) {} }
     if (!v) v = (PST.idb || {})[k] || "";
     return v; },
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {}

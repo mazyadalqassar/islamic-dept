@@ -93,6 +93,14 @@ function doPost(e) {
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
+// نقطة الدخول عند تشغيل الموقع من داخل Apps Script: نفس doPost لكن عبر google.script.run (تُرجَع النتيجة نصًّا JSON فتصل التواريخ سليمة)
+function rpc(fn, argsJson) {
+  const f = Object.prototype.hasOwnProperty.call(API, fn) ? API[fn] : null;
+  if (!f) throw new Error("طلب غير معروف.");
+  const r = f.apply(null, JSON.parse(argsJson || "[]"));
+  return JSON.stringify(r === undefined ? null : r);
+}
+
 // ======================= الإعداد =======================
 
 /** يُشغَّل بعد كل تحديث للكود. لا يحذف شيئًا، يضيف الناقص فقط */
