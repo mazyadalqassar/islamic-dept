@@ -315,6 +315,10 @@ nav.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg)
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-lv: #a8c870; --c-lv-s: #26301a; } }
 :root[data-theme="dark"] { --c-lv: #a8c870; --c-lv-s: #26301a; }
 .t-lv { --tc: var(--c-lv); --ts: var(--c-lv-s); }
+:root { --c-act: #7a4fa3; --c-act-s: #f0e8f7; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-act: #b99ae0; --c-act-s: #2c2238; } }
+:root[data-theme="dark"] { --c-act: #b99ae0; --c-act-s: #2c2238; }
+.t-act { --tc: var(--c-act); --ts: var(--c-act-s); }
 input[type="email"], input[type="time"] { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
 .mail-line { margin-top: 14px; font-size: 13px; color: var(--muted); text-align: center; }
 .lv-steps { margin: 0; padding: 10px 14px 10px 10px; padding-right: 30px; background: var(--c-lv-s); border-radius: 12px; font-size: 13.5px; line-height: 1.9; }
@@ -593,6 +597,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
       <nav class="sections" aria-label="أركان الموقع">
         <button id="nav-lv" class="tile t-lv" type="button"><b>الاستئذانات</b></button>
         <button id="nav-ach" class="tile t-ach" type="button"><b>الإنجازات والتنمية المهنية</b></button>
+        <button id="nav-act" class="tile t-act" type="button"><b>حصة النشاط</b></button>
         <button id="nav-min" class="tile t-min" type="button"><b>محاضر الاجتماعات</b></button>
         <button id="nav-vis" class="tile t-vis" type="button"><b>الزيارات الصفية</b></button>
         <button id="nav-curr" class="tile t-curr" type="button"><b>ما قطع من المنهج</b></button>
@@ -701,6 +706,30 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
         <div class="list" id="ach-all-list"></div>
         <div class="card detail" id="ach-detail" hidden></div>
       </section>
+    </section>
+
+    <!-- ركن حصة النشاط -->
+    <section id="sec-act" hidden>
+      <form id="act-form" class="card">
+        <h2>إضافة نشاط حصة النشاط</h2>
+        <div class="sub">اكتب موضوع النشاط ومحتواه وارفع صوره، ثم احفظ. ينضاف النشاط تلقائيًا إلى إنجازاتك، ويُنزَّل تقريره PDF بصفحة واحدة.</div>
+        <div id="act-for-wrap" hidden><label class="f">المعلم المتابع للنشاط <span class="sub">(اختر معلمًا أو أكثر)</span></label><div class="attlist" id="act-for"></div></div>
+        <label class="f" for="act-title">الموضوع</label>
+        <input type="text" id="act-title" maxlength="150" placeholder="موضوع النشاط" required>
+        <div class="grid2">
+          <div><label class="f" for="act-date">التاريخ</label><input type="date" id="act-date" required></div>
+          <div><label class="f" for="act-place">المكان</label><input type="text" id="act-place" maxlength="150" placeholder="مثال: المصلى، الملعب، قاعة الأنشطة" required></div>
+        </div>
+        <label class="f" for="act-desc">محتوى النشاط</label>
+        <textarea id="act-desc" rows="6" maxlength="1500" placeholder="ماذا دار في النشاط؟ من شارك؟ ما الذي قُدِّم؟" required></textarea>
+        <label class="f" for="act-photos">صور النشاط</label>
+        <label class="upload" for="act-photos"><span id="act-photo-label">أضف صورًا</span><input type="file" id="act-photos" accept="image/*" multiple></label>
+        <div class="thumbs" id="act-previews"></div>
+        <div class="row-actions" style="margin-top:14px"><button class="btn" id="act-submit" type="submit">حفظ النشاط</button></div>
+        <div class="saved" id="act-msg"></div>
+      </form>
+      <h3 class="list-title" id="act-list-title">أنشطتي السابقة</h3>
+      <div class="list" id="act-list"></div>
     </section>
 
     <!-- ركن المحاضر -->
@@ -1528,8 +1557,8 @@ $("logout").onclick = () => {
   $("app").hidden = true; $("view-login").hidden = false; $("code").value = "";
 };
 
-const SECTIONS = ["curr", "ach", "min", "vis", "subs", "swap", "stu", "lv", "grd", "circ"];
-const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات والتنمية المهنية", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والمتعثرين", lv: "الاستئذانات", grd: "كشف درجات الأعمال", circ: "النشرات والتعاميم" };
+const SECTIONS = ["curr", "ach", "act", "min", "vis", "subs", "swap", "stu", "lv", "grd", "circ"];
+const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات والتنمية المهنية", act: "حصة النشاط", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والمتعثرين", lv: "الاستئذانات", grd: "كشف درجات الأعمال", circ: "النشرات والتعاميم" };
 // noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
 function go(sec, noHist) {
   if (sec !== "home" && SECTIONS.indexOf(sec) === -1) sec = "home";
@@ -1544,6 +1573,7 @@ function go(sec, noHist) {
   $("secbar").className = "secbar t-" + sec; $("secbar-title").textContent = SEC_TITLES[sec];
   if (sec === "curr") setTab(ME.isHead && !$("view-head").hidden ? "head" : "teacher");
   if (sec === "ach") achTab(ME.isHead && achSub === "all" ? "all" : "mine");
+  if (sec === "act") actInit();
   if (sec === "min") loadMinutes();
   if (sec === "vis") visTab(ME.isHead ? (visSub === "mine" ? "new" : visSub) : "mine");
   if (sec === "subs") subsTab(subsSub);
@@ -1774,7 +1804,8 @@ async function loadMyAch() {
 const ST_READY = "جاهز";
 // التقرير التلقائي: من بيانات المعلم وكلامه كما هو، ويحل محله التقرير المصاغ متى وُجد
 // [عنوان التقرير، الاسم المعرّف في العناوين] حسب نوع النشاط
-const ACH_KIND = { "مبادرة": ["مبادرة", "المبادرة"], "ورشة عمل": ["ورشة عمل", "الورشة"], "تنمية مهنية": ["ورشة تنمية مهنية", "الورشة"], "محاضرة أو ندوة": ["محاضرة", "المحاضرة"],
+const ACT_TYPE = "حصة النشاط";
+const ACH_KIND = { "حصة النشاط": ["نشاط حصة النشاط", "النشاط"], "مبادرة": ["مبادرة", "المبادرة"], "ورشة عمل": ["ورشة عمل", "الورشة"], "تنمية مهنية": ["ورشة تنمية مهنية", "الورشة"], "محاضرة أو ندوة": ["محاضرة", "المحاضرة"],
   "تكريم": ["تكريم", "التكريم"], "مسابقة": ["مسابقة", "المسابقة"], "معرض": ["معرض", "المعرض"], "زيارة أو رحلة": ["زيارة", "الزيارة"], "درس نموذجي": ["درس نموذجي", "الدرس"],
   "إذاعة مدرسية": ["إذاعة مدرسية", "الإذاعة"], "نشاط صفي": ["نشاط صفي", "النشاط"], "أخرى": ["إنجاز", "الإنجاز"] };
 const achKind = t => ACH_KIND[t] || ["إنجاز", "الإنجاز"];
@@ -1788,7 +1819,7 @@ async function achDownload(a, m) {
   m.textContent = "جارٍ إنشاء الملف…";
   try {
     const imgs = []; for (const p of a.photos) imgs.push(await photo(p));
-    await deliver(await htmlPdf(achPdfHtml({ ...a, report: achText(a) }, imgs), { onePage: true }), `تقرير ${a.title} - ${a.teacher}.pdf`, m);
+    await deliver(await htmlPdf(achPdfHtml({ ...a, report: a.type === ACT_TYPE ? a.report : achText(a) }, imgs), { onePage: true }), `تقرير ${a.title} - ${a.teacher}.pdf`, m);
   } catch (e) { m.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
 }
 
@@ -3976,6 +4007,7 @@ function layoutTiles() {
 const SVG = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const ICONS = {
   curr: SVG('<path d="M4 5.5C4 4.7 4.7 4 5.5 4H11v15H5.5C4.7 19 4 18.3 4 17.5zM13 4h5.5c.8 0 1.5.7 1.5 1.5v12c0 .8-.7 1.5-1.5 1.5H13zM15.5 8h2M15.5 11h2"/>'),
+  act: SVG('<circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.6 3.1-6.2 7-6.2s7 2.6 7 6.2M3.5 9.5l1.5 1M20.5 9.5l-1.5 1"/>'),
   ach: SVG('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/>'),
   min: SVG('<path d="M6 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 6 20zM9 12h5M9 15.5h3"/>'),
   swap: SVG('<path d="M4 8h13l-3-3M20 16H7l3 3"/>'),
@@ -4735,7 +4767,86 @@ function reportBodyHtml(text) {
 }
 
 // ---------- تقرير الإنجاز ----------
+// ================= ركن حصة النشاط =================
+// يُحفظ كإنجاز نوعه «حصة النشاط» (المكان في خانة الفئة المستهدفة)، فيظهر تلقائيًا في الإنجازات.
+let ACT_PHOTOS = [];
+function actForInit(reset) {
+  if (!ME || !ME.isHead) { $("act-for-wrap").hidden = true; return; }
+  $("act-for-wrap").hidden = false;
+  if ($("act-for").children.length && !reset) return;
+  $("act-for").innerHTML = [ME.name, ...TEACHERS.map(t => t[0]).filter(n => n !== ME.name)].map((n, i) =>
+    `<label class="check"><input type="checkbox" value="${esc(n)}"${i === 0 ? " checked" : ""}> ${i === 0 ? "نفسي (رئيس الشعبة)" : esc(n)}</label>`).join("");
+}
+function actInit() { if (!$("act-date").value) $("act-date").value = todayISO(); actForInit(); loadActs(); }
+$("act-photos").onchange = async e => {
+  for (const f of [...e.target.files].slice(0, 4 - ACT_PHOTOS.length)) { try { ACT_PHOTOS.push(await compress(f)); } catch (x) {} }
+  e.target.value = ""; renderActPreviews();
+};
+function renderActPreviews() {
+  $("act-previews").innerHTML = ACT_PHOTOS.map((p, i) => `<figure class="thumb"><img src="${p}" alt="صورة ${ar(i + 1)}"><button type="button" class="x" data-i="${i}" aria-label="حذف الصورة">×</button></figure>`).join("");
+  $("act-previews").querySelectorAll(".x").forEach(b => b.onclick = () => { ACT_PHOTOS.splice(+b.dataset.i, 1); renderActPreviews(); });
+  $("act-photo-label").textContent = ACT_PHOTOS.length >= 4 ? "وصلت للحد الأقصى (٤ صور)" : `أضف صورًا (${ar(ACT_PHOTOS.length)} من ٤)`;
+  $("act-photos").disabled = ACT_PHOTOS.length >= 4;
+}
+$("act-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const msg = $("act-msg"), btn = $("act-submit");
+  if (!ACT_PHOTOS.length) { msg.textContent = "أضف صورة واحدة على الأقل للنشاط."; return; }
+  const forT = ME.isHead ? [...$("act-for").querySelectorAll("input:checked")].map(x => x.value) : [];
+  if (ME.isHead && !forT.length) { msg.textContent = "اختر المعلم المتابع للنشاط (أو نفسك)."; return; }
+  btn.disabled = true; msg.textContent = "جارٍ حفظ النشاط ورفع الصور…";
+  try {
+    const r = await run("submitAchievement", CODE, { type: ACT_TYPE, title: $("act-title").value, date: $("act-date").value, target: $("act-place").value, desc: $("act-desc").value, photos: ACT_PHOTOS, teachers: forT });
+    ACT_PHOTOS = []; renderActPreviews(); $("act-title").value = ""; $("act-place").value = ""; $("act-desc").value = ""; $("act-date").value = todayISO();
+    ACH = null; ACH_ALL = null; await loadActs();
+    msg.innerHTML = `حُفظ النشاط وأُضيف إلى الإنجازات. <button class="btn sm" type="button" id="act-new-pdf">تنزيل التقرير PDF</button>`;
+    const a = actList().find(x => x.id === r.id);
+    if (ME.isHead) actForInit(true);
+    if (a) $("act-new-pdf").onclick = () => achDownload(a, msg); else $("act-new-pdf").remove();
+  } catch (x) { msg.textContent = cleanErr(x); }
+  finally { btn.disabled = false; }
+});
+const actList = () => ((ME && ME.isHead ? ACH_ALL : ACH) || []).filter(a => a.type === ACT_TYPE);
+async function loadActs() {
+  const box = $("act-list"), head = ME.isHead;
+  $("act-list-title").textContent = head ? "أنشطة حصة النشاط" : "أنشطتي السابقة";
+  if (head ? !ACH_ALL : !ACH) {
+    box.innerHTML = '<div class="empty">جارٍ التحميل…</div>';
+    try { if (head) ACH_ALL = await run("allAchievements", CODE); else ACH = await run("myAchievements", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; }
+  }
+  const L = actList();
+  if (!L.length) { box.innerHTML = '<div class="empty">لا توجد أنشطة بعد. استخدم النموذج أعلاه لإضافة أول نشاط.</div>'; return; }
+  box.innerHTML = L.map(a => `<div class="li">
+      <div class="li-main"><b>${esc(a.title)}</b><span class="sub">${head ? "أ. " + esc((a.teachers || [a.teacher]).map(tName).join("، أ. ")) + " · " : ""}${achWhen(a)}${a.target ? " · " + esc(a.target) : ""}${a.photos.length ? " · " + ar(a.photos.length) + " صور" : ""}</span></div>
+      <div class="row-actions"><button class="btn sm" data-pdf="${a.id}">تقرير PDF</button><button class="btn ghost sm" data-del="${a.id}">حذف</button></div><div class="saved" data-pmsg="${a.id}"></div></div>`).join("");
+  box.querySelectorAll("[data-pdf]").forEach(b => b.onclick = () => achDownload(L.find(a => a.id === b.dataset.pdf), box.querySelector(`[data-pmsg="${b.dataset.pdf}"]`)));
+  box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => confirmInline(b, "تأكيد الحذف", async () => {
+    try { await run("deleteAchievement", CODE, b.dataset.del); ACH = null; ACH_ALL = null; loadActs(); } catch (e) { b.textContent = cleanErr(e); }
+  }));
+}
+// تقرير حصة النشاط: صفحة A4 واحدة بإطار الشعبة البرتقالي (الموضوع، التاريخ، المكان، المعلم، المحتوى، الصور، التواقيع)
+const ACT_CSS = `body{padding:0!important}.actw{width:794px;padding:14px 16px 0}.actp{position:relative;height:1055px;background:#fffaf2;border:6px solid #c8641c;border-radius:14px;padding:26px 34px 0;overflow:hidden}
+.actp .in2{position:absolute;inset:9px;border:1px solid #c8641c;border-radius:8px;pointer-events:none}.actp .cn{position:absolute;width:26px;height:26px;border:4px solid #e9be85}.actp .c1{top:14px;right:14px;border-left:0;border-bottom:0}.actp .c2{top:14px;left:14px;border-right:0;border-bottom:0}.actp .c3{bottom:14px;right:14px;border-left:0;border-top:0}.actp .c4{bottom:14px;left:14px;border-right:0;border-top:0}
+.actp .tt{background:#c8641c;color:#fff;border-radius:10px;text-align:center;padding:6px 0 8px;margin:4px 0 12px;box-shadow:0 0 0 3px #fffaf2,0 0 0 4px #c8641c}.actp .tt small{display:block;font-size:12.5px;color:#f6dcb6}.actp .tt h1{font-family:"Noto Kufi Arabic";color:#fff;font-size:23px;margin:0;line-height:1.5}
+.actp .lh{margin-bottom:10px}.actp .cb{min-height:110px;font-size:13.5px;line-height:1.9}.actp .cb p{margin:0 0 6px}.actp .phs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}.actp .phs img{object-fit:cover;border-radius:6px;border:1px solid #e9be85}
+.actp .signs{position:absolute;bottom:28px;right:34px;left:34px;margin:0}`;
+function actPdfHtml(a, imgs) {
+  const byHead = a.teacher === HEAD_NAME, names = (a.teachers || [a.teacher]).map(tName);
+  const n = imgs.length, w = n === 1 ? 62 : 48.5, h = n === 1 ? 260 : n === 2 ? 190 : 140;
+  const body = String(a.report || "").trim() ? reportBodyHtml(a.report) : String(a.desc || "").split(/\n+/).filter(Boolean).map(t => `<p>${esc(t)}</p>`).join("");
+  return `<style>${ACT_CSS}</style><div class="actw"><div class="actp"><div class="in2"></div><i class="cn c1"></i><i class="cn c2"></i><i class="cn c3"></i><i class="cn c4"></i>
+    ${pdfHead()}<div class="tt"><small>تقرير</small><h1>نشاط حصة النشاط</h1></div>
+    <table><colgroup><col style="width:22%"><col style="width:28%"><col style="width:14%"><col style="width:36%"></colgroup>
+    <tr><td class="k">الموضوع</td><td colspan="3">${esc(a.title)}</td></tr>
+    <tr><td class="k">التاريخ</td><td>${achWhen(a, true)}</td><td class="k">المكان</td><td>${esc(a.target || "—")}</td></tr>
+    <tr><td class="k">المعلم المتابع للنشاط</td><td colspan="3">أ. ${esc(names.join("، أ. "))}</td></tr></table>
+    <h2>محتوى النشاط</h2><div class="cb">${body}</div>
+    ${n ? `<h2>الصور</h2><div class="phs">${imgs.map(s => `<img src="${s}" style="width:calc(${w}% - 8px);height:${h}px">`).join("")}</div>` : ""}
+    ${pdfSigns([...(byHead || names.length > 1 ? [] : [["توقيع المعلم", "أ. " + names[0]]]), ["توقيع رئيس الشعبة", "أ. " + HEAD_SIGN], ["توقيع مدير المدرسة", "أ. " + PRINCIPAL]])}</div></div>`;
+}
+
 function achPdfHtml(a, imgs) {
+  if (a.type === ACT_TYPE) return actPdfHtml(a, imgs);
   const titleLine = (String(a.report || "").match(/^\s*العنوان\s*:\s*(.+)$/m) || [])[1] || a.title;
   const byHead = a.teacher === HEAD_NAME;
   const KIND = achKind(a.type);
