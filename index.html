@@ -4832,7 +4832,7 @@ const ACT_CSS = `body{padding:0!important}.actw{width:794px;padding:14px 16px 0}
 .actp .signs{position:absolute;bottom:28px;right:34px;left:34px;margin:0}`;
 function actPdfHtml(a, imgs) {
   const byHead = a.teacher === HEAD_NAME, names = (a.teachers || [a.teacher]).map(tName);
-  const n = imgs.length, w = n === 1 ? 62 : 48.5, h = n === 1 ? 260 : n === 2 ? 190 : 140;
+  const n = imgs.length, w = n === 1 ? 62 : n === 3 ? 31.5 : 48.5, h = n === 1 ? 260 : n === 2 ? 190 : n === 3 ? 250 : 140;
   const body = String(a.report || "").trim() ? reportBodyHtml(a.report) : String(a.desc || "").split(/\n+/).filter(Boolean).map(t => `<p>${esc(t)}</p>`).join("");
   return `<style>${ACT_CSS}</style><div class="actw"><div class="actp"><div class="in2"></div><i class="cn c1"></i><i class="cn c2"></i><i class="cn c3"></i><i class="cn c4"></i>
     ${pdfHead()}<div class="tt"><small>تقرير</small><h1>نشاط حصة النشاط</h1></div>
