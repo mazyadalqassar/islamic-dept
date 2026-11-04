@@ -1805,7 +1805,7 @@ const ST_READY = "جاهز";
 // التقرير التلقائي: من بيانات المعلم وكلامه كما هو، ويحل محله التقرير المصاغ متى وُجد
 // [عنوان التقرير، الاسم المعرّف في العناوين] حسب نوع النشاط
 const ACT_TYPE = "حصة النشاط";
-const ACH_KIND = { "حصة النشاط": ["نشاط حصة النشاط", "النشاط"], "مبادرة": ["مبادرة", "المبادرة"], "ورشة عمل": ["ورشة عمل", "الورشة"], "تنمية مهنية": ["ورشة تنمية مهنية", "الورشة"], "محاضرة أو ندوة": ["محاضرة", "المحاضرة"],
+const ACH_KIND = { "حصة النشاط": ["حصة النشاط", "النشاط"], "مبادرة": ["مبادرة", "المبادرة"], "ورشة عمل": ["ورشة عمل", "الورشة"], "تنمية مهنية": ["ورشة تنمية مهنية", "الورشة"], "محاضرة أو ندوة": ["محاضرة", "المحاضرة"],
   "تكريم": ["تكريم", "التكريم"], "مسابقة": ["مسابقة", "المسابقة"], "معرض": ["معرض", "المعرض"], "زيارة أو رحلة": ["زيارة", "الزيارة"], "درس نموذجي": ["درس نموذجي", "الدرس"],
   "إذاعة مدرسية": ["إذاعة مدرسية", "الإذاعة"], "نشاط صفي": ["نشاط صفي", "النشاط"], "أخرى": ["إنجاز", "الإنجاز"] };
 const achKind = t => ACH_KIND[t] || ["إنجاز", "الإنجاز"];
@@ -4827,7 +4827,7 @@ async function loadActs() {
 // تقرير حصة النشاط: صفحة A4 واحدة بإطار الشعبة البرتقالي (الموضوع، التاريخ، المكان، المعلم، المحتوى، الصور، التواقيع)
 const ACT_CSS = `body{padding:0!important}.actw{width:794px;padding:14px 16px 0}.actp{position:relative;height:1055px;background:#fffaf2;border:6px solid #c8641c;border-radius:14px;padding:26px 34px 0;overflow:hidden}
 .actp .in2{position:absolute;inset:9px;border:1px solid #c8641c;border-radius:8px;pointer-events:none}.actp .cn{position:absolute;width:26px;height:26px;border:4px solid #e9be85}.actp .c1{top:14px;right:14px;border-left:0;border-bottom:0}.actp .c2{top:14px;left:14px;border-right:0;border-bottom:0}.actp .c3{bottom:14px;right:14px;border-left:0;border-top:0}.actp .c4{bottom:14px;left:14px;border-right:0;border-top:0}
-.actp .tt{background:#c8641c;color:#fff;border-radius:10px;text-align:center;padding:6px 0 8px;margin:4px 0 12px;box-shadow:0 0 0 3px #fffaf2,0 0 0 4px #c8641c}.actp .tt small{display:block;font-size:12.5px;color:#f6dcb6}.actp .tt h1{font-family:"Noto Kufi Arabic";color:#fff;font-size:23px;margin:0;line-height:1.5}
+.actp .tt{background:#c8641c;color:#fff;border-radius:10px;text-align:center;padding:12px 0 12px;margin:4px 0 12px;box-shadow:0 0 0 3px #fffaf2,0 0 0 4px #c8641c}.actp .tt small{display:block;font-size:12.5px;color:#f6dcb6}.actp .tt h1{font-family:"Noto Kufi Arabic";color:#fff;font-size:23px;margin:0;line-height:1.5}
 .actp .lh{margin-bottom:10px}.actp .cb{min-height:110px;font-size:13.5px;line-height:1.9}.actp .cb p{margin:0 0 6px}.actp .phs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}.actp .phs img{object-fit:cover;border-radius:6px;border:1px solid #e9be85}
 .actp .signs{position:absolute;bottom:28px;right:34px;left:34px;margin:0}`;
 function actPdfHtml(a, imgs) {
@@ -4835,7 +4835,7 @@ function actPdfHtml(a, imgs) {
   const n = imgs.length, w = n === 1 ? 62 : n === 3 ? 31.5 : 48.5, h = n === 1 ? 260 : n === 2 ? 190 : n === 3 ? 250 : 140;
   const body = String(a.report || "").trim() ? reportBodyHtml(a.report) : String(a.desc || "").split(/\n+/).filter(Boolean).map(t => `<p>${esc(t)}</p>`).join("");
   return `<style>${ACT_CSS}</style><div class="actw"><div class="actp"><div class="in2"></div><i class="cn c1"></i><i class="cn c2"></i><i class="cn c3"></i><i class="cn c4"></i>
-    ${pdfHead()}<div class="tt"><small>تقرير</small><h1>نشاط حصة النشاط</h1></div>
+    ${pdfHead()}<div class="tt"><h1>تقرير حصة النشاط</h1></div>
     <table><colgroup><col style="width:22%"><col style="width:28%"><col style="width:14%"><col style="width:36%"></colgroup>
     <tr><td class="k">الموضوع</td><td colspan="3">${esc(a.title)}</td></tr>
     <tr><td class="k">التاريخ</td><td>${achWhen(a, true)}</td><td class="k">المكان</td><td>${esc(a.target || "—")}</td></tr>
