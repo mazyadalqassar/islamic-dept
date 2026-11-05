@@ -4607,6 +4607,23 @@ const pdfSigns = list => `<div class="signs avoid">${list.map(([r, n]) => `<div>
 const PDF_COMPACT = `body{padding:24px 34px 8px;font-size:12px;line-height:1.55}td,th{padding:3px 6px}h1{font-size:19px;margin:0 0 4px}h2{font-size:14px;margin:8px 0 4px}.sub{margin:0 0 6px}.lh{padding-bottom:5px;margin-bottom:8px}.lh img{width:48px;height:52px}.signs{margin-top:12px}.signs .ln{margin-top:10px}`;
 const pdfSigImg = s => s ? `<img class="sig" src="${s}">` : "";
 const PDF_DISC = ".disc h2{font-size:14px;color:#2b2b2b;border:0;margin:8px 0 3px}";
+// html2canvas لا يدعم object-fit فيمطّ الصور لتملأ صندوقها. نرسم كل صورة مسبقًا بنسبها الطبيعية
+// داخل صندوقها (contain: كاملة بلا قصّ، cover: تملأ مع قصّ الأطراف) فتظهر في الملف كما هي.
+async function fitImages_(doc, S) {
+  for (const im of [...doc.images]) {
+    try {
+      const st = doc.defaultView.getComputedStyle(im), fit = st.objectFit;
+      const bw = im.clientWidth, bh = im.clientHeight, nw = im.naturalWidth, nh = im.naturalHeight;
+      if (!bw || !bh || !nw || !nh) continue;
+      if (fit !== "contain" && fit !== "cover" && Math.abs(bw / bh - nw / nh) < 0.01) continue;
+      const k = fit === "cover" ? Math.max(bw / nw, bh / nh) : Math.min(bw / nw, bh / nh), dw = nw * k, dh = nh * k;
+      const c = doc.createElement("canvas"); c.width = Math.round(bw * S); c.height = Math.round(bh * S);
+      c.getContext("2d").drawImage(im, (bw - dw) / 2 * S, (bh - dh) / 2 * S, dw * S, dh * S);
+      const url = c.toDataURL("image/png");
+      await new Promise(r => { im.onload = im.onerror = r; im.style.width = bw + "px"; im.style.height = bh + "px"; im.style.objectFit = "fill"; im.src = url; });
+    } catch (e) { /* صورة من مصدر آخر لا يمكن رسمها: تبقى كما هي */ }
+  }
+}
 async function htmlPdf(inner, o = {}) {
   await grLibs();
   const L = !!o.landscape, W = L ? 1123 : 794, PH = L ? 794 : 1123, TOP = 30, BOT = 40, S = 2.2;
@@ -4618,6 +4635,7 @@ async function htmlPdf(inner, o = {}) {
     doc.open(); doc.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>${PDF_CSS()}${o.css || ""}</style></head><body style="width:${W}px">${inner}</body></html>`); doc.close();
     await Promise.race([doc.fonts ? doc.fonts.ready : Promise.resolve(), new Promise(r => setTimeout(r, 4000))]);
     await Promise.all([...doc.images].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+    await fitImages_(doc, S);
     await new Promise(r => setTimeout(r, 150));
     const body = doc.body, H = Math.ceil(body.scrollHeight);
     fr.style.height = H + "px";
@@ -4830,7 +4848,7 @@ async function loadActs() {
 const ACT_CSS = `body{padding:0!important}.actw{width:794px;padding:14px 16px 0}.actp{position:relative;height:1055px;background:#fffaf2;border:6px solid #c8641c;border-radius:14px;padding:26px 34px 0;overflow:hidden}
 .actp .in2{position:absolute;inset:9px;border:1px solid #c8641c;border-radius:8px;pointer-events:none}.actp .cn{position:absolute;width:26px;height:26px;border:4px solid #e9be85}.actp .c1{top:14px;right:14px;border-left:0;border-bottom:0}.actp .c2{top:14px;left:14px;border-right:0;border-bottom:0}.actp .c3{bottom:14px;right:14px;border-left:0;border-top:0}.actp .c4{bottom:14px;left:14px;border-right:0;border-top:0}
 .actp .tt{background:#c8641c;color:#fff;border-radius:10px;text-align:center;padding:12px 0 12px;margin:4px 0 12px;box-shadow:0 0 0 3px #fffaf2,0 0 0 4px #c8641c}.actp .tt small{display:block;font-size:12.5px;color:#f6dcb6}.actp .tt h1{font-family:"Noto Kufi Arabic";color:#fff;font-size:23px;margin:0;line-height:1.5}
-.actp .lh{margin-bottom:10px}.actp .cb{min-height:110px;font-size:13.5px;line-height:1.9}.actp .cb p{margin:0 0 6px}.actp .phs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}.actp .phs img{object-fit:cover;border-radius:6px;border:1px solid #e9be85}
+.actp .lh{margin-bottom:10px}.actp .cb{min-height:110px;font-size:13.5px;line-height:1.9}.actp .cb p{margin:0 0 6px}.actp .phs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}.actp .phs img{object-fit:contain;border-radius:6px;border:1px solid #e9be85}
 .actp .signs{position:absolute;bottom:28px;right:34px;left:34px;margin:0}`;
 function actPdfHtml(a, imgs) {
   const byHead = a.teacher === HEAD_NAME, names = (a.teachers || [a.teacher]).map(tName);
