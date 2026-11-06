@@ -315,11 +315,21 @@ function achObj_(r, withReport) {
   return o;
 }
 
-/** التواقيع المختارة: h=رئيس القسم، a=المدير المساعد، p=المدير. "-" = بلا تواقيع، والفارغ = الافتراضي (رئيس القسم + المدير) */
+/** التواقيع المختارة (JSON): h=رئيس القسم، a=المدير المساعد، p=المدير. القيمة "cur" = الاسم الحالي (h وp فقط) أو اسم مكتوب. غياب المفتاح = لا يظهر. الفارغ = الافتراضي (رئيس الشعبة + المدير) */
 function cleanSigns_(v) {
   if (v == null || v === "") return "";
-  const list = (Array.isArray(v) ? v : String(v).split(",")).map(String).filter((x, i, arr) => ["h", "a", "p"].indexOf(x) !== -1 && arr.indexOf(x) === i);
-  return list.length ? ["h", "a", "p"].filter(x => list.indexOf(x) !== -1).join(",") : "-";
+  let o = v;
+  if (typeof v === "string") { try { o = JSON.parse(v); } catch (e) { o = {}; } }
+  if (!o || typeof o !== "object" || Array.isArray(o)) o = {};
+  const out = {};
+  ["h", "a", "p"].forEach(k => {
+    let x = o[k];
+    if (typeof x !== "string") return;
+    x = x.trim().slice(0, 80);
+    if (!x || (x === "cur" && k === "a")) return;
+    out[k] = x;
+  });
+  return JSON.stringify(out);
 }
 function ensureAchCols_(sh) {
   if (sh.getMaxColumns() < 14) sh.insertColumnsAfter(sh.getMaxColumns(), 14 - sh.getMaxColumns());

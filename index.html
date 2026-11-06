@@ -696,7 +696,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
             <div class="sub">إذا كتبت صياغة هنا ينزل التقرير بها، وإذا تركتها فارغة ينزل بوصفك أعلاه. العناوين بـ ## والنقاط بـ -</div>
             <textarea id="ach-own-report" rows="8" maxlength="20000" placeholder="## مقدمة&#10;نص الفقرة…&#10;## تفاصيل النشاط&#10;- نقطة"></textarea>
             <label class="f">التواقيع التي تظهر في التقرير</label>
-            <div class="sub">للإنجازات القديمة اختر اللي كانوا في وقتها، والمحدد يظهر سطر توقيعه في التقرير.</div>
+            <div class="sub">لكل منصب اختر: بدون، أو الاسم الحالي، أو اكتب اسمًا آخر (للإنجازات القديمة اللي كانت الإدارة فيها غير الحالية).</div>
             <div class="attlist" id="ach-signs"></div>
           </div>
           <label class="f" for="ach-photos">صور النشاط</label>
@@ -1423,8 +1423,6 @@ const WEEK = currentWeek(NOW);
 const HEAD_NAME = "مزيد حمد خليفة القصار";
 const PRINCIPAL = "فيصل عبدالله المحمد";
 const DEPUTY = "حمد عماد حمد العون"; // صاحب صلاحية تعديل إنجازاته كاملة واختيار التواقيع
-const ASSISTANT = ""; // اسم المدير المساعد الحالي (فارغ = يظهر سطر التوقيع بلا اسم)
-const SIGN_OPTS = [["h", "رئيس القسم"], ["a", "المدير المساعد"], ["p", "المدير"]];
 const HEAD_SIGN = "مزيد حمد القصار"; // اسم رئيس الشعبة كما يظهر في النماذج
 const ACH_TYPES = ["حلقة نقاشية", "نشاط مدرسي", "نشاط داخل المسجد", "إذاعة مدرسية", "مسابقة", "ورشة عمل", "تنمية مهنية", "محاضرة أو ندوة", "تكريم", "درس نموذجي", "نشاط صفي", "معرض", "مبادرة", "زيارة أو رحلة", "إدارة فريق مدرسي", "أخرى"];
 const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
@@ -1788,10 +1786,27 @@ function achOwnInit() {
   if (isOwnEditor() && !$("ach-signs").children.length) setSignChecks("h,p");
 }
 function setSignChecks(v) {
-  const on = (v === "-" ? "" : v || "h,p").split(",");
-  $("ach-signs").innerHTML = SIGN_OPTS.map(([k, n]) => `<label class="check"><input type="checkbox" value="${k}"${on.indexOf(k) !== -1 ? " checked" : ""}> ${n}</label>`).join("");
+  const o = parseSigns(v);
+  const cfg = [["h", "رئيس القسم", "أ. " + HEAD_SIGN], ["a", "المدير المساعد", ""], ["p", "المدير", "أ. " + PRINCIPAL]];
+  $("ach-signs").innerHTML = cfg.map(([k, t, cur]) => {
+    const val = !o[k] ? "" : o[k] === "cur" && cur ? "cur" : "custom";
+    return `<div class="sign-pick" data-k="${k}" data-t="${t}" style="margin-top:8px"><label class="f">${t}</label>
+      <select data-sel><option value=""${val === "" ? " selected" : ""}>بدون ${t}</option>${cur ? `<option value="cur"${val === "cur" ? " selected" : ""}>${esc(cur)}</option>` : ""}<option value="custom"${val === "custom" ? " selected" : ""}>${cur ? "اسم آخر…" : "أكتب الاسم…"}</option></select>
+      <input type="text" data-nm maxlength="80" placeholder="اكتب الاسم الكامل" style="margin-top:6px" value="${val === "custom" && o[k] !== "cur" ? esc(o[k]) : ""}"${val === "custom" ? "" : " hidden"}></div>`;
+  }).join("");
+  $("ach-signs").querySelectorAll(".sign-pick").forEach(d => d.querySelector("select").onchange = e => {
+    const inp = d.querySelector("input"); inp.hidden = e.target.value !== "custom"; if (!inp.hidden) inp.focus();
+  });
 }
-const getSigns = () => { const v = [...$("ach-signs").querySelectorAll("input:checked")].map(x => x.value); return v.length ? v.join(",") : "-"; };
+function getSigns() {
+  const o = {};
+  $("ach-signs").querySelectorAll(".sign-pick").forEach(d => {
+    const v = d.querySelector("select").value;
+    if (v === "cur") o[d.dataset.k] = "cur";
+    else if (v === "custom") { const n = d.querySelector("input").value.trim(); if (!n) throw new Error("اكتب اسم " + d.dataset.t + " أو غيّر الاختيار."); o[d.dataset.k] = n; }
+  });
+  return JSON.stringify(o);
+}
 function resetAchForm() {
   EDIT = null; KEEP = []; PHOTOS = []; renderPreviews();
   $("ach-multi").checked = false; $("ach-to").value = ""; $("ach-to-wrap").hidden = true; $("ach-type").value = ""; $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
@@ -4650,11 +4665,20 @@ function pdfHead(extra) {
   return `<div class="lh"><img src="data:image/png;base64,${MOE_B64}"><div class="t"><b>دولة الكويت · وزارة التربية</b><br>منطقة حولي التعليمية<br><b>ثانوية أحمد الربعي للبنين</b><br><span class="o">شعبة التربية الإسلامية</span></div>
     <div class="y">العام الدراسي<b>${PDF_YEAR()}</b>${extra || ""}</div><img src="data:image/png;base64,${LOGO_B64}"></div>`;
 }
-// تواقيع الإنجاز: الافتراضي رئيس الشعبة + المدير، ولصاحب الصلاحية اختيار أي منها (رئيس القسم / المدير المساعد / المدير)
+// تواقيع الإنجاز: الافتراضي رئيس الشعبة + المدير. ولصاحب الصلاحية لكل منصب (رئيس القسم / المدير المساعد / المدير): بدون، أو الاسم الحالي، أو اسم يكتبه
+function parseSigns(v) {
+  v = String(v || "").trim();
+  if (!v) return { h: "cur", p: "cur" };
+  if (v[0] === "{") { try { const o = JSON.parse(v); return o && typeof o === "object" ? o : {}; } catch (e) { return {}; } }
+  const o = {}; v.split(",").forEach(k => { if (k === "h" || k === "p") o[k] = "cur"; }); return o;
+}
 function achSignList(a, teacherRow, pre) {
-  const v = (a.signs || "h,p").split(",");
-  const all = { h: [pre + "رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], a: [pre + "المدير المساعد", ASSISTANT ? "أ. " + ASSISTANT : ""], p: [pre + "مدير المدرسة", "أ. " + PRINCIPAL] };
-  return [...teacherRow, ...["h", "a", "p"].filter(k => v.indexOf(k) !== -1).map(k => all[k])];
+  const o = parseSigns(a.signs);
+  const rows = [["h", "رئيس شعبة التربية الإسلامية", HEAD_SIGN], ["a", "المدير المساعد", ""], ["p", "مدير المدرسة", PRINCIPAL]].filter(([k]) => o[k]).map(([k, role, cur]) => {
+    const n = o[k] === "cur" ? cur : String(o[k]);
+    return [pre + role, n ? (/^أ\./.test(n) ? n : "أ. " + n) : ""];
+  });
+  return [...teacherRow, ...rows];
 }
 const pdfSigns = list => `<div class="signs avoid">${list.map(([r, n]) => `<div><b>${esc(r)}</b><i>${n ? esc(n) : "&nbsp;"}</i><i class="ln">التوقيع: ....................</i></div>`).join("")}</div>`;
 const PDF_COMPACT = `body{padding:24px 34px 8px;font-size:12px;line-height:1.55}td,th{padding:3px 6px}h1{font-size:19px;margin:0 0 4px}h2{font-size:14px;margin:8px 0 4px}.sub{margin:0 0 6px}.lh{padding-bottom:5px;margin-bottom:8px}.lh img{width:48px;height:52px}.signs{margin-top:12px}.signs .ln{margin-top:10px}`;
