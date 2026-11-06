@@ -676,7 +676,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
       </nav>
       <section id="ach-mine">
         <form id="ach-form" class="card">
-          <h2>إضافة إنجاز</h2>
+          <h2 id="ach-form-title">إضافة إنجاز</h2>
           <div class="sub">اختر نوع النشاط، وارفع صوره واكتب وصفه، ثم احفظ التقرير ونزّله PDF مباشرة.</div>
           <div id="ach-for-wrap" hidden><label class="f">الإنجاز عن <span class="sub">(اختر معلمًا أو أكثر، ويظهر الإنجاز عند كل واحد منهم)</span></label><div class="attlist" id="ach-for"></div></div>
           <div class="grid2">
@@ -691,10 +691,18 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <input type="text" id="ach-target" maxlength="150" placeholder="مثال: طلاب ١١ علمي ٢، أو جميع طلاب المدرسة">
           <label class="f" for="ach-desc">وصف النشاط</label>
           <textarea id="ach-desc" rows="5" maxlength="3000" placeholder="ماذا قدّمت؟ من شارك؟ ما الذي تميّز به النشاط؟" required></textarea>
+          <div id="ach-own" hidden>
+            <label class="f" for="ach-own-report">صياغة التقرير (اختياري)</label>
+            <div class="sub">إذا كتبت صياغة هنا ينزل التقرير بها، وإذا تركتها فارغة ينزل بوصفك أعلاه. العناوين بـ ## والنقاط بـ -</div>
+            <textarea id="ach-own-report" rows="8" maxlength="20000" placeholder="## مقدمة&#10;نص الفقرة…&#10;## تفاصيل النشاط&#10;- نقطة"></textarea>
+            <label class="f">التواقيع التي تظهر في التقرير</label>
+            <div class="sub">للإنجازات القديمة اختر اللي كانوا في وقتها، والمحدد يظهر سطر توقيعه في التقرير.</div>
+            <div class="attlist" id="ach-signs"></div>
+          </div>
           <label class="f" for="ach-photos">صور النشاط</label>
           <label class="upload" for="ach-photos"><span id="ach-photo-label">أضف صورًا</span><input type="file" id="ach-photos" accept="image/*" multiple></label>
           <div class="thumbs" id="ach-previews"></div>
-          <div class="row-actions" style="margin-top:14px"><button class="btn" id="ach-submit" type="submit">حفظ التقرير</button></div>
+          <div class="row-actions" style="margin-top:14px"><button class="btn" id="ach-submit" type="submit">حفظ التقرير</button><button class="btn ghost" id="ach-cancel" type="button" hidden>إلغاء التعديل</button></div>
           <div class="saved" id="ach-msg"></div>
         </form>
         <h3 class="list-title">إنجازاتي السابقة</h3>
@@ -1414,6 +1422,9 @@ const NOW = new Date();
 const WEEK = currentWeek(NOW);
 const HEAD_NAME = "مزيد حمد خليفة القصار";
 const PRINCIPAL = "فيصل عبدالله المحمد";
+const DEPUTY = "حمد عماد حمد العون"; // صاحب صلاحية تعديل إنجازاته كاملة واختيار التواقيع
+const ASSISTANT = ""; // اسم المدير المساعد الحالي (فارغ = يظهر سطر التوقيع بلا اسم)
+const SIGN_OPTS = [["h", "رئيس القسم"], ["a", "المدير المساعد"], ["p", "المدير"]];
 const HEAD_SIGN = "مزيد حمد القصار"; // اسم رئيس الشعبة كما يظهر في النماذج
 const ACH_TYPES = ["حلقة نقاشية", "نشاط مدرسي", "نشاط داخل المسجد", "إذاعة مدرسية", "مسابقة", "ورشة عمل", "تنمية مهنية", "محاضرة أو ندوة", "تكريم", "درس نموذجي", "نشاط صفي", "معرض", "مبادرة", "زيارة أو رحلة", "إدارة فريق مدرسي", "أخرى"];
 const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
@@ -1735,7 +1746,7 @@ function achTab(which) {
   $("achtab-all").setAttribute("aria-selected", which === "all");
   $("ach-mine").hidden = which !== "mine";
   $("ach-all").hidden = which !== "all";
-  if (which === "mine") { achForInit(); loadMyAch(); } else loadAllAch();
+  if (which === "mine") { achForInit(); achOwnInit(); loadMyAch(); } else loadAllAch();
 }
 $("achtab-mine").onclick = () => achTab("mine");
 $("achtab-all").onclick = () => achTab("all");
@@ -1755,33 +1766,68 @@ function compress(file) {
   });
 }
 $("ach-photos").onchange = async e => {
-  const files = [...e.target.files].slice(0, 4 - PHOTOS.length);
+  const files = [...e.target.files].slice(0, 4 - KEEP.length - PHOTOS.length);
   for (const f of files) { try { PHOTOS.push(await compress(f)); } catch (x) {} }
   e.target.value = ""; renderPreviews();
 };
+let EDIT = null, KEEP = [];
+const isOwnEditor = () => !!ME && ME.name === DEPUTY;
 function renderPreviews() {
-  $("ach-previews").innerHTML = PHOTOS.map((p, i) => `<figure class="thumb"><img src="${p}" alt="صورة ${ar(i + 1)}"><button type="button" class="x" data-i="${i}" aria-label="حذف الصورة">×</button></figure>`).join("");
-  $("ach-previews").querySelectorAll(".x").forEach(b => b.onclick = () => { PHOTOS.splice(+b.dataset.i, 1); renderPreviews(); });
-  $("ach-photo-label").textContent = PHOTOS.length >= 4 ? "وصلت للحد الأقصى (٤ صور)" : `أضف صورًا (${ar(PHOTOS.length)} من ٤)`;
-  $("ach-photos").disabled = PHOTOS.length >= 4;
+  const total = KEEP.length + PHOTOS.length;
+  $("ach-previews").innerHTML = KEEP.map(id => `<figure class="thumb"><img data-k="${id}" alt="صورة محفوظة"><button type="button" class="x" data-k="${id}" aria-label="حذف الصورة">×</button></figure>`).join("")
+    + PHOTOS.map((p, i) => `<figure class="thumb"><img src="${p}" alt="صورة ${ar(i + 1)}"><button type="button" class="x" data-i="${i}" aria-label="حذف الصورة">×</button></figure>`).join("");
+  $("ach-previews").querySelectorAll("img[data-k]").forEach(im => photo(im.dataset.k).then(src => { im.src = src; }).catch(() => {}));
+  $("ach-previews").querySelectorAll(".x[data-i]").forEach(b => b.onclick = () => { PHOTOS.splice(+b.dataset.i, 1); renderPreviews(); });
+  $("ach-previews").querySelectorAll(".x[data-k]").forEach(b => b.onclick = () => { KEEP = KEEP.filter(x => x !== b.dataset.k); renderPreviews(); });
+  $("ach-photo-label").textContent = total >= 4 ? "وصلت للحد الأقصى (٤ صور)" : `أضف صورًا (${ar(total)} من ٤)`;
+  $("ach-photos").disabled = total >= 4;
 }
+// صاحب الصلاحية: حقول الصياغة والتواقيع، وخيارات المدير/المساعد/رئيس القسم
+function achOwnInit() {
+  $("ach-own").hidden = !isOwnEditor();
+  if (isOwnEditor() && !$("ach-signs").children.length) setSignChecks("h,p");
+}
+function setSignChecks(v) {
+  const on = (v === "-" ? "" : v || "h,p").split(",");
+  $("ach-signs").innerHTML = SIGN_OPTS.map(([k, n]) => `<label class="check"><input type="checkbox" value="${k}"${on.indexOf(k) !== -1 ? " checked" : ""}> ${n}</label>`).join("");
+}
+const getSigns = () => { const v = [...$("ach-signs").querySelectorAll("input:checked")].map(x => x.value); return v.length ? v.join(",") : "-"; };
+function resetAchForm() {
+  EDIT = null; KEEP = []; PHOTOS = []; renderPreviews();
+  $("ach-multi").checked = false; $("ach-to").value = ""; $("ach-to-wrap").hidden = true; $("ach-type").value = ""; $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
+  $("ach-own-report").value = ""; setSignChecks("h,p");
+  $("ach-form-title").textContent = "إضافة إنجاز"; $("ach-submit").textContent = "حفظ التقرير"; $("ach-cancel").hidden = true;
+}
+function startEdit(a) {
+  EDIT = a; KEEP = [...a.photos]; PHOTOS = [];
+  if (![...$("ach-type").options].some(o => o.value === a.type)) $("ach-type").add(new Option(a.type, a.type));
+  $("ach-type").value = a.type; $("ach-date").value = a.date; $("ach-title").value = a.title; $("ach-target").value = a.target || ""; $("ach-desc").value = a.desc || "";
+  $("ach-multi").checked = !!a.dateTo; $("ach-to-wrap").hidden = !a.dateTo; $("ach-to").value = a.dateTo || "";
+  $("ach-own-report").value = a.report || ""; setSignChecks(a.signs || "h,p");
+  $("ach-form-title").textContent = "تعديل إنجاز"; $("ach-submit").textContent = "حفظ التعديلات"; $("ach-cancel").hidden = false;
+  $("ach-msg").textContent = ""; renderPreviews(); $("ach-form").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("ach-cancel").onclick = () => { resetAchForm(); $("ach-msg").textContent = "أُلغي التعديل."; };
 renderPreviews();
 
 $("ach-form").addEventListener("submit", async e => {
   e.preventDefault();
   const msg = $("ach-msg"), btn = $("ach-submit");
   if (!$("ach-type").value) { msg.textContent = "اختر نوع الإنجاز."; $("ach-type").focus(); return; }
-  if (!PHOTOS.length) { msg.textContent = "أضف صورة واحدة على الأقل للنشاط."; return; }
+  if (!PHOTOS.length && !KEEP.length) { msg.textContent = "أضف صورة واحدة على الأقل للنشاط."; return; }
   btn.disabled = true; msg.textContent = "جارٍ حفظ التقرير ورفع الصور…";
   try {
     const forT = ME.isHead ? [...$("ach-for").querySelectorAll("input:checked")].map(x => x.value) : [];
     if (ME.isHead && !forT.length) { msg.textContent = "اختر المعلم (أو نفسك) في «الإنجاز عن»."; btn.disabled = false; return; }
     const dTo = $("ach-multi").checked ? $("ach-to").value : "";
     if ($("ach-multi").checked && (!dTo || dTo <= $("ach-date").value)) { msg.textContent = "اختر تاريخ نهاية النشاط بعد تاريخ بدايته."; btn.disabled = false; return; }
-    const r = await run("submitAchievement", CODE, { dateTo: dTo, type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS, teachers: forT });
-    PHOTOS = []; renderPreviews(); $("ach-multi").checked = false; $("ach-to").value = ""; $("ach-to-wrap").hidden = true; $("ach-type").value = ""; $("ach-title").value = ""; $("ach-target").value = ""; $("ach-desc").value = ""; $("ach-date").value = todayISO();
+    const body = { dateTo: dTo, type: $("ach-type").value, title: $("ach-title").value, date: $("ach-date").value, target: $("ach-target").value, desc: $("ach-desc").value, photos: PHOTOS, teachers: forT };
+    if (isOwnEditor()) { body.report = $("ach-own-report").value; body.signs = getSigns(); }
+    const editing = !!EDIT;
+    const r = editing ? await run("updateMyAchievement", CODE, EDIT.id, { ...body, keep: KEEP }) : await run("submitAchievement", CODE, body);
+    resetAchForm();
     ACH = null; ACH_ALL = null; await loadMyAch();
-    msg.innerHTML = `حُفظ التقرير. <button class="btn sm" type="button" id="ach-new-pdf">تنزيل التقرير PDF</button>`;
+    msg.innerHTML = `${editing ? "حُفظت التعديلات." : "حُفظ التقرير."} <button class="btn sm" type="button" id="ach-new-pdf">تنزيل التقرير PDF</button>`;
     let a = (ACH || []).find(x => x.id === r.id);
     if (!a && ME.isHead) { try { ACH_ALL = await run("allAchievements", CODE); a = ACH_ALL.find(x => x.id === r.id); } catch (e) {} }
     if (ME.isHead) achForInit(true);
@@ -1797,7 +1843,8 @@ async function loadMyAch() {
   box.innerHTML = ACH.map(a => `<div class="li">
       <div class="li-main"><b>${esc(a.title)}</b><span class="sub">${esc(a.type)} · ${achWhen(a)}${a.photos.length ? " · " + ar(a.photos.length) + " صور" : ""}</span></div>
       <div class="row-actions">${a.status === ST_READY ? '<span class="pill ok">عدّل رئيس الشعبة الصياغة</span>' : ""}
-      <button class="btn sm" data-pdf="${a.id}">تقرير PDF</button>${a.status === ST_READY ? "" : `<button class="btn ghost sm" data-del="${a.id}">حذف</button>`}</div><div class="saved" data-pmsg="${a.id}"></div></div>`).join("");
+      <button class="btn sm" data-pdf="${a.id}">تقرير PDF</button>${isOwnEditor() && a.type !== ACT_TYPE ? `<button class="btn ghost sm" data-edit="${a.id}">تعديل</button>` : ""}${a.status === ST_READY ? "" : `<button class="btn ghost sm" data-del="${a.id}">حذف</button>`}</div><div class="saved" data-pmsg="${a.id}"></div></div>`).join("");
+  box.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => startEdit(ACH.find(a => a.id === b.dataset.edit)));
   box.querySelectorAll("[data-pdf]").forEach(b => b.onclick = () => achDownload(ACH.find(a => a.id === b.dataset.pdf), box.querySelector(`[data-pmsg="${b.dataset.pdf}"]`)));
   box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => confirmInline(b, "تأكيد الحذف", async () => {
     try { await run("deleteAchievement", CODE, b.dataset.del); ACH = ACH.filter(a => a.id !== b.dataset.del); loadMyAch(); } catch (e) { b.textContent = cleanErr(e); }
@@ -4603,6 +4650,12 @@ function pdfHead(extra) {
   return `<div class="lh"><img src="data:image/png;base64,${MOE_B64}"><div class="t"><b>دولة الكويت · وزارة التربية</b><br>منطقة حولي التعليمية<br><b>ثانوية أحمد الربعي للبنين</b><br><span class="o">شعبة التربية الإسلامية</span></div>
     <div class="y">العام الدراسي<b>${PDF_YEAR()}</b>${extra || ""}</div><img src="data:image/png;base64,${LOGO_B64}"></div>`;
 }
+// تواقيع الإنجاز: الافتراضي رئيس الشعبة + المدير، ولصاحب الصلاحية اختيار أي منها (رئيس القسم / المدير المساعد / المدير)
+function achSignList(a, teacherRow, pre) {
+  const v = (a.signs || "h,p").split(",");
+  const all = { h: [pre + "رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], a: [pre + "المدير المساعد", ASSISTANT ? "أ. " + ASSISTANT : ""], p: [pre + "مدير المدرسة", "أ. " + PRINCIPAL] };
+  return [...teacherRow, ...["h", "a", "p"].filter(k => v.indexOf(k) !== -1).map(k => all[k])];
+}
 const pdfSigns = list => `<div class="signs avoid">${list.map(([r, n]) => `<div><b>${esc(r)}</b><i>${n ? esc(n) : "&nbsp;"}</i><i class="ln">التوقيع: ....................</i></div>`).join("")}</div>`;
 const PDF_COMPACT = `body{padding:24px 34px 8px;font-size:12px;line-height:1.55}td,th{padding:3px 6px}h1{font-size:19px;margin:0 0 4px}h2{font-size:14px;margin:8px 0 4px}.sub{margin:0 0 6px}.lh{padding-bottom:5px;margin-bottom:8px}.lh img{width:48px;height:52px}.signs{margin-top:12px}.signs .ln{margin-top:10px}`;
 const pdfSigImg = s => s ? `<img class="sig" src="${s}">` : "";
@@ -4862,7 +4915,7 @@ function actPdfHtml(a, imgs) {
     <tr><td class="k">المعلم المتابع للنشاط</td><td colspan="3">أ. ${esc(names.join("، أ. "))}</td></tr></table>
     <h2>محتوى النشاط</h2><div class="cb">${body}</div>
     ${n ? `<h2>الصور</h2><div class="phs">${imgs.map(s => `<img src="${s}" style="width:calc(${w}% - 8px);height:${h}px">`).join("")}</div>` : ""}
-    ${pdfSigns([...(byHead || names.length > 1 ? [] : [["توقيع المعلم", "أ. " + names[0]]]), ["توقيع رئيس الشعبة", "أ. " + HEAD_SIGN], ["توقيع مدير المدرسة", "أ. " + PRINCIPAL]])}</div></div>`;
+    ${pdfSigns(achSignList(a, byHead || names.length > 1 ? [] : [["توقيع المعلم", "أ. " + names[0]]], "توقيع "))}</div></div>`;
 }
 
 function achPdfHtml(a, imgs) {
@@ -4879,7 +4932,7 @@ function achPdfHtml(a, imgs) {
     <tr><td class="k">${byHead ? "رئيس الشعبة" : (a.teachers || []).length > 1 ? "المعلمون" : "المعلم"}</td><td>أ. ${esc((a.teachers || [a.teacher]).map(tName).join("، أ. "))}</td><td class="k">${a.dateTo && a.dateTo > a.date ? "الفترة" : "التاريخ"}</td><td>${achWhen(a, true)}</td></tr>
     <tr><td class="k">النوع</td><td>${esc(a.type)}</td><td class="k">الفئة المستهدفة</td><td>${esc(a.target || "طلاب المدرسة")}</td></tr></table>
     <div style="margin-top:10px">${reportBodyHtml(a.report)}</div>${ph}
-    ${pdfSigns([...(byHead || (a.teachers || []).length > 1 ? [] : [["المعلم", "أ. " + tName(a.teacher)]]), ["رئيس شعبة التربية الإسلامية", "أ. " + HEAD_SIGN], ["مدير المدرسة", "أ. " + PRINCIPAL]])}`;
+    ${pdfSigns(achSignList(a, byHead || (a.teachers || []).length > 1 ? [] : [["المعلم", "أ. " + tName(a.teacher)]], ""))}`;
 }
 
 // ---------- محضر الاجتماع ----------

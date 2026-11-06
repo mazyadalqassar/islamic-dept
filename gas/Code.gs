@@ -310,9 +310,21 @@ const achNames_ = v => String(v || "").split("|").filter(Boolean);
 function achObj_(r, withReport) {
   const names = achNames_(r[1]);
   const o = { id: r[0], teacher: names.join("، أ. "), teachers: names, date: r[2], type: r[3], title: r[4], target: r[5], desc: r[6],
-    photos: r[7] ? r[7].split(",").filter(Boolean) : [], status: r[8] || ST_PENDING, createdAt: r[10], reportedAt: r[11], dateTo: r[12] && r[12] > r[2] ? r[12] : "" };
+    photos: r[7] ? r[7].split(",").filter(Boolean) : [], status: r[8] || ST_PENDING, createdAt: r[10], reportedAt: r[11], dateTo: r[12] && r[12] > r[2] ? r[12] : "", signs: r[13] || "" };
   if (withReport) o.report = r[9];
   return o;
+}
+
+/** التواقيع المختارة: h=رئيس القسم، a=المدير المساعد، p=المدير. "-" = بلا تواقيع، والفارغ = الافتراضي (رئيس القسم + المدير) */
+function cleanSigns_(v) {
+  if (v == null || v === "") return "";
+  const list = (Array.isArray(v) ? v : String(v).split(",")).map(String).filter((x, i, arr) => ["h", "a", "p"].indexOf(x) !== -1 && arr.indexOf(x) === i);
+  return list.length ? ["h", "a", "p"].filter(x => list.indexOf(x) !== -1).join(",") : "-";
+}
+function ensureAchCols_(sh) {
+  if (sh.getMaxColumns() < 14) sh.insertColumnsAfter(sh.getMaxColumns(), 14 - sh.getMaxColumns());
+  if (!sh.getRange(1, 13).getDisplayValue()) sh.getRange(1, 13).setValue("تاريخ النهاية");
+  if (!sh.getRange(1, 14).getDisplayValue()) sh.getRange(1, 14).setValue("التواقيع");
 }
 
 function submitAchievement(code, a) {
@@ -338,8 +350,9 @@ function submitAchievement(code, a) {
     return folder.createFile(blob).getId();
   });
   const row = [id, owners.join("|"), String(a.date || "").slice(0, 10), String(a.type || "").slice(0, 60), title,
-    String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, "", nowText_(), "", /^\d{4}-\d{2}-\d{2}$/.test(String(a.dateTo || "")) && String(a.dateTo) > String(a.date || "") ? String(a.dateTo) : ""];
-  { const sh = sh_(SHEET_ACH); if (!sh.getRange(1, 13).getDisplayValue()) sh.getRange(1, 13).setValue("تاريخ النهاية"); }
+    String(a.target || "").slice(0, 150), desc, ids.join(","), ST_PENDING, me.name === DEPUTY ? String(a.report || "").slice(0, 20000) : "", nowText_(), "", /^\d{4}-\d{2}-\d{2}$/.test(String(a.dateTo || "")) && String(a.dateTo) > String(a.date || "") ? String(a.dateTo) : "",
+    me.name === DEPUTY ? cleanSigns_(a.signs) : ""];
+  ensureAchCols_(sh_(SHEET_ACH));
   withLock_(() => appendText_(sh_(SHEET_ACH), row));
   if (me.isHead) return { id };
   notify_(me, `إنجاز جديد: ${title} — أ. ${me.name}`, `
@@ -353,6 +366,40 @@ function submitAchievement(code, a) {
     <p><b>وصف المعلم:</b><br>${esc_(desc).replace(/\n/g, "<br>")}</p>
     <p>عدد الصور: ${ids.length} (مرفقة بهذه الرسالة).</p>`, blobs);
   return { id };
+}
+
+/** تعديل إنجاز كامل (البيانات، الصياغة، الصور، التواقيع) — لصاحب الصلاحية على إنجازاته هو فقط */
+function updateMyAchievement(code, id, a) {
+  const me = who_(code);
+  if (me.name !== DEPUTY) throw new Error("لا تملك صلاحية تعديل الإنجاز.");
+  const title = String(a.title || "").trim().slice(0, 150);
+  const desc = String(a.desc || "").trim().slice(0, 3000);
+  if (!title) throw new Error("اكتب عنوان النشاط.");
+  if (desc.length < 10) throw new Error("اكتب وصفًا للنشاط ولو بسطرين.");
+  return withLock_(() => {
+    const sh = sh_(SHEET_ACH), row = findRow_(sh, 1, id);
+    if (row < 0) throw new Error("الإنجاز غير موجود.");
+    ensureAchCols_(sh);
+    const r = sh.getRange(row, 1, 1, 14).getDisplayValues()[0];
+    const owners = achNames_(r[1]);
+    if (owners.indexOf(me.name) === -1) throw new Error("هذا الإنجاز ليس لك.");
+    if (owners.length > 1) throw new Error("هذا إنجاز مشترك مع معلمين آخرين، ويعدّله رئيس الشعبة.");
+    const oldIds = r[7] ? r[7].split(",").filter(Boolean) : [];
+    const keep = (a.keep || []).map(String).filter((x, i, arr) => oldIds.indexOf(x) !== -1 && arr.indexOf(x) === i).slice(0, 4);
+    const add = (a.photos || []).slice(0, 4 - keep.length);
+    if (!keep.length && !add.length) throw new Error("أبقِ صورة واحدة على الأقل للنشاط.");
+    const folder = folder_();
+    const newIds = add.map((b64, i) => folder.createFile(Utilities.newBlob(Utilities.base64Decode(String(b64).replace(/^data:image\/\w+;base64,/, "")), "image/jpeg", `${id}-${Date.now()}-${i + 1}.jpg`)).getId());
+    oldIds.filter(x => keep.indexOf(x) === -1).forEach(fid => { try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {} });
+    const date = String(a.date || "").slice(0, 10);
+    r[2] = date; r[3] = String(a.type || "").slice(0, 60); r[4] = title; r[5] = String(a.target || "").slice(0, 150); r[6] = desc;
+    r[7] = keep.concat(newIds).join(",");
+    r[9] = String(a.report || "").slice(0, 20000);
+    r[12] = /^\d{4}-\d{2}-\d{2}$/.test(String(a.dateTo || "")) && String(a.dateTo) > date ? String(a.dateTo) : "";
+    r[13] = cleanSigns_(a.signs);
+    writeRow_(sh, row, r);
+    return achObj_(r, true);
+  });
 }
 
 /** إنجازات المعلم نفسه — بدون نص التقرير */
