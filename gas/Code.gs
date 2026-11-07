@@ -27,6 +27,7 @@ const SHEET_DEV = "الأجهزة";
 const SHEET_PLEDGE = "التعهدات";
 const SHEET_PHONES = "جوالات المعلمين"; // لا تُرفع إلى GitHub؛ لرئيس الشعبة فقط
 const SHEET_CIRC_SIG = "تواقيع التعاميم";
+const SHEET_OPS = "الخطة التشغيلية"; // لرئيس الشعبة فقط
 // نائب رئيس الشعبة: له صلاحية ركن الاحتياط مع رئيس الشعبة
 const DEPUTY = "حمد عماد حمد العون";
 
@@ -77,6 +78,7 @@ const API = { login, saveEntry, headData, submitAchievement, myAchievements, del
   setMyEmail, listLeaves, saveLeave, decideLeave, deleteLeave, setLeaveActual, listDuties, importDuties, leavesDayPdf, leavesRecent, leavesPickPdf,
   gradesGet, gradesSave, gradesApprove, gradesOverview, gradesFeed,
   listCirculars, getCircular, circularFile, saveCircular, deleteCircular, signCircular, remindCircular,
+  opsList, opsSaveGoal, opsDeleteGoal, opsSeed,
   listDevices, resetDevice, setDeviceFree, signPledge, listPledges, requestDeviceCode, verifyDeviceCode, markInviteSent,
   notifyAbsence, subsOpen, claimSub, unclaimSub, removeSub, headNews, markSeen };
 
@@ -134,6 +136,7 @@ function setup() {
   sheet_(SHEET_LEAVE, LEAVE_HEAD_, true);
   sheet_(SHEET_EMAIL, ["المعلم", "الإيميل", "آخر تحديث"], true);
   sheet_(SHEET_DUTY, DUTY_HEAD_, true);
+  opsSheet_();
   sheet_(SHEET_PLAN, ["الأسبوع", "التاريخ", "اليوم", "الحصة", "المعلم", "الفصل", "ملاحظة"], true);
   const existing = codes.getRange(1, 1, Math.max(codes.getLastRow(), 1), 1).getDisplayValues().map(r => r[0]);
   Object.keys(DEMOS).forEach(n => { if (existing.indexOf(n) === -1) { codes.appendRow([n, newCode_(), "", "تجريبي"]); } });
@@ -1750,6 +1753,72 @@ function deleteCircular(code, id) {
     const sig = sh_(SHEET_CIRC_SIG);
     if (sig) { const vals = sig.getDataRange().getDisplayValues(); for (let i = vals.length - 1; i >= 1; i--) if (vals[i][0] === id) sig.deleteRow(i + 1); }
     return true;
+  });
+}
+
+
+// ======================= الخطة التشغيلية (لرئيس الشعبة فقط) =======================
+// صف لكل هدف؛ الخطوات تُحفظ داخل الصف بصيغة JSON
+const OPS_HEAD_ = ["المعرف", "الترتيب", "الهدف الاستراتيجي", "المجال", "المؤشر", "المبادرة", "الهدف التشغيلي", "الخطوات", "آخر تعديل"];
+function opsSheet_() { return sh_(SHEET_OPS) || sheet_(SHEET_OPS, OPS_HEAD_, true); }
+function opsObj_(r) {
+  return { id: r[0], order: Number(r[1]) || 0, strategic: r[2], domain: r[3], indicator: r[4], initiative: r[5], opGoal: r[6], steps: json_(r[7], []), updatedAt: r[8] };
+}
+function opsClean_(g) {
+  const str = v => String(v == null ? "" : v).slice(0, 2000);
+  const date = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "";
+  const steps = (Array.isArray(g.steps) ? g.steps : []).slice(0, 60).map(x => {
+    const done = x.done === true;
+    let pct = Math.round(Number(x.pct));
+    pct = done && isFinite(pct) ? Math.max(0, Math.min(100, pct)) : "";
+    const at = x.actual && x.actual.type === "date" ? "date" : "text";
+    return { id: str(x.id) || newId_(), text: str(x.text), from: date(x.from), to: date(x.to), exec: str(x.exec), follow: str(x.follow),
+      actual: { type: at, value: at === "date" ? date(x.actual && x.actual.value) : str(x.actual && x.actual.value) },
+      done: done, pct: pct, notes: str(x.notes), flag: str(x.flag) };
+  });
+  return { strategic: str(g.strategic), domain: str(g.domain), indicator: str(g.indicator), initiative: str(g.initiative), opGoal: str(g.opGoal), steps: steps };
+}
+function opsList(code) {
+  head_(code);
+  return rows_(SHEET_OPS).slice(1).filter(r => r[0]).map(opsObj_).sort((a, b) => a.order - b.order);
+}
+function opsSaveGoal(code, g) {
+  head_(code);
+  g = g || {};
+  const c = opsClean_(g);
+  if (!c.opGoal) throw new Error("اكتب الهدف التشغيلي.");
+  return withLock_(() => {
+    const sh = opsSheet_();
+    let id = String(g.id || ""), row = id ? findRow_(sh, 1, id) : -1, order;
+    if (row > 0) order = sh.getRange(row, 2).getDisplayValue();
+    else {
+      id = newId_();
+      order = String(rows_(SHEET_OPS).slice(1).reduce((m, r) => Math.max(m, Number(r[1]) || 0), 0) + 1);
+      row = sh.getLastRow() + 1;
+    }
+    writeRow_(sh, row, [id, order, c.strategic, c.domain, c.indicator, c.initiative, c.opGoal, JSON.stringify(c.steps), nowText_()]);
+    return opsObj_([id, order, c.strategic, c.domain, c.indicator, c.initiative, c.opGoal, JSON.stringify(c.steps), nowText_()]);
+  });
+}
+function opsDeleteGoal(code, id) {
+  head_(code);
+  return withLock_(() => {
+    const sh = opsSheet_(), row = findRow_(sh, 1, String(id || ""));
+    if (row > 0) sh.deleteRow(row);
+    return true;
+  });
+}
+/** يحمّل الأهداف الأولية مرة واحدة فقط إذا كانت الورقة فارغة */
+function opsSeed(code, goals) {
+  head_(code);
+  return withLock_(() => {
+    const sh = opsSheet_();
+    if (sh.getLastRow() > 1) return { seeded: false };
+    (Array.isArray(goals) ? goals : []).forEach((g, i) => {
+      const c = opsClean_(g);
+      appendText_(sh, [newId_(), String(i + 1), c.strategic, c.domain, c.indicator, c.initiative, c.opGoal, JSON.stringify(c.steps), nowText_()]);
+    });
+    return { seeded: true };
   });
 }
 

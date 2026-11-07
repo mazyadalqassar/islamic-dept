@@ -498,6 +498,61 @@ table.subs-table tr[data-t]:hover td { background: var(--c-subs-s); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-circ: #9fb6c8; --c-circ-s: #1f2830; } }
 :root[data-theme="dark"] { --c-circ: #9fb6c8; --c-circ-s: #1f2830; }
 .t-circ { --tc: var(--c-circ); --ts: var(--c-circ-s); }
+:root { --c-ops: #8a5a2b; --c-ops-s: #f6ece1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c-ops: #d9a66b; --c-ops-s: #33271b; } }
+:root[data-theme="dark"] { --c-ops: #d9a66b; --c-ops-s: #33271b; }
+.t-ops { --tc: var(--c-ops); --ts: var(--c-ops-s); }
+#sec-ops [hidden] { display: none !important; }
+.ops-totals { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 12px 0 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; font-size: 14px; color: var(--muted); }
+.ops-totals b { color: var(--ink); font-family: var(--f-display); font-size: 17px; font-variant-numeric: tabular-nums; margin-inline-start: 4px; }
+.ops-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 12px; }
+.ops-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ops-chip { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 14px; cursor: pointer; }
+.ops-chip[aria-pressed="true"] { background: var(--c-ops-s); border-color: var(--c-ops); color: var(--c-ops); font-weight: 700; }
+.ops-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.ops-goal { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; }
+.ops-gh { display: block; width: 100%; text-align: start; background: none; border: 0; font: inherit; color: var(--ink); padding: 14px 16px 12px; cursor: pointer; }
+.ops-gtop { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; color: var(--muted); }
+.ops-gtop .st { color: var(--c-ops); font-weight: 700; }
+.ops-tag { font-size: 12.5px; font-weight: 700; padding: 1px 10px; border-radius: 999px; background: var(--none-soft); color: var(--muted); }
+.ops-gh h2 { font-family: var(--f-display); font-size: 16.5px; line-height: 1.65; margin: 4px 0 0; }
+.ops-ini { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.ops-prog { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+.ops-bar { flex: 1 1 120px; height: 8px; border-radius: 999px; background: var(--none-soft); overflow: hidden; }
+.ops-bar i { display: block; height: 100%; background: var(--c-ops); border-radius: 999px; }
+.ops-prog b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.ops-chev { margin-inline-start: auto; font-size: 18px; transition: transform .15s; }
+.ops-gh[aria-expanded="true"] .ops-chev { transform: rotate(180deg); }
+.ops-gb { border-top: 1px solid var(--line); padding: 12px 16px 16px; display: grid; gap: 10px; }
+.ops-opg { background: var(--c-ops-s); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+.ops-opg span { display: block; font-size: 12.5px; color: var(--c-ops); font-weight: 700; }
+.ops-step { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
+.ops-sh { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 6px 10px; }
+.ops-sh strong { font-weight: 700; flex: 1 1 220px; min-width: 0; }
+.ops-pill { font-size: 12.5px; font-weight: 700; padding: 1px 10px; border-radius: 999px; white-space: nowrap; background: var(--ok-soft); color: var(--ok); }
+.ops-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 6px 14px; margin: 0; font-size: 13.5px; }
+.ops-facts div { min-width: 0; }
+.ops-facts dt { color: var(--muted); font-size: 12.5px; }
+.ops-facts dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.ops-note { font-size: 13.5px; color: var(--muted); background: var(--none-soft); border-radius: 8px; padding: 4px 10px; }
+.ops-flag { font-size: 13px; color: var(--late); background: var(--late-soft); border-radius: 8px; padding: 4px 10px; }
+.ops-empty { text-align: center; color: var(--muted); padding: 14px 8px; border: 1px dashed var(--line); border-radius: 12px; }
+.ops-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+form.ops-edit { display: grid; gap: 12px; border: 1.5px solid var(--c-ops); border-radius: 12px; padding: 12px; background: var(--surface); }
+form.ops-edit h3 { font-family: var(--f-display); font-size: 15.5px; margin: 0; }
+.ops-row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.ops-fld { display: grid; gap: 3px; min-width: 0; }
+.ops-fld > label, .ops-fld > .l { font-size: 13px; color: var(--muted); font-weight: 600; }
+form.ops-edit input[type="number"] { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+.ops-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; align-self: start; }
+.ops-seg button { font: inherit; border: 0; background: var(--surface); color: var(--ink); padding: 6px 18px; cursor: pointer; }
+.ops-seg button + button { border-inline-start: 1px solid var(--line); }
+.ops-seg button[aria-pressed="true"] { background: var(--c-ops-s); color: var(--c-ops); font-weight: 700; }
+.ops-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.ops-err { font-size: 13px; color: var(--late); }
+.ops-fa { display: flex; flex-wrap: wrap; gap: 8px; }
+.ops-fa .sp { margin-inline-start: auto; }
+.ops-msg { font-size: 13.5px; color: var(--muted); margin: 6px 0; min-height: 0; }
 #sec-circ [hidden] { display: none !important; }
 .ci-card { display: block; width: 100%; text-align: right; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-right: 5px solid var(--c-circ); border-radius: 16px; padding: 12px 14px; margin-top: 10px; cursor: pointer; }
 .ci-card.need { border-right-color: #b23a22; }
@@ -605,6 +660,7 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
         <button id="nav-grd" class="tile t-grd" type="button"><b>كشف درجات الأعمال</b></button>
         <button id="nav-swap" class="tile t-swap" type="button"><b>بدّل حصتي</b></button>
         <button id="nav-circ" class="tile t-circ" type="button"><b>النشرات والتعاميم</b></button>
+        <button id="nav-ops" class="tile t-ops head-only" type="button" hidden><b>الخطة التشغيلية</b></button>
         <button id="nav-subs" class="tile t-subs staff-only" type="button" hidden><b>الاحتياط</b></button>
       </nav>
       <div class="mail-line" id="mail-line" hidden>إشعاراتك تصل إلى: <b id="mail-show"></b> <button class="linkbtn" type="button" id="mail-change">تغيير</button></div>
@@ -1052,6 +1108,22 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
         <div class="gr-seg" id="gr-ovsem" style="margin-top:12px"><button type="button" data-v="1" aria-pressed="true">الفصل الدراسي الأول</button><button type="button" data-v="2" aria-pressed="false">الفصل الدراسي الثاني</button></div>
         <div id="gr-ovlist" style="margin-top:12px"></div>
       </section>
+    </section>
+    <section id="sec-ops" hidden>
+      <div class="ops-totals" id="ops-totals" aria-live="polite"></div>
+      <div class="ops-tools">
+        <div class="ops-chips" role="group" aria-label="تصفية حسب المجال">
+          <button class="ops-chip" type="button" data-oa="filter" data-v="all" aria-pressed="true">الكل</button>
+          <button class="ops-chip" type="button" data-oa="filter" data-v="المتعلم" aria-pressed="false">المتعلم</button>
+          <button class="ops-chip" type="button" data-oa="filter" data-v="المعلم" aria-pressed="false">المعلم</button>
+        </div>
+        <div class="ops-btns">
+          <button class="btn ghost sm" type="button" data-oa="pdf-all">تقرير PDF لكل الأهداف</button>
+          <button class="btn sm" type="button" data-oa="new-goal">إضافة هدف جديد</button>
+        </div>
+      </div>
+      <div class="ops-msg" id="ops-msg" role="status"></div>
+      <div id="ops-list"></div>
     </section>
     <section id="sec-circ" hidden>
       <div id="circ-listwrap">
@@ -1568,12 +1640,13 @@ $("logout").onclick = () => {
   $("app").hidden = true; $("view-login").hidden = false; $("code").value = "";
 };
 
-const SECTIONS = ["curr", "ach", "act", "min", "vis", "subs", "swap", "stu", "lv", "grd", "circ"];
-const SEC_TITLES = { curr: "ما قطع من المنهج", ach: "الإنجازات والتنمية المهنية", act: "حصة النشاط", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والمتعثرين", lv: "الاستئذانات", grd: "كشف درجات الأعمال", circ: "النشرات والتعاميم" };
+const SECTIONS = ["curr", "ach", "act", "min", "vis", "subs", "swap", "stu", "lv", "grd", "circ", "ops"];
+const SEC_TITLES = { ops: "الخطة التشغيلية", curr: "ما قطع من المنهج", ach: "الإنجازات والتنمية المهنية", act: "حصة النشاط", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والمتعثرين", lv: "الاستئذانات", grd: "كشف درجات الأعمال", circ: "النشرات والتعاميم" };
 // noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
 function go(sec, noHist) {
   if (sec !== "home" && SECTIONS.indexOf(sec) === -1) sec = "home";
   if (sec === "subs" && !(ME && !ME.isDemo)) sec = "home";
+  if (sec === "ops" && !(ME && ME.isHead)) sec = "home";
   const home = sec === "home";
   $("home").hidden = !home; $("secbar").hidden = home;
   SECTIONS.forEach(s => $("sec-" + s).hidden = s !== sec);
@@ -1592,12 +1665,258 @@ function go(sec, noHist) {
   if (sec === "stu") stuTab(stuSub);
   if (sec === "lv") lvTab(lvSub);
   if (sec === "circ") loadCirculars();
+  if (sec === "ops") loadOps();
   if (ME.isHead && NEWS && NEWS[sec] && NEWS[sec].length) { NEWS_ON[sec] = NEWS[sec]; NEWS[sec] = []; tileBadge(sec, 0); run("markSeen", CODE, sec).catch(() => {}); setTimeout(() => markNew(sec), 300); }
   if (sec === "grd") grdTab(ME.isHead && !$("grd-ov").hidden ? "ov" : "sheet");
 }
 SECTIONS.forEach(s => $("nav-" + s).onclick = () => go(s));
 $("back-home").onclick = () => { if (history.state && history.state.sec && history.state.sec !== "home" && history.length > 1) history.back(); else go("home", true); };
 window.addEventListener("popstate", e => { if (ME) go((e.state && e.state.sec) || "home", true); });
+
+// ================= ركن الخطة التشغيلية (لرئيس الشعبة فقط) =================
+const OPS_SEED = [{"id":"g1","strategic":"الارتقاء بمستوى التحصيل الدراسي","domain":"المتعلم","indicator":"خفض نسبة التعثر الدراسي : الصف العاشر 10% ، الحادي عشر 5% ، الثاني عشر 5%","initiative":"وضع برامج للنهوض بمستوى المتعثرين","opGoal":"أن يتم خفض نسبة التعثر الدراسي إلى: الصف العاشر 10%، الحادي عشر 5%، الثاني عشر 5%","steps":[{"id":"s1_1","text":"حصر أسماء الطلاب المتعثرين","from":"2026-10-29","to":"2026-10-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"date","value":"2026-10-30"},"done":true,"pct":100,"notes":"","flag":"التاريخ «30/10/25» سنته قبل العام الدراسي، وقُرئ 30/10/2026"},{"id":"s1_2","text":"عقد اجتماع بالطلاب المتعثرين مع رئيس الشعبة","from":"2026-11-02","to":"2026-11-02","exec":"رئيس الشعبة","follow":"م.م للشئون التعليمية","actual":{"type":"date","value":"2026-11-02"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s1_3","text":"عمل بطاقات متابعة للطلاب المتعثرين","from":"2026-10-30","to":"2026-11-02","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"date","value":"2026-11-02"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s1_4","text":"استدعاء ولي الأمر للوقوف على المستوى التعليمي لابنه","from":"2026-10-01","to":"2027-04-30","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s1_5","text":"عمل سجل خاص بالطلاب المتعثرين","from":"2026-10-30","to":"2026-10-30","exec":"رئيس الشعبة","follow":"م.م للشئون التعليمية","actual":{"type":"date","value":"2026-10-30"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s1_6","text":"عمل تقوية للطلاب","from":"2026-11-30","to":"2026-12-15","exec":"معلمو الشعبة","follow":"رئيس الشعبة / م.م للشئون التعليمية","actual":{"type":"text","value":"حسب الجدول الموضوع"},"done":false,"pct":null,"notes":"التقوية نهاية كل فصل دراسي","flag":null},{"id":"s1_7","text":"عمل أوراق عمل وجمع اختبارات سابقة لرفع مستوى الطلاب ورفعها على تيمز","from":"2026-10-19","to":"2027-04-30","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":"التاريخ «26/10/19» كان مكتوبًا بترتيب معكوس، وقُرئ 19/10/2026"}]},{"id":"g2","strategic":"الارتقاء بمستوى التحصيل الدراسي","domain":"المتعلم","indicator":"زيادة نسبة الفائقين إلى : الصف العاشر 20% - الحادي عشر 20% - الثاني عشر 20%","initiative":"اعداد برامج رعاية الفائقين","opGoal":"أن يتم زيادة نسبة المتعلمين الفائقين إلى : الصف العاشر 20%، الحادي عشر 20%، الثاني عشر 20%","steps":[{"id":"s2_1","text":"التعرف على مستوى الطلاب","from":"2026-10-19","to":"2026-10-30","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"date","value":"2026-10-30"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s2_2","text":"حصر الطلاب الفائقين","from":"2026-10-29","to":"2026-10-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"date","value":"2026-10-29"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s2_3","text":"عمل بطاقات متابعة للطلاب الفائقين","from":"2026-10-29","to":"2026-10-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة + م.م للشئون التعليمية","actual":{"type":"date","value":"2026-10-29"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s2_4","text":"عمل سجل خاص بالطلاب الفائقين","from":"2026-10-29","to":"2026-10-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"date","value":"2026-10-29"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s2_5","text":"اشراكهم في المسابقات وأنشطة الشعبة","from":"2026-10-01","to":"2027-03-31","exec":"معلمو الشعبة","follow":"رئيس الشعبة + م.م للشئون التعليمية","actual":{"type":"text","value":"طوال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s2_6","text":"عمل زيارات خارجية لمؤسسات المجتمع المدني","from":"2027-04-22","to":"2027-04-22","exec":"عبد الله الخليفي","follow":"رئيس الشعبة + م.م للشئون التعليمية","actual":{"type":"date","value":"2027-04-22"},"done":false,"pct":null,"notes":"زيارة معرض الكتاب","flag":"المدى المقترح كان مقلوبًا (من بعد إلى)"},{"id":"s2_7","text":"عمل دوري ثقافي للفائقين","from":"2026-11-03","to":"2027-03-31","exec":"حمد العون","follow":"رئيس الشعبة + م.م للشئون التعليمية","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"في حصة النشاط","flag":null}]},{"id":"g3","strategic":"غرس القيم السلوكية والإسلامية والوطنية","domain":"المتعلم","indicator":"إقامة برنامج واحد للقيم خلال العام الدراسي الواحد","initiative":"تنفيذ برامج للقيم التربوية","opGoal":"أن يتم إقامة برنامج واحد للقيم خلال العام الدراسي 2026/2027","steps":[{"id":"s3_1","text":"معرفة القيم الخاصة بالمرحلة الثانوية","from":"2026-09-22","to":"2026-09-22","exec":"رئيس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-09-22"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s3_2","text":"عمل مجلة حائطية عن قيمتي ( الولاء للوطن – بر الوالدين وصلة الأرحام )","from":"2027-02-01","to":"2027-03-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"date","value":"2027-02-01"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s3_3","text":"كلمات إذاعية عن القيم الشهرية","from":"2026-09-20","to":"2026-09-24","exec":"معلمو الشعبة","follow":"رئيس الشعبة / م.م للشؤون التعليمية","actual":{"type":"text","value":"خلال العام الدراسي"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s3_4","text":"تكليف الزملاء بالحديث عن القيم الشهرية خلال الحصة الدراسية وتسجيلها بدفتر التحضير","from":"2026-09-20","to":"2027-04-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s3_5","text":"تكريم 3 من الطلاب أصحاب القيم الإيجابية","from":"2027-03-29","to":"2027-03-29","exec":"رئيس الشعبة / معلمو الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2027-03-29"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s3_6","text":"مشاركة الشعبة في الفاعليات الخاصة بالقيم الشهرية","from":"2026-10-05","to":"2027-04-29","exec":"معلم الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-10-05"},"done":false,"pct":null,"notes":"المشاركة في يوم المعلم","flag":null},{"id":"s3_7","text":"خاطرة المسجد","from":"2026-09-20","to":"2027-04-29","exec":"أحمد الشطي محمد الفيلكاوي / عبد الله الخليفي","follow":"رئيس الشعبة","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null}]},{"id":"g4","strategic":"تنمية التفكير والبحث العلمي","domain":"المتعلم","indicator":"المشاركة بنسبة 100% في المسابقات المعتمدة في المنطقة والوزارة","initiative":"المشاركة في الأنشطة والمسابقات على مستوى المنطقة والوزارة","opGoal":"أن تتم المشاركة بنسبة 100% في المسابقات المعتمدة في المنطقة والوزارة","steps":[{"id":"s4_1","text":"عقد اجتماع لمناقشة المسابقات المعتمد من قبل التوجيه","from":"2026-09-27","to":"2026-09-27","exec":"رئيس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-09-27"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s4_2","text":"اختيار الطلاب المشاركين في المسابقات","from":"2026-09-30","to":"2026-10-08","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"date","value":"2026-10-08"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s4_3","text":"الاجتماع بالمعلمين المشرفين والطلاب المشاركين بالمسابقات","from":"2026-10-11","to":"2026-10-11","exec":"أ/ محمد الفيلكاوي / أ/ عبدالله الخليفي","follow":"رئيس الشعبة / م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-10-11"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s4_4","text":"تدريب الطلاب المشاركين في المسابقات","from":"2026-10-12","to":"2026-10-22","exec":"أ أ/ محمد الفيلكاوي / أ/ عبدالله الخليفي","follow":"رئيس الشعبة","actual":{"type":"text","value":"خلال الفصل الدراسي الأول"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s4_5","text":"مشاركة الطلاب في المسابقات حسب الوقت المحدد لها","from":"2026-10-21","to":"2027-04-29","exec":"أ/ محمد الفيلكاوي / أ / أحمد الشطي / أ / عبدالله الخليفي","follow":"م.م للشؤون التعليمية","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"المشاركة في مسابقات التوجيه الفني","flag":null},{"id":"s4_6","text":"تكريم الطلاب المشاركين والحاصلين على المراكز الأولى","from":"2027-04-05","to":"2027-04-08","exec":"معلمو الشعبة + رئيس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2027-04-08"},"done":false,"pct":null,"notes":"","flag":null}]},{"id":"g5","strategic":"تنمية التفكير والبحث العلمي","domain":"المتعلم","indicator":"الحصول على مركز من المراكز الثلاثة الأولى على مستوى الوزارة","initiative":"المشاركة في الأنشطة والمسابقات على مستوى المنطقة والوزارة","opGoal":"أن يتم الحصول على مركز من المراكز الثلاث الأولى على مستوى الوزارة","steps":[{"id":"s5_1","text":"اختيار الطلاب المشاركين في المسابقات","from":"2026-09-27","to":"2026-10-08","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"date","value":"2026-10-08"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s5_2","text":"الاجتماع بالمعلمين المشرفين والطلاب المشاركين بالمسابقات","from":"2026-10-04","to":"2026-10-04","exec":"أ/ محمد الفيلكاوي / أ/ عبدالله الخليفي","follow":"رئيس الشعبة / م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-10-04"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s5_3","text":"تدريب الطلاب المشاركين في المسابقات","from":"2026-10-05","to":"2027-04-29","exec":"أ أ/ محمد الفيلكاوي / أ/ عبدالله الخليفي","follow":"رئيس الشعبة","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s5_4","text":"مشاركة الطلاب في المسابقات حسب الوقت المحدد لها","from":"2026-10-21","to":"2027-04-29","exec":"أ/ محمد الفيلكاوي / أ / أحمد الشطي / أ/ عبدالله الخليفي","follow":"رئيس الشعبة / م.م للشؤون التعليمية","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s5_5","text":"تكريم الطلاب الحاصلين على المراكز الأولى","from":"2027-04-05","to":"2027-04-08","exec":"معلمو الشعبة + رئيس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2027-04-08"},"done":false,"pct":null,"notes":"","flag":null}]},{"id":"g6","strategic":"تشجيع روح المبادرة والعمل بروح الفريق خلال الساعات التدريبية","domain":"المعلم","indicator":"اجتياز كل معلم 20 ساعة تدريبية سنوياً","initiative":"حصر الدورات التدريبية لكل معلم داخل الشعبة","opGoal":"أن يتم اجتياز 20 ساعة تدريبية لكل معلم سنوياً","steps":[{"id":"s6_1","text":"حصر الدورات التي يحتاجها كل معلم","from":"2026-09-14","to":"2026-09-17","exec":"رئيس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-09-17"},"done":true,"pct":90,"notes":"","flag":null},{"id":"s6_2","text":"ترشيح معلمين لحضور الدورات والورش الخارجية","from":"2026-09-20","to":"2026-09-24","exec":"ريس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-09-24"},"done":true,"pct":90,"notes":"","flag":null},{"id":"s6_3","text":"ترشيح معلمين لحضور الدورات والورش الداخلية","from":"2026-09-20","to":"2026-09-22","exec":"ريس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"text","value":"خلال الفصل الدراسي الأول"},"done":true,"pct":100,"notes":"من خلال الموسم التدريبي الذي تقيمه المدرسة في كل فصل دراسي","flag":null},{"id":"s6_4","text":"حضور الدروس الريادية داخل المدرسة وخارجها","from":"2026-10-01","to":"2027-03-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة + م.م للشؤون التعليمية","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s6_5","text":"ورش العمل التي يقيمها الشعبة","from":"2026-09-01","to":"2027-04-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة + م.م للشؤون التعليمية","actual":{"type":"text","value":"طوال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s6_6","text":"تفعيل الجانب الفني في الاجتماعات الفنية الأسبوعية","from":"2026-09-13","to":"2027-04-29","exec":"معلمو الشعبة + رئيس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"text","value":"طوال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null}]},{"id":"g7","strategic":"تشجيع روح المبادرة والعمل بروح الفريق خلال الساعات التدريبية","domain":"المعلم","indicator":"نقل الخبرة وتثبيتها في اجتماعات الشعبة الفنية","initiative":"نقل خبرات الدورات التدريبية للزملاء","opGoal":"أن يتم نقل الخبرة وتثبيتها في اجتماعات الشعبة الفنية","steps":[{"id":"s7_1","text":"تشجيع معلمي الشعبة على حضور الدورات وورش العمل أثناء اجتماع الشعبة","from":"2026-09-13","to":"2026-09-13","exec":"رئيس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-09-13"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s7_2","text":"تدوين أهم النقاط خلال الدورات وورش العمل","from":"2026-09-22","to":"2027-04-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة + م.م للشؤون التعليمية","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s7_3","text":"نقل ما استفاده الزميل من الورشة أو الدورة للزملاء خلال الاجتماعات","from":"2026-09-22","to":"2027-04-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة + م.م للشؤون التعليمية","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s7_4","text":"مناقشة الزملاء في الدورات أثناء الاجتماع","from":"2026-09-27","to":"2027-04-29","exec":"من حضر الدورة من المعلمين","follow":"رئيس الشعبة","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s7_5","text":"تثبيت خاطرة الشعبة أثناء الاجتماعات","from":"2026-09-13","to":"2027-04-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null}]},{"id":"g8","strategic":"تطبيق أحدث وسائل العرض في التدريس","domain":"المعلم","indicator":"استخدام السبورة التفاعلية في الحصص الدراسية بنسبة 100%","initiative":"تفعيل وسائل التدريس الحديثة داخل الفصل الدراسي","opGoal":"أن يتم استخدام السبورة التفاعلية في الحصص الدراسية بنسبة 100%","steps":[{"id":"s8_1","text":"عمل ورشة عمل عن كفية استخدام السبورة التفاعلية","from":"2026-09-10","to":"2026-09-10","exec":"حمد العون","follow":"رئيس الشعبة / م.م للشؤون التعليمية","actual":{"type":"date","value":"2026-09-10"},"done":true,"pct":100,"notes":"","flag":null},{"id":"s8_2","text":"زيارات رئيس الشعبة للمعلمين للاطمئنان على استخدام السبورة التفاعلية","from":"2026-09-20","to":"2027-04-29","exec":"رئيس الشعبة","follow":"م.م للشؤون التعليمية","actual":{"type":"text","value":"خلال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null},{"id":"s8_3","text":"زيارات متبادلة بين أعضاء الشعبة للتعرف عن قرب على استخدام السبورة التفاعلية","from":"2026-09-20","to":"2027-04-29","exec":"معلمو الشعبة","follow":"رئيس الشعبة / م.م للشؤون التعليمية","actual":{"type":"text","value":"طوال العام الدراسي"},"done":false,"pct":null,"notes":"","flag":null}]}];
+let opsGoals = null, opsFilter = "all", opsOpen = {}, opsEdit = null, opsDel = null, opsBusy = false;
+const oq = s => document.querySelector("#sec-ops " + s);
+const oqa = (s, r) => [...(r || document.getElementById("sec-ops")).querySelectorAll(s)];
+const opsDate = iso => iso ? ar(iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4)) : "";
+const opsPct = s => s.done ? (s.pct == null || s.pct === "" ? 100 : Number(s.pct)) : 0;
+const opsAvg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0;
+const opsFind = id => opsGoals.find(g => g.id === id);
+function opsMsg(t) { oq("#ops-msg").textContent = t || ""; }
+
+async function loadOps(force) {
+  if (!ME || !ME.isHead) return;
+  if (opsGoals && !force) { opsRender(); return; }
+  opsMsg("جارٍ التحميل…");
+  try { opsGoals = await run("opsList", CODE); opsMsg(""); if (opsGoals.length && !Object.keys(opsOpen).length) opsOpen[opsGoals[0].id] = true; opsRender(); }
+  catch (e) { opsMsg(cleanErr(e)); }
+}
+
+function opsStepView(g, s) {
+  const range = s.from || s.to ? (s.from === s.to ? opsDate(s.from) : `${opsDate(s.from)} ← ${opsDate(s.to)}`) : "—";
+  const actual = s.actual && s.actual.value ? (s.actual.type === "date" ? opsDate(s.actual.value) : esc(s.actual.value)) : "—";
+  const key = `step:${g.id}:${s.id}`;
+  return `<article class="ops-step">
+    <div class="ops-sh"><strong>${esc(s.text)}</strong>${s.done ? `<span class="ops-pill">تم · ${ar(opsPct(s))}٪</span>` : ""}</div>
+    <dl class="ops-facts">
+      <div><dt>الموعد المقترح</dt><dd>${range}</dd></div>
+      <div><dt>موعد التنفيذ الفعلي</dt><dd>${actual}</dd></div>
+      <div><dt>جهة التنفيذ</dt><dd>${esc(s.exec) || "—"}</dd></div>
+      <div><dt>جهة المتابعة</dt><dd>${esc(s.follow) || "—"}</dd></div>
+    </dl>
+    ${s.notes ? `<div class="ops-note">${esc(s.notes)}</div>` : ""}
+    ${s.flag ? `<div class="ops-flag">راجع التاريخ: ${esc(s.flag)}</div>` : ""}
+    <div class="ops-acts">
+      <button class="btn ghost sm" type="button" data-oa="edit-step" data-g="${g.id}" data-s="${s.id}">تعديل</button>
+      <button class="btn ${opsDel === key ? "danger" : "ghost"} sm" type="button" data-oa="del-step" data-g="${g.id}" data-s="${s.id}">${opsDel === key ? "تأكيد الحذف" : "حذف"}</button>
+    </div></article>`;
+}
+
+function opsStepForm(g, s) {
+  const isNew = !s;
+  s = s || { text: "", from: "", to: "", exec: "", follow: "", actual: { type: "date", value: "" }, done: false, pct: null, notes: "" };
+  const at = s.actual && s.actual.type === "text" ? "text" : "date", st = s.done ? "done" : "todo";
+  return `<form class="ops-edit" id="ops-sf" data-g="${g.id}" data-s="${s.id || ""}" data-status="${st}" data-actual="${at}" novalidate>
+    <h3>${isNew ? "إضافة خطوة" : "تعديل الخطوة"}</h3>
+    <div class="ops-fld"><label for="ops-text">خطوة التنفيذ</label><textarea id="ops-text" rows="2">${esc(s.text)}</textarea><div class="ops-err" id="ops-e-text"></div></div>
+    <div class="ops-row2">
+      <div class="ops-fld"><label for="ops-from">الموعد المقترح: من</label><input type="date" id="ops-from" value="${s.from || ""}"></div>
+      <div class="ops-fld"><label for="ops-to">الموعد المقترح: إلى</label><input type="date" id="ops-to" value="${s.to || ""}"></div>
+    </div><div class="ops-err" id="ops-e-range"></div>
+    <div class="ops-row2">
+      <div class="ops-fld"><label for="ops-exec">جهة التنفيذ</label><input type="text" id="ops-exec" value="${esc(s.exec)}"></div>
+      <div class="ops-fld"><label for="ops-follow">جهة المتابعة</label><input type="text" id="ops-follow" value="${esc(s.follow)}"></div>
+    </div>
+    <div class="ops-fld"><span class="l">موعد التنفيذ الفعلي</span>
+      <div class="ops-seg" role="group" aria-label="نوع الموعد الفعلي">
+        <button type="button" data-oa="seg-actual" data-v="date" aria-pressed="${at === "date"}">تاريخ</button>
+        <button type="button" data-oa="seg-actual" data-v="text" aria-pressed="${at === "text"}">فترة أو نص</button>
+      </div>
+      <input type="date" id="ops-ad" value="${at === "date" ? (s.actual.value || "") : ""}" ${at === "date" ? "" : "hidden"} aria-label="تاريخ التنفيذ الفعلي">
+      <input type="text" id="ops-at" value="${at === "text" ? esc(s.actual.value) : ""}" placeholder="مثل: خلال العام الدراسي" ${at === "text" ? "" : "hidden"} aria-label="الموعد الفعلي كنص">
+    </div>
+    <div class="ops-fld"><span class="l">الحالة</span>
+      <div class="ops-seg" role="group" aria-label="حالة الإنجاز">
+        <button type="button" data-oa="seg-status" data-v="done" aria-pressed="${st === "done"}">تم</button>
+        <button type="button" data-oa="seg-status" data-v="todo" aria-pressed="${st === "todo"}">ما تم</button>
+      </div></div>
+    <div class="ops-fld" id="ops-pw" ${st === "done" ? "" : "hidden"}>
+      <label for="ops-pct">نسبة الإنجاز (٪)</label>
+      <input type="number" id="ops-pct" min="0" max="100" step="5" inputmode="numeric" value="${s.done ? (s.pct == null || s.pct === "" ? 100 : s.pct) : 100}">
+      <div class="ops-quick">${[25, 50, 75, 90, 100].map(v => `<button class="ops-chip" type="button" data-oa="pct" data-v="${v}">${ar(v)}٪</button>`).join("")}</div>
+      <div class="ops-err" id="ops-e-pct"></div>
+    </div>
+    <div class="ops-fld"><label for="ops-notes">ملاحظات</label><textarea id="ops-notes" rows="2">${esc(s.notes)}</textarea></div>
+    <div class="ops-err" id="ops-e-save"></div>
+    <div class="ops-fa"><button class="btn" type="submit">حفظ</button><button class="btn ghost" type="button" data-oa="cancel">إلغاء</button></div>
+  </form>`;
+}
+
+function opsGoalForm(g) {
+  const isNew = !g;
+  g = g || { strategic: "", domain: "المتعلم", indicator: "", initiative: "", opGoal: "" };
+  const strategics = [...new Set(opsGoals.map(x => x.strategic).filter(Boolean))];
+  return `<form class="ops-edit" id="ops-gf" data-g="${g.id || ""}" data-domain="${esc(g.domain)}" novalidate>
+    <h3>${isNew ? "إضافة هدف جديد" : "تعديل الهدف"}</h3>
+    <div class="ops-fld"><label for="ops-strat">الهدف الاستراتيجي</label><input type="text" id="ops-strat" list="ops-strat-l" value="${esc(g.strategic)}">
+      <datalist id="ops-strat-l">${strategics.map(x => `<option value="${esc(x)}">`).join("")}</datalist></div>
+    <div class="ops-fld"><span class="l">المجال</span>
+      <div class="ops-seg" role="group" aria-label="المجال">
+        <button type="button" data-oa="seg-domain" data-v="المتعلم" aria-pressed="${g.domain === "المتعلم"}">المتعلم</button>
+        <button type="button" data-oa="seg-domain" data-v="المعلم" aria-pressed="${g.domain === "المعلم"}">المعلم</button>
+      </div></div>
+    <div class="ops-fld"><label for="ops-ind">المؤشر</label><textarea id="ops-ind" rows="2">${esc(g.indicator)}</textarea></div>
+    <div class="ops-fld"><label for="ops-init">المبادرة</label><input type="text" id="ops-init" value="${esc(g.initiative)}"></div>
+    <div class="ops-fld"><label for="ops-op">الهدف التشغيلي</label><textarea id="ops-op" rows="2">${esc(g.opGoal)}</textarea><div class="ops-err" id="ops-e-op"></div></div>
+    <div class="ops-err" id="ops-e-save"></div>
+    <div class="ops-fa"><button class="btn" type="submit">${isNew ? "إضافة الهدف" : "حفظ"}</button><button class="btn ghost" type="button" data-oa="cancel">إلغاء</button>
+      ${isNew ? "" : `<button class="btn ${opsDel === "goal:" + g.id ? "danger" : "ghost"} sp" type="button" data-oa="del-goal" data-g="${g.id}">${opsDel === "goal:" + g.id ? "تأكيد حذف الهدف وخطواته" : "حذف الهدف"}</button>`}</div>
+  </form>`;
+}
+
+function opsGoalView(g) {
+  const isOpen = !!opsOpen[g.id], done = g.steps.filter(s => s.done).length, p = opsAvg(g.steps.map(opsPct));
+  let body = "";
+  if (isOpen) {
+    if (opsEdit && opsEdit.kind === "goal" && opsEdit.gid === g.id) body += opsGoalForm(g);
+    else body += `<div class="ops-opg"><span>الهدف التشغيلي</span>${esc(g.opGoal) || "—"}</div>
+      <div class="ops-acts">
+        <button class="btn ghost sm" type="button" data-oa="edit-goal" data-g="${g.id}">تعديل الهدف</button>
+        <button class="btn ghost sm" type="button" data-oa="new-step" data-g="${g.id}">إضافة خطوة</button>
+        <button class="btn ghost sm" type="button" data-oa="pdf-goal" data-g="${g.id}">تقرير PDF لهذا الهدف</button>
+      </div>`;
+    if (!g.steps.length && !(opsEdit && opsEdit.kind === "newstep" && opsEdit.gid === g.id)) body += `<div class="ops-empty">ما فيه خطوات لهذا الهدف بعد.</div>`;
+    body += g.steps.map(s => (opsEdit && opsEdit.kind === "step" && opsEdit.gid === g.id && opsEdit.sid === s.id) ? opsStepForm(g, s) : opsStepView(g, s)).join("");
+    if (opsEdit && opsEdit.kind === "newstep" && opsEdit.gid === g.id) body += opsStepForm(g, null);
+  }
+  return `<section class="ops-goal">
+    <button class="ops-gh" type="button" data-oa="toggle" data-g="${g.id}" aria-expanded="${isOpen}">
+      <div class="ops-gtop"><span class="st">${esc(g.strategic)}</span><span class="ops-tag">${esc(g.domain)}</span></div>
+      <h2>${esc(g.indicator || g.opGoal)}</h2>${g.initiative ? `<div class="ops-ini">${esc(g.initiative)}</div>` : ""}
+      <div class="ops-prog"><span>منجز <b>${ar(done)} من ${ar(g.steps.length)}</b></span><div class="ops-bar" role="img" aria-label="متوسط الإنجاز ${p}٪"><i style="width:${p}%"></i></div><b>${ar(p)}٪</b><span class="ops-chev" aria-hidden="true">⌄</span></div>
+    </button>${isOpen ? `<div class="ops-gb">${body}</div>` : ""}</section>`;
+}
+
+function opsRender() {
+  if (!opsGoals) return;
+  const steps = opsGoals.flatMap(g => g.steps), done = steps.filter(s => s.done).length;
+  oq("#ops-totals").innerHTML = `<span>الأهداف<b>${ar(opsGoals.length)}</b></span><span>الخطوات المنجزة<b>${ar(done)} من ${ar(steps.length)}</b></span><span>متوسط الإنجاز<b>${ar(opsAvg(steps.map(opsPct)))}٪</b></span>`;
+  oqa(".ops-chip[data-oa='filter']").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === opsFilter)));
+  const list = opsGoals.filter(g => opsFilter === "all" || g.domain === opsFilter);
+  let html = "";
+  if (opsEdit && opsEdit.kind === "newgoal") html += `<section class="ops-goal"><div class="ops-gb">${opsGoalForm(null)}</div></section>`;
+  html += list.map(opsGoalView).join("");
+  if (!opsGoals.length) html += `<div class="ops-empty">الخطة فارغة. <button class="btn sm" type="button" data-oa="seed" style="margin-inline-start:8px">تحميل أهداف الخطة التشغيلية الثمانية</button></div>`;
+  else if (!list.length) html += `<div class="ops-empty">ما فيه أهداف في هذا المجال.</div>`;
+  oq("#ops-list").innerHTML = html;
+}
+
+async function opsPersist(g, form) {
+  const err = form && form.querySelector("#ops-e-save");
+  if (opsBusy) return false;
+  opsBusy = true; if (err) err.textContent = "جارٍ الحفظ…";
+  try {
+    const saved = await run("opsSaveGoal", CODE, g);
+    const i = opsGoals.findIndex(x => x.id === g.id);
+    if (i >= 0) opsGoals[i] = saved; else opsGoals.push(saved);
+    opsOpen[saved.id] = true; return saved;
+  } catch (e) { if (err) err.textContent = cleanErr(e); else opsMsg(cleanErr(e)); return false; }
+  finally { opsBusy = false; }
+}
+
+async function opsSaveStep(form) {
+  const g = opsFind(form.dataset.g), copy = JSON.parse(JSON.stringify(g));
+  const set = (id, m) => { const el = document.getElementById(id); if (el) el.textContent = m || ""; };
+  const text = document.getElementById("ops-text").value.trim(), from = document.getElementById("ops-from").value, to = document.getElementById("ops-to").value;
+  const status = form.dataset.status, at = form.dataset.actual;
+  let ok = true; set("ops-e-text"); set("ops-e-range"); set("ops-e-pct");
+  if (!text) { set("ops-e-text", "اكتب خطوة التنفيذ."); ok = false; }
+  if (from && to && from > to) { set("ops-e-range", "تاريخ البداية بعد تاريخ النهاية، صحّح أحدهما."); ok = false; }
+  let pct = null;
+  if (status === "done") {
+    const raw = document.getElementById("ops-pct").value.trim(); pct = raw === "" ? 100 : Number(raw);
+    if (!Number.isInteger(pct) || pct < 0 || pct > 100) { set("ops-e-pct", "اكتب نسبة بين ٠ و١٠٠."); ok = false; }
+  }
+  if (!ok) return;
+  const data = { text, from, to, exec: document.getElementById("ops-exec").value.trim(), follow: document.getElementById("ops-follow").value.trim(),
+    actual: at === "date" ? { type: "date", value: document.getElementById("ops-ad").value || "" } : { type: "text", value: document.getElementById("ops-at").value.trim() },
+    done: status === "done", pct: status === "done" ? pct : "", notes: document.getElementById("ops-notes").value.trim(), flag: "" };
+  if (form.dataset.s) Object.assign(copy.steps.find(s => s.id === form.dataset.s), data);
+  else copy.steps.push(Object.assign({ id: "s" + Date.now() }, data));
+  if (await opsPersist(copy, form)) { opsEdit = null; opsDel = null; opsRender(); }
+}
+
+async function opsSaveGoalForm(form) {
+  const strategic = document.getElementById("ops-strat").value.trim(), opGoal = document.getElementById("ops-op").value.trim();
+  document.getElementById("ops-e-op").textContent = "";
+  if (!opGoal) { document.getElementById("ops-e-op").textContent = "اكتب الهدف التشغيلي."; return; }
+  const base = form.dataset.g ? JSON.parse(JSON.stringify(opsFind(form.dataset.g))) : { steps: [] };
+  Object.assign(base, { strategic, domain: form.dataset.domain, indicator: document.getElementById("ops-ind").value.trim(), initiative: document.getElementById("ops-init").value.trim(), opGoal });
+  const saved = await opsPersist(base, form);
+  if (saved) { opsEdit = null; opsDel = null; opsRender(); }
+}
+
+// ---------- التقرير (PDF أفقي بنفس ترتيب ملفات الخطة الأصلية) ----------
+const OPS_CSS = `th{background:#fde9d9;color:#2b2b2b;font-size:12px}.hd td{background:#fff}.hd td.k{background:#fde9d9;width:14%}td{font-size:12px}.ops-og{background:#fff;font-weight:700}`;
+function opsReportGoal(g) {
+  const rows = g.steps.map((s, i) => {
+    const act = s.actual && s.actual.value ? (s.actual.type === "date" ? opsDate(s.actual.value) : esc(s.actual.value)) : "";
+    return `<tr>${i === 0 ? `<td class="ops-og" rowspan="${g.steps.length}">${esc(g.opGoal)}</td>` : ""}<td>${esc(s.text)}</td><td class="c">${opsDate(s.from)}</td><td class="c">${opsDate(s.to)}</td><td class="c">${esc(s.exec)}</td><td class="c">${esc(s.follow)}</td><td class="c">${act}</td><td class="c">${s.done ? ar(opsPct(s)) + "٪" : ""}</td><td>${esc(s.notes)}</td></tr>`;
+  }).join("");
+  return `<table class="hd" style="margin-bottom:8px"><tr><td class="k">الهدف الاستراتيجي</td><td>${esc(g.strategic)}</td><td class="k">المجال</td><td>${esc(g.domain)}</td></tr>
+    <tr><td class="k">المؤشر</td><td>${esc(g.indicator)}</td><td class="k">المبادرة</td><td>${esc(g.initiative)}</td></tr></table>
+    <table><colgroup><col style="width:14%"><col style="width:22%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:7%"><col style="width:11%"></colgroup>
+    <thead><tr><th class="c">الهدف التشغيلي</th><th class="c">خطوات التنفيذ</th><th class="c" colspan="2">الموعد المقترح (من - إلى)</th><th class="c">جهة التنفيذ</th><th class="c">جهة المتابعة</th><th class="c">موعد التنفيذ الفعلي</th><th class="c">نسبة الإنجاز</th><th class="c">ملاحظات</th></tr></thead>
+    <tbody>${rows || `<tr><td class="ops-og">${esc(g.opGoal)}</td><td colspan="8">&nbsp;</td></tr>`}</tbody></table>`;
+}
+async function opsPdf(list, name) {
+  const msg = oq("#ops-msg"); msg.textContent = "جارٍ تجهيز التقرير…";
+  try {
+    const inner = list.map((g, i) => `${i ? '<div class="pb"></div>' : ""}${pdfHead("الخطة التشغيلية")}<h1>الخطة التشغيلية لشعبة التربية الإسلامية</h1>${opsReportGoal(g)}`).join("");
+    const blob = await htmlPdf(inner, { landscape: true, css: OPS_CSS + PDF_COMPACT });
+    await deliver(blob, name + ".pdf", msg);
+  } catch (e) { msg.textContent = cleanErr(e); }
+}
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-oa]");
+  if (!b || !opsGoals) return;
+  const act = b.dataset.oa, gid = b.dataset.g, sid = b.dataset.s, form = b.closest("form");
+  const seg = (a, fn) => { oqa(`[data-oa="${a}"]`, form).forEach(x => x.setAttribute("aria-pressed", String(x === b))); fn(); };
+  if (act === "seg-status") return seg(act, () => { form.dataset.status = b.dataset.v; document.getElementById("ops-pw").hidden = b.dataset.v !== "done"; });
+  if (act === "seg-actual") return seg(act, () => { form.dataset.actual = b.dataset.v; document.getElementById("ops-ad").hidden = b.dataset.v !== "date"; document.getElementById("ops-at").hidden = b.dataset.v !== "text"; });
+  if (act === "seg-domain") return seg(act, () => { form.dataset.domain = b.dataset.v; });
+  if (act === "pct") { document.getElementById("ops-pct").value = b.dataset.v; return; }
+  if (act === "filter") { opsFilter = b.dataset.v; opsRender(); return; }
+  if (act === "toggle") { opsOpen[gid] = !opsOpen[gid]; opsRender(); return; }
+  if (act === "new-goal") { opsEdit = { kind: "newgoal" }; opsDel = null; opsRender(); const f = document.getElementById("ops-strat"); if (f) f.focus(); return; }
+  if (act === "edit-goal") { opsEdit = { kind: "goal", gid }; opsDel = null; opsRender(); return; }
+  if (act === "edit-step") { opsEdit = { kind: "step", gid, sid }; opsDel = null; opsRender(); return; }
+  if (act === "new-step") { opsOpen[gid] = true; opsEdit = { kind: "newstep", gid }; opsDel = null; opsRender(); const f = document.getElementById("ops-text"); if (f) f.focus(); return; }
+  if (act === "cancel") { opsEdit = null; opsDel = null; opsRender(); return; }
+  if (act === "pdf-all") { opsPdf(opsGoals.filter(g => opsFilter === "all" || g.domain === opsFilter), "الخطة التشغيلية - شعبة التربية الإسلامية"); return; }
+  if (act === "pdf-goal") { opsPdf([opsFind(gid)], "الخطة التشغيلية - " + (opsFind(gid).indicator || "هدف").slice(0, 40)); return; }
+  if (act === "seed") {
+    b.disabled = true; opsMsg("جارٍ تحميل الأهداف…");
+    try { await run("opsSeed", CODE, OPS_SEED); await loadOps(true); } catch (x) { opsMsg(cleanErr(x)); b.disabled = false; }
+    return;
+  }
+  if (act === "del-step") {
+    const key = `step:${gid}:${sid}`;
+    if (opsDel !== key) { opsDel = key; opsRender(); return; }
+    const copy = JSON.parse(JSON.stringify(opsFind(gid))); copy.steps = copy.steps.filter(s => s.id !== sid);
+    if (await opsPersist(copy, null)) { opsDel = null; opsRender(); } return;
+  }
+  if (act === "del-goal") {
+    const key = "goal:" + gid;
+    if (opsDel !== key) { opsDel = key; opsRender(); return; }
+    try { await run("opsDeleteGoal", CODE, gid); opsGoals = opsGoals.filter(g => g.id !== gid); opsEdit = null; opsDel = null; opsRender(); } catch (x) { opsMsg(cleanErr(x)); }
+  }
+});
+document.addEventListener("submit", e => {
+  if (e.target.id === "ops-sf") { e.preventDefault(); opsSaveStep(e.target); }
+  if (e.target.id === "ops-gf") { e.preventDefault(); opsSaveGoalForm(e.target); }
+});
 
 // ================= ركن ما قطع من المنهج =================
 function setTab(which) {
