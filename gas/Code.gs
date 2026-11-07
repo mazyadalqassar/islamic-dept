@@ -1780,6 +1780,7 @@ function opsClean_(g) {
 }
 function opsList(code) {
   head_(code);
+  opsSheet_();
   return rows_(SHEET_OPS).slice(1).filter(r => r[0]).map(opsObj_).sort((a, b) => a.order - b.order);
 }
 function opsSaveGoal(code, g) {
