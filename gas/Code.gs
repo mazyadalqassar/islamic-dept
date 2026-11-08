@@ -34,8 +34,8 @@ const DEPUTY = "حمد عماد حمد العون";
 const ST_PENDING = "بانتظار الصياغة";
 
 // التنبيهات بالإيميل (تصل لرئيس الشعبة فقط)
-const HEAD_EMAIL = "mazyadalqassar@gmail.com";
-const SITE_URL = "https://mazyadalqassar.github.io/islamic-dept/";
+const HEAD_EMAIL = "t289060100556@moe.edu.kw";
+const SITE_URL = "https://script.google.com/a/macros/moe.edu.kw/s/AKfycbyYzD0zQiqk9H40b72IBQD9mCWOASpYS6PT4L5WLygnCjCc44g6qEJUhlCwK08IMvbTkg/exec";
 const ST_READY = "جاهز";
 
 // المعلمون وفصولهم (الجدول العام للشعبة). s = علمي، l = أدبي
@@ -221,7 +221,7 @@ function gateInfo_() {
   const c = devCache_(), hit = c && c.get("gate");
   if (hit) return JSON.parse(hit);
   const emails = {}, pledged = {};
-  if (sh_(SHEET_EMAIL)) rows_(SHEET_EMAIL).slice(1).forEach(r => { if (r[0] && r[1]) emails[r[0]] = 1; });
+  if (sh_(SHEET_EMAIL)) rows_(SHEET_EMAIL).slice(1).forEach(r => { if (r[0] && isMoeMail_(r[1])) emails[r[0]] = 1; });
   const ps = sh_(SHEET_PLEDGE);
   if (ps && ps.getLastRow() > 1) ps.getRange(2, 1, ps.getLastRow() - 1, 1).getDisplayValues().forEach(r => { if (r[0]) pledged[r[0]] = 1; });
   const o = { emails, pledged };
@@ -1245,16 +1245,21 @@ function importRoster(code, b64) {
 
 
 // ======================= إيميلات المعلمين (للإشعارات) =======================
-function emailOf_(name) {
+function isMoeMail_(e) { return /^[^\s@]+@moe\.edu\.kw$/i.test(String(e || "").trim()); }
+/** الإيميل المسجّل كما هو (قد يكون شخصيًّا قديمًا) */
+function rawEmailOf_(name) {
   const sh = sh_(SHEET_EMAIL); if (!sh) return "";
   const r = rows_(SHEET_EMAIL).slice(1).find(x => x[0] === name);
   return r ? String(r[1] || "") : "";
 }
+/** إيميل الوزارة فقط: أي إيميل آخر يُتجاهل فيُطلب من المعلم تسجيل إيميل الوزارة */
+function emailOf_(name) { const e = rawEmailOf_(name); return isMoeMail_(e) ? e : ""; }
 function setMyEmail(code, email) {
   const me = whoBase_(code);
   if (me.isDemo) throw new Error("الحساب التجريبي لا يحتاج إيميلًا.");
   email = String(email || "").trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 120) throw new Error("اكتب إيميلًا صحيحًا.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 120) throw new Error("اكتب إيميل الوزارة المنتهي بـ @moe.edu.kw");
+  if (!isMoeMail_(email)) throw new Error("اكتب إيميل الوزارة المنتهي بـ @moe.edu.kw");
   withLock_(() => {
     const sh = sh_(SHEET_EMAIL) || sheet_(SHEET_EMAIL, ["المعلم", "الإيميل", "آخر تحديث"], true);
     const row = findRow_(sh, 1, me.name);
@@ -1970,7 +1975,7 @@ function requestDeviceCode(code) {
   if (me.isDemo) throw new Error("الحساب التجريبي لا يحتاج تحققًا.");
   const st = devStore_(), key = "devcode:" + me.name, old = json_(st.get(key), null);
   if (old && old.dev === dev && Date.now() - old.sent < 60000) throw new Error("أُرسل الكود قبل قليل، تفقّد إيميلك (وصندوق الرسائل غير المرغوب فيها).");
-  const to = emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "");
+  const to = emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "") || rawEmailOf_(me.name);
   if (!to) throw new Error("لا يوجد إيميل مسجّل لك. راجع رئيس الشعبة.");
   const pin = String(Math.floor(100000 + Math.random() * 900000));
   st.put(key, JSON.stringify({ pin, dev, tries: 0, sent: Date.now(), exp: Date.now() + 600000 }), 600);
