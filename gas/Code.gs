@@ -71,7 +71,7 @@ function doGet() {
 
 // ======================= واجهة الموقع الخارجي (GitHub Pages) =======================
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
-const API = { login, saveEntry, headData, submitAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
+const API = { login, saveEntry, headData, submitAchievement, updateMyAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, minuteFile, saveMinute, remindMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, notifyAssigned, visitPlan, schoolTable, importSchool, saveSwap, decideSwap, swapTaken, swapHeadSig, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
