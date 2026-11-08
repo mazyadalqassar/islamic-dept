@@ -221,7 +221,7 @@ function gateInfo_() {
   const c = devCache_(), hit = c && c.get("gate");
   if (hit) return JSON.parse(hit);
   const emails = {}, pledged = {};
-  if (sh_(SHEET_EMAIL)) rows_(SHEET_EMAIL).slice(1).forEach(r => { if (r[0] && isMoeMail_(r[1])) emails[r[0]] = 1; });
+  if (sh_(SHEET_EMAIL)) rows_(SHEET_EMAIL).slice(1).forEach(r => { if (r[0] && isPersonalMail_(r[1])) emails[r[0]] = 1; });
   const ps = sh_(SHEET_PLEDGE);
   if (ps && ps.getLastRow() > 1) ps.getRange(2, 1, ps.getLastRow() - 1, 1).getDisplayValues().forEach(r => { if (r[0]) pledged[r[0]] = 1; });
   const o = { emails, pledged };
@@ -1246,20 +1246,22 @@ function importRoster(code, b64) {
 
 // ======================= إيميلات المعلمين (للإشعارات) =======================
 function isMoeMail_(e) { return /^[^\s@]+@moe\.edu\.kw$/i.test(String(e || "").trim()); }
-/** الإيميل المسجّل كما هو (قد يكون شخصيًّا قديمًا) */
+/** قرار ٨/١١/٢٠٢٦: الرسائل (تنبيهات وأكواد تحقق) تصل لإيميل غير الوزارة فقط يسجّله المعلم، والدخول يبقى بحساب الوزارة */
+function isPersonalMail_(e) { e = String(e || "").trim(); return e.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && !isMoeMail_(e); }
+/** الإيميل المسجّل كما هو (قد يكون إيميل وزارة سجّله المعلم سابقًا) */
 function rawEmailOf_(name) {
   const sh = sh_(SHEET_EMAIL); if (!sh) return "";
   const r = rows_(SHEET_EMAIL).slice(1).find(x => x[0] === name);
   return r ? String(r[1] || "") : "";
 }
-/** إيميل الوزارة فقط: أي إيميل آخر يُتجاهل فيُطلب من المعلم تسجيل إيميل الوزارة */
-function emailOf_(name) { const e = rawEmailOf_(name); return isMoeMail_(e) ? e : ""; }
+/** الإيميل غير الوزاري فقط: إيميل الوزارة يُتجاهل فيُطلب من المعلم تسجيل إيميل آخر */
+function emailOf_(name) { const e = rawEmailOf_(name); return isPersonalMail_(e) ? e : ""; }
 function setMyEmail(code, email) {
   const me = whoBase_(code);
   if (me.isDemo) throw new Error("الحساب التجريبي لا يحتاج إيميلًا.");
   email = String(email || "").trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 120) throw new Error("اكتب إيميل الوزارة المنتهي بـ @moe.edu.kw");
-  if (!isMoeMail_(email)) throw new Error("اكتب إيميل الوزارة المنتهي بـ @moe.edu.kw");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 120) throw new Error("اكتب إيميلًا صحيحًا.");
+  if (isMoeMail_(email)) throw new Error("اكتب إيميلك الشخصي (مثل Gmail)، لا إيميل الوزارة.");
   withLock_(() => {
     const sh = sh_(SHEET_EMAIL) || sheet_(SHEET_EMAIL, ["المعلم", "الإيميل", "آخر تحديث"], true);
     const row = findRow_(sh, 1, me.name);
@@ -1975,7 +1977,7 @@ function requestDeviceCode(code) {
   if (me.isDemo) throw new Error("الحساب التجريبي لا يحتاج تحققًا.");
   const st = devStore_(), key = "devcode:" + me.name, old = json_(st.get(key), null);
   if (old && old.dev === dev && Date.now() - old.sent < 60000) throw new Error("أُرسل الكود قبل قليل، تفقّد إيميلك (وصندوق الرسائل غير المرغوب فيها).");
-  const to = emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "") || rawEmailOf_(me.name);
+  const to = emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "");
   if (!to) throw new Error("لا يوجد إيميل مسجّل لك. راجع رئيس الشعبة.");
   const pin = String(Math.floor(100000 + Math.random() * 900000));
   st.put(key, JSON.stringify({ pin, dev, tries: 0, sent: Date.now(), exp: Date.now() + 600000 }), 600);
