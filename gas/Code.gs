@@ -34,7 +34,7 @@ const DEPUTY = "حمد عماد حمد العون";
 const ST_PENDING = "بانتظار الصياغة";
 
 // التنبيهات بالإيميل (تصل لرئيس الشعبة فقط)
-const HEAD_EMAIL = "t289060100556@moe.edu.kw";
+const HEAD_EMAIL = "mazyadalqassar@gmail.com"; // إيميل رئيس الشعبة الشخصي (لا إيميل الوزارة)
 const SITE_URL = "https://script.google.com/a/macros/moe.edu.kw/s/AKfycbyYzD0zQiqk9H40b72IBQD9mCWOASpYS6PT4L5WLygnCjCc44g6qEJUhlCwK08IMvbTkg/exec";
 const ST_READY = "جاهز";
 
@@ -698,10 +698,23 @@ function demoAction(code, name, action) {
 
 function esc_(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
+/** الإيميلات تحمل «خبرًا عامًا» فقط (اسم الركن) بلا أسماء ولا تواريخ ولا تفاصيل ولا مرفقات؛ التفاصيل داخل الموقع */
+function genericMail_(subject) {
+  const t = String(subject || "");
+  const map = [[/احتياط/, "الاحتياط", "عندك إشعار جديد في ركن الاحتياط."], [/زيارة/, "الزيارات الصفية", "عندك إشعار جديد في ركن الزيارات الصفية."],
+    [/محضر/, "المحاضر", "عندك إشعار جديد في ركن محاضر الاجتماعات."], [/تعميم/, "النشرات والتعاميم", "عندك إشعار جديد في ركن النشرات والتعاميم."],
+    [/استئذان|كشف/, "الاستئذانات", "عندك إشعار جديد في ركن الاستئذانات."], [/إنجاز/, "الإنجازات", "عندك إشعار جديد في ركن الإنجازات."],
+    [/تبديل|حصة|حصتك/, "بدّل حصتي", "عندك إشعار جديد في ركن بدّل حصتي."], [/متعثر|فائق|طالب/, "متابعة الطلاب", "عندك إشعار جديد في ركن متابعة الطلاب."]];
+  const m = map.find(x => x[0].test(t));
+  const rem = /تذكير/.test(t) ? "تذكير: " : "";
+  return { subject: rem + "إشعار جديد في موقع الشعبة" + (m ? " · " + m[1] : ""), html: `<p>${rem}${m ? m[2] : "عندك إشعار جديد في الموقع."}</p><p>ادخل الموقع للاطلاع على التفاصيل.</p>` };
+}
+
 /** يرسل تنبيهًا لرئيس الشعبة. الحسابات التجريبية تصل بعلامة [تجريبي]. لا يوقف العملية إن فشل الإرسال */
 function notify_(me, subject, html, attachments) {
   try {
     const demo = me && me.isDemo;
+    if (subject !== "تجربة تنبيهات موقع الشعبة") { const g = genericMail_(subject); subject = g.subject; html = g.html; attachments = []; }
     MailApp.sendEmail({
       to: HEAD_EMAIL,
       subject: (demo ? "[تجريبي] " : "") + subject,
@@ -1275,6 +1288,7 @@ function notifyTeacher_(name, subject, html, attachments) {
   if (isDemo_(name)) return false;
   const to = emailOf_(name); if (!to) return false;
   try {
+    const g = genericMail_(subject); subject = g.subject; html = g.html; attachments = [];
     MailApp.sendEmail({ to, subject, name: "موقع شعبة التربية الإسلامية", attachments: attachments && attachments.length ? attachments : undefined,
       htmlBody: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:14px;line-height:1.8;color:#2b2b2b">${html}
         <p><a href="${SITE_URL}" style="color:#c8641c">فتح موقع الشعبة</a></p></div>` });
@@ -1509,11 +1523,9 @@ function dailyLeavesReport() {
   const date = Utilities.formatDate(new Date(), "Asia/Kuwait", "yyyy-MM-dd");
   const wd = new Date(date + "T12:00:00").getDay(); if (wd === 5 || wd === 6) return;
   const list = leavesOfDay_(date); if (!list.length) return;
-  MailApp.sendEmail({ to: HEAD_EMAIL, subject: `كشف استئذانات المعلمين · ${dayOf_(date)} ${dmy_(date)} (${list.length})`, name: "موقع شعبة التربية الإسلامية",
+  MailApp.sendEmail({ to: HEAD_EMAIL, subject: "كشف الاستئذانات جاهز · موقع الشعبة", name: "موقع شعبة التربية الإسلامية",
     htmlBody: `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;font-size:14px;line-height:1.8">
-      <p>مرفق كشف استئذانات المعلمين ليوم اليوم (${list.length})، لإرساله إلى المدير. ولاختيار استئذانات أخرى (مثل المقدَّمة اليوم لباكر) استخدم زر «كشف الاستئذانات» في الموقع.</p>
-      <p>${list.map(o => `أ. ${esc_(o.teacher)} · ${esc_(o.type)} · ${dayOf_(o.date)} ${dmy_(o.date)}`).join("<br>")}</p></div>`,
-    attachments: [leavesPdfBlob_(date, list)] });
+      <p>كشف استئذانات اليوم جاهز في الموقع. ادخل ركن الاستئذانات وحمّله عبر زر «كشف الاستئذانات PDF».</p></div>` });
 }
 /** يُشغَّل مرة واحدة من المحرر (بعد موافقة رئيس الشعبة على الصلاحية): ينشئ المهمة اليومية الساعة ٢ ظهرًا بتوقيت الكويت */
 function installDailyLeaves() { return installTriggers(); }
