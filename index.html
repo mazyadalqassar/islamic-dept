@@ -1559,8 +1559,12 @@ async function deliver(blob, filename, msgEl) {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   } catch (e) {}
-  msgEl.innerHTML = `تم تجهيز الملف. إذا لم يبدأ التنزيل <button class="linkbtn" type="button">احفظه في Google Drive</button>`;
-  msgEl.querySelector("button").onclick = async () => {
+  // على الجوال يمنع المتصفح التنزيل التلقائي بعد انتظار طويل، فيُعرض زر ضغطة المستخدم نفسها تنزّل الملف
+  msgEl.innerHTML = `تم تجهيز الملف. <button class="btn sm" type="button" data-dl>اضغط هنا لتنزيل الملف</button> أو <button class="linkbtn" type="button" data-drv>احفظه في Google Drive</button>`;
+  msgEl.querySelector("[data-dl]").onclick = () => {
+    try { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000); } catch (e) {}
+  };
+  msgEl.querySelector("[data-drv]").onclick = async () => {
     msgEl.textContent = "جارٍ الحفظ في Drive…";
     try { const url = await run("saveFileToDrive", CODE, filename, await blobToDataURL(blob)); msgEl.innerHTML = `حُفظ في Drive: <a href="${esc(url)}" target="_blank" rel="noopener">فتح الملف</a>`; }
     catch (e) { msgEl.textContent = cleanErr(e); }
