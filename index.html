@@ -762,6 +762,16 @@ nav.sections .tile span.tbadge[hidden] { display: none; }
           <div class="saved" id="ach-msg"></div>
         </form>
         <h3 class="list-title">إنجازاتي السابقة</h3>
+        <div id="ach-multi" hidden style="margin:0 0 12px">
+          <button class="btn" id="ach-multi-open" type="button">حفظ أكثر من إنجاز</button>
+          <div id="ach-multi-box" hidden style="margin-top:10px;border:1px solid #e6d3c2;border-radius:10px;padding:10px 12px;background:#fffaf5">
+            <div class="sub" style="margin-bottom:6px">اختر الإنجازات التي تريد حفظها، وتُحفظ كلها دفعة واحدة في ملف PDF واحد (كل إنجاز في صفحة).</div>
+            <div class="row-actions" style="margin-bottom:6px"><button class="btn ghost sm" id="ach-multi-all" type="button">تحديد الكل</button><button class="btn ghost sm" id="ach-multi-none" type="button">إلغاء التحديد</button></div>
+            <div id="ach-multi-list" style="max-height:320px;overflow:auto"></div>
+            <div class="row-actions" style="margin-top:10px"><button class="btn" id="ach-multi-go" type="button">حفظ المحدد</button></div>
+            <div class="saved" id="ach-multi-msg"></div>
+          </div>
+        </div>
         <div class="list" id="ach-list"></div>
       </section>
       <section id="ach-all" hidden>
@@ -1574,7 +1584,7 @@ const PST = {
   idbPut(k, v) { PST.db().then(db => { if (!db) return; try { const t = db.transaction("kv", "readwrite").objectStore("kv"); v == null ? t.delete(k) : t.put(v, k); } catch (e) {} }); }
 };
 const PST_READY = PST.db().then(db => new Promise(res => { if (!db) return res();
-  try { const out = {}, st = db.transaction("kv").objectStore("kv"), keys = ["devid", "code"]; let n = keys.length;
+  try { const out = {}, st = db.transaction("kv").objectStore("kv"), keys = ["devid", "code", "lastsec"]; let n = keys.length;
     keys.forEach(k => { const r = st.get(k); r.onsuccess = () => { if (r.result) out[k] = r.result; if (!--n) { PST.idb = out; res(); } }; r.onerror = () => { if (!--n) { PST.idb = out; res(); } }; });
   } catch (e) { res(); } })).catch(() => {}).then(() => {
   // ما وُجد في مكان واحد يُعاد نسخه إلى البقية
@@ -1633,7 +1643,7 @@ async function doLogin(code, silent) {
 $("login-form").addEventListener("submit", e => { e.preventDefault(); doLogin($("code").value); });
 $("logout").onclick = () => {
   try { PST.del("code"); } catch (e) {}
-  try { sessionStorage.removeItem("lastsec"); localStorage.removeItem("lastsec"); } catch (e) {}
+  try { sessionStorage.removeItem("lastsec"); localStorage.removeItem("lastsec"); PST.del("lastsec"); } catch (e) {}
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
@@ -1645,9 +1655,9 @@ const SECTIONS = ["curr", "ach", "act", "min", "vis", "subs", "swap", "stu", "lv
 const SEC_TITLES = { ops: "الخطة التشغيلية", curr: "ما قطع من المنهج", ach: "الإنجازات والتنمية المهنية", act: "حصة النشاط", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والمتعثرين", lv: "الاستئذانات", grd: "كشف درجات الأعمال", circ: "النشرات والتعاميم" };
 // noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
 // آخر ركن زاره المعلم: يُحفظ ليرجع له الموقع إذا أُعيد تحميله (مثل الرجوع من ملف نزّله على الجوال)
-function saveLastSec_(sec) { try { if (ME) sessionStorage.setItem("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} try { if (ME) localStorage.setItem("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} }
+function saveLastSec_(sec) { try { if (ME) sessionStorage.setItem("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} try { if (ME) localStorage.setItem("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} try { if (ME) PST.set("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} }
 function lastSec_() {
-  for (const st of [() => sessionStorage, () => localStorage]) {
+  for (const st of [() => sessionStorage, () => localStorage, () => ({ getItem: () => PST.get("lastsec") })]) {
     try { const o = JSON.parse(st().getItem("lastsec") || "null"); if (o && ME && o.n === ME.name && Date.now() - o.t < 6 * 3600e3 && SECTIONS.indexOf(o.s) > -1) return o.s; } catch (e) {}
   }
   return "home";
@@ -2181,7 +2191,7 @@ $("ach-form").addEventListener("submit", async e => {
 });
 
 async function loadMyAch() {
-  const box = $("ach-list");
+  const box = $("ach-list"); $("ach-multi").hidden = !isOwnEditor();
   if (!ACH) { box.innerHTML = '<div class="empty">جارٍ التحميل…</div>'; try { ACH = await run("myAchievements", CODE); } catch (e) { box.innerHTML = `<div class="empty">${esc(cleanErr(e))}</div>`; return; } }
   if (!ACH.length) { box.innerHTML = '<div class="empty">لم ترفع أي إنجاز بعد. استخدم النموذج أعلاه لإضافة أول إنجاز.</div>'; return; }
   box.innerHTML = ACH.map(a => `<div class="li">
@@ -2194,6 +2204,39 @@ async function loadMyAch() {
     try { await run("deleteAchievement", CODE, b.dataset.del); ACH = ACH.filter(a => a.id !== b.dataset.del); loadMyAch(); } catch (e) { b.textContent = cleanErr(e); }
   }));
 }
+// حفظ أكثر من إنجاز دفعة واحدة (لأ. حمد العون): يختار إنجازاته فيُنشأ ملف PDF واحد فيه كل تقرير في صفحة
+function multiRender() {
+  const L = ACH || [];
+  $("ach-multi-list").innerHTML = L.length ? L.map(a => `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid #f0e4d8"><input type="checkbox" data-mid="${esc(a.id)}" style="margin-top:5px"><span><b>${esc(a.title)}</b><br><span class="sub">${esc(a.type)} · ${achWhen(a)}</span></span></label>`).join("") : '<div class="empty">لا توجد إنجازات.</div>';
+  const upd = () => { const n = document.querySelectorAll("#ach-multi-list input:checked").length; $("ach-multi-go").textContent = n ? `حفظ المحدد (${ar(n)})` : "حفظ المحدد"; };
+  $("ach-multi-list").onchange = upd; upd();
+}
+$("ach-multi-open").onclick = async () => {
+  const box = $("ach-multi-box"); box.hidden = !box.hidden; if (box.hidden) return;
+  if (!ACH) await loadMyAch(); multiRender();
+};
+$("ach-multi-all").onclick = () => { document.querySelectorAll("#ach-multi-list input").forEach(i => i.checked = true); $("ach-multi-list").onchange && $("ach-multi-list").onchange(); };
+$("ach-multi-none").onclick = () => { document.querySelectorAll("#ach-multi-list input").forEach(i => i.checked = false); $("ach-multi-list").onchange && $("ach-multi-list").onchange(); };
+$("ach-multi-go").onclick = async () => {
+  const msg = $("ach-multi-msg"), btn = $("ach-multi-go");
+  const ids = [...document.querySelectorAll("#ach-multi-list input:checked")].map(i => i.dataset.mid);
+  const sel = (ACH || []).filter(a => ids.includes(a.id));
+  if (!sel.length) { msg.textContent = "اختر إنجازًا واحدًا على الأقل."; return; }
+  btn.disabled = true;
+  try {
+    const PDFLib = await pdfLib_(), out = await PDFLib.PDFDocument.create();
+    for (let i = 0; i < sel.length; i++) {
+      const a = sel[i]; msg.textContent = `جارٍ إنشاء التقرير ${ar(i + 1)} من ${ar(sel.length)}…`;
+      const imgs = []; for (const p of a.photos) imgs.push(await photo(p));
+      const blob = await htmlPdf(achPdfHtml({ ...a, report: a.type === ACT_TYPE ? a.report : achText(a) }, imgs), { onePage: true });
+      const src = await PDFLib.PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
+      (await out.copyPages(src, src.getPageIndices())).forEach(pg => out.addPage(pg));
+    }
+    out.setTitle(`إنجازات ${ME.name}`);
+    await deliver(new Blob([await out.save()], { type: "application/pdf" }), `إنجازات ${ME.name.split(" ").slice(0, 2).join(" ")} (${ar(sel.length)}).pdf`, msg);
+  } catch (e) { msg.textContent = "لم يتم إنشاء الملف: " + cleanErr(e); }
+  finally { btn.disabled = false; }
+};
 const ST_READY = "جاهز";
 // التقرير التلقائي: من بيانات المعلم وكلامه كما هو، ويحل محله التقرير المصاغ متى وُجد
 // [عنوان التقرير، الاسم المعرّف في العناوين] حسب نوع النشاط
