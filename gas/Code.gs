@@ -71,7 +71,7 @@ function doGet() {
 
 // ======================= واجهة الموقع الخارجي (GitHub Pages) =======================
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
-const API = { login, saveEntry, headData, submitAchievement, updateMyAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
+const API = { login, saveLastSec, saveEntry, headData, submitAchievement, updateMyAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, minuteFile, saveMinute, remindMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, notifyAssigned, visitPlan, schoolTable, importSchool, saveSwap, decideSwap, swapTaken, swapHeadSig, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
@@ -271,12 +271,21 @@ function readEntries_(prefix) {
   return out;
 }
 
+/** آخر ركن زاره المعلم على هذا الجهاز (٦ ساعات): يُخزَّن في السيرفر ليعود إليه إذا أُعيد تحميل الصفحة بعد تنزيل ملف */
+function lastSecKey_(code) { const p = String(code || "").trim().toUpperCase().split("~"); return "lastsec:" + String(whoCode_(p[0]).name) + ":" + String(p[1] || "").slice(0, 40); }
+function saveLastSec(code, sec) {
+  const me = whoBase_(code); if (me.isDemo) return "";
+  sec = String(sec || "").replace(/[^a-z]/g, "").slice(0, 10);
+  try { devStore_().put(lastSecKey_(code), sec, 21600); } catch (e) {}
+  return "ok";
+}
 function login(code) {
   const me = whoBase_(code);
   const all = readEntries_(demoPrefix_(me));
   const mine = {};
   me.classes.forEach(c => ["ie", "qr"].forEach(s => { const k = c + "__" + s; if (all[k]) mine[k] = all[k]; }));
-  return { pledged: me.isHead || !!pledgeMap_()[me.name], name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, canSubs: !me.isDemo && me.isHead, email: me.isDemo ? "" : (emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "")), entries: mine, all: me.isHead ? all : null };
+  const lastSec = (() => { try { return me.isDemo ? "" : String(devStore_().get(lastSecKey_(code)) || ""); } catch (e) { return ""; } })();
+  return { lastSec, pledged: me.isHead || !!pledgeMap_()[me.name], name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, canSubs: !me.isDemo && me.isHead, email: me.isDemo ? "" : (emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "")), entries: mine, all: me.isHead ? all : null };
 }
 
 function saveEntry(code, classId, subject, done, note, label) {

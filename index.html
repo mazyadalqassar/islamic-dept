@@ -1647,7 +1647,7 @@ async function doLogin(code, silent) {
 $("login-form").addEventListener("submit", e => { e.preventDefault(); doLogin($("code").value); });
 $("logout").onclick = () => {
   try { PST.del("code"); } catch (e) {}
-  try { sessionStorage.removeItem("lastsec"); localStorage.removeItem("lastsec"); PST.del("lastsec"); } catch (e) {}
+  try { sessionStorage.removeItem("lastsec"); localStorage.removeItem("lastsec"); PST.del("lastsec"); window.__sentSec = ""; } catch (e) {}
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
@@ -1661,6 +1661,7 @@ const SEC_TITLES = { ops: "الخطة التشغيلية", curr: "ما قطع م
 // آخر ركن زاره المعلم: يُحفظ ليرجع له الموقع إذا أُعيد تحميله (مثل الرجوع من ملف نزّله على الجوال)
 function saveLastSec_(sec) { try { if (ME) sessionStorage.setItem("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} try { if (ME) localStorage.setItem("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} try { if (ME) PST.set("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} }
 function lastSec_() {
+  if (ME && ME.lastSec && SECTIONS.indexOf(ME.lastSec) > -1) return ME.lastSec;
   for (const st of [() => sessionStorage, () => localStorage, () => ({ getItem: () => PST.get("lastsec") })]) {
     try { const o = JSON.parse(st().getItem("lastsec") || "null"); if (o && ME && o.n === ME.name && Date.now() - o.t < 6 * 3600e3 && SECTIONS.indexOf(o.s) > -1) return o.s; } catch (e) {}
   }
@@ -1671,6 +1672,7 @@ function go(sec, noHist) {
   if (sec === "subs" && !(ME && !ME.isDemo)) sec = "home";
   if (sec === "ops" && !(ME && ME.isHead)) sec = "home";
   saveLastSec_(sec);
+  if (ME && !ME.isDemo && CODE && sec !== window.__sentSec) { window.__sentSec = sec; run("saveLastSec", CODE, sec).catch(() => {}); }
   const home = sec === "home";
   $("home").hidden = !home; $("secbar").hidden = home;
   SECTIONS.forEach(s => $("sec-" + s).hidden = s !== sec);
