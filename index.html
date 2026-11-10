@@ -1620,7 +1620,7 @@ async function doLogin(code, silent) {
     $("demo-note").hidden = !r.isDemo;
     if (r.isHead) $("demo-admin").ontoggle = () => { if ($("demo-admin").open) loadDemos(); };
     layoutTiles(); showMailLine();
-    go("home", true);
+    { const ls = lastSec_(); window.__restored = ls !== "home"; go(ls, true); }
     msg.textContent = "";
     $("dev-admin").ontoggle = () => { if ($("dev-admin").open) loadDevices(); };
     if (!r.isDemo && !r.email) showEmailGate(false); else if (!r.pledged) showPledge();
@@ -1633,6 +1633,7 @@ async function doLogin(code, silent) {
 $("login-form").addEventListener("submit", e => { e.preventDefault(); doLogin($("code").value); });
 $("logout").onclick = () => {
   try { PST.del("code"); } catch (e) {}
+  try { sessionStorage.removeItem("lastsec"); localStorage.removeItem("lastsec"); } catch (e) {}
   CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
@@ -1643,10 +1644,19 @@ $("logout").onclick = () => {
 const SECTIONS = ["curr", "ach", "act", "min", "vis", "subs", "swap", "stu", "lv", "grd", "circ", "ops"];
 const SEC_TITLES = { ops: "الخطة التشغيلية", curr: "ما قطع من المنهج", ach: "الإنجازات والتنمية المهنية", act: "حصة النشاط", min: "محاضر الاجتماعات", vis: "الزيارات الصفية", subs: "الاحتياط", swap: "بدّل حصتي", stu: "متابعة الفائقين والمتعثرين", lv: "الاستئذانات", grd: "كشف درجات الأعمال", circ: "النشرات والتعاميم" };
 // noHist: لا نضيف خطوة في سجل المتصفح (عند الدخول أو عند الرجوع بزر الجوال)
+// آخر ركن زاره المعلم: يُحفظ ليرجع له الموقع إذا أُعيد تحميله (مثل الرجوع من ملف نزّله على الجوال)
+function saveLastSec_(sec) { try { if (ME) sessionStorage.setItem("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} try { if (ME) localStorage.setItem("lastsec", JSON.stringify({ n: ME.name, s: sec, t: Date.now() })); } catch (e) {} }
+function lastSec_() {
+  for (const st of [() => sessionStorage, () => localStorage]) {
+    try { const o = JSON.parse(st().getItem("lastsec") || "null"); if (o && ME && o.n === ME.name && Date.now() - o.t < 6 * 3600e3 && SECTIONS.indexOf(o.s) > -1) return o.s; } catch (e) {}
+  }
+  return "home";
+}
 function go(sec, noHist) {
   if (sec !== "home" && SECTIONS.indexOf(sec) === -1) sec = "home";
   if (sec === "subs" && !(ME && !ME.isDemo)) sec = "home";
   if (sec === "ops" && !(ME && ME.isHead)) sec = "home";
+  saveLastSec_(sec);
   const home = sec === "home";
   $("home").hidden = !home; $("secbar").hidden = home;
   SECTIONS.forEach(s => $("sec-" + s).hidden = s !== sec);
@@ -1670,7 +1680,7 @@ function go(sec, noHist) {
   if (sec === "grd") grdTab(ME.isHead && !$("grd-ov").hidden ? "ov" : "sheet");
 }
 SECTIONS.forEach(s => $("nav-" + s).onclick = () => go(s));
-$("back-home").onclick = () => { if (history.state && history.state.sec && history.state.sec !== "home" && history.length > 1) history.back(); else go("home", true); };
+$("back-home").onclick = () => { if (window.__restored) { window.__restored = false; go("home", true); return; } if (history.state && history.state.sec && history.state.sec !== "home" && history.length > 1) history.back(); else go("home", true); };
 window.addEventListener("popstate", e => { if (ME) go((e.state && e.state.sec) || "home", true); });
 
 // ================= ركن الخطة التشغيلية (لرئيس الشعبة فقط) =================
