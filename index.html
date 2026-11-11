@@ -5303,7 +5303,24 @@ async function loadActs() {
   if (!L.length) { box.innerHTML = '<div class="empty">لا توجد أنشطة بعد. استخدم النموذج أعلاه لإضافة أول نشاط.</div>'; return; }
   box.innerHTML = L.map(a => `<div class="li">
       <div class="li-main"><b>${esc(a.title)}</b><span class="sub">${head || (a.teachers || []).length > 1 ? "أ. " + esc((a.teachers || [a.teacher]).map(tName).join("، أ. ")) + " · " : ""}${achWhen(a)}${a.target ? " · " + esc(a.target) : ""}${a.photos.length ? " · " + ar(a.photos.length) + " صور" : ""}</span></div>
-      <div class="row-actions"><button class="btn sm" data-pdf="${a.id}">تقرير PDF</button><button class="btn ghost sm" data-del="${a.id}">حذف</button></div><div class="saved" data-pmsg="${a.id}"></div></div>`).join("");
+      <div class="row-actions"><button class="btn sm" data-pdf="${a.id}">تقرير PDF</button>${head ? `<button class="btn ghost sm" data-own="${a.id}">المعلمون</button>` : ""}<button class="btn ghost sm" data-del="${a.id}">حذف</button></div><div class="saved" data-pmsg="${a.id}"></div><div data-opanel="${a.id}" hidden></div></div>`).join("");
+  box.querySelectorAll("[data-own]").forEach(b => b.onclick = () => {
+    const a = L.find(x => x.id === b.dataset.own), pn = box.querySelector(`[data-opanel="${a.id}"]`);
+    if (!pn.hidden) { pn.hidden = true; return; }
+    const cur = a.teachers || [a.teacher];
+    pn.innerHTML = `<div class="attlist">${TEACHERS.map(t => `<label class="check"><input type="checkbox" value="${esc(t[0])}"${cur.indexOf(t[0]) !== -1 ? " checked" : ""}> ${esc(tName(t[0]))}</label>`).join("")}</div><div class="row-actions"><button class="btn sm" type="button" data-osave>حفظ المعلمين</button></div><div class="saved" data-omsg></div>`;
+    pn.hidden = false;
+    pn.querySelector("[data-osave]").onclick = async ev => {
+      const names = [...pn.querySelectorAll("input:checked")].map(x => x.value), om = pn.querySelector("[data-omsg]");
+      if (!names.length) { om.textContent = "اختر معلمًا واحدًا على الأقل."; return; }
+      ev.target.disabled = true; om.textContent = "جارٍ الحفظ…";
+      try {
+        const r = await run("setAchievementTeachers", CODE, a.id, names);
+        ACH = null; ACH_ALL = null; await loadActs();
+        const m = box.querySelector(`[data-pmsg="${a.id}"]`); if (m) m.textContent = `حُفظ المعلمون، وصار النشاط إنجازًا لكل منهم${(r.told || []).length ? "، وأُرسل إشعار للجدد" : ""}.${(r.noEmail || []).length ? " لم يسجّل إيميله بعد: " + r.noEmail.map(tName).join("، ") + "." : ""}`;
+      } catch (e) { om.textContent = cleanErr(e); ev.target.disabled = false; }
+    };
+  });
   box.querySelectorAll("[data-pdf]").forEach(b => b.onclick = () => achDownload(L.find(a => a.id === b.dataset.pdf), box.querySelector(`[data-pmsg="${b.dataset.pdf}"]`)));
   box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => confirmInline(b, "تأكيد الحذف", async () => {
     try { await run("deleteAchievement", CODE, b.dataset.del); ACH = null; ACH_ALL = null; loadActs(); } catch (e) { b.textContent = cleanErr(e); }
@@ -5314,10 +5331,12 @@ const ACT_CSS = `body{padding:0!important}.actw{width:794px;padding:14px 16px 0}
 .actp .in2{position:absolute;inset:9px;border:1px solid #c8641c;border-radius:8px;pointer-events:none}.actp .cn{position:absolute;width:26px;height:26px;border:4px solid #e9be85}.actp .c1{top:14px;right:14px;border-left:0;border-bottom:0}.actp .c2{top:14px;left:14px;border-right:0;border-bottom:0}.actp .c3{bottom:14px;right:14px;border-left:0;border-top:0}.actp .c4{bottom:14px;left:14px;border-right:0;border-top:0}
 .actp .tt{background:#c8641c;color:#fff;border-radius:10px;text-align:center;padding:12px 0 12px;margin:4px 0 12px;box-shadow:0 0 0 3px #fffaf2,0 0 0 4px #c8641c}.actp .tt small{display:block;font-size:12.5px;color:#f6dcb6}.actp .tt h1{font-family:"Noto Kufi Arabic";color:#fff;font-size:23px;margin:0;line-height:1.5}
 .actp .lh{margin-bottom:10px}.actp .cb{min-height:110px;font-size:13.5px;line-height:1.9}.actp .cb p{margin:0 0 6px}.actp .phs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}.actp .phs img{object-fit:contain;border-radius:6px;border:1px solid #e9be85}
-.actp .signs{position:absolute;bottom:28px;right:34px;left:34px;margin:0}`;
+.actp .signs{position:absolute;bottom:28px;right:34px;left:34px;margin:0}
+.actp .sgw{position:absolute;bottom:26px;right:34px;left:34px}.actp .sgw .signs{position:static;margin-top:8px}.actp .tsg{border:1px solid #e9be85;border-radius:8px;background:#fff;padding:2px 12px}
+.actp .tr{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px dashed #ecd9bd;font-size:12.5px}.actp .tr:last-child{border-bottom:0}.actp .tr b{color:#14554a;font-family:"Noto Kufi Arabic";font-size:11.5px;width:78px}.actp .tr span{flex:1}.actp .tr i{font-style:normal;color:#8a7f70;font-size:11.5px}`;
 function actPdfHtml(a, imgs) {
-  const byHead = a.teacher === HEAD_NAME, names = (a.teachers || [a.teacher]).map(tName);
-  const n = imgs.length, w = n === 1 ? 62 : n === 3 ? 31.5 : 48.5, h = n === 1 ? 260 : n === 2 ? 190 : n === 3 ? 250 : 140;
+  const names = (a.teachers || [a.teacher]).map(tName), multi = names.length > 1;
+  const n = imgs.length, w = n === 1 ? 62 : n === 3 ? 31.5 : 48.5, h = Math.max(70, (n === 1 ? 260 : n === 2 ? 190 : n === 3 ? 250 : 140) - (multi ? (Math.min(names.length, 6) - 1) * (n === 4 ? 10 : 14) : 0));
   const body = String(a.report || "").trim() ? reportBodyHtml(a.report) : String(a.desc || "").split(/\n+/).filter(Boolean).map(t => `<p>${esc(t)}</p>`).join("");
   return `<style>${ACT_CSS}</style><div class="actw"><div class="actp"><div class="in2"></div><i class="cn c1"></i><i class="cn c2"></i><i class="cn c3"></i><i class="cn c4"></i>
     ${pdfHead()}<div class="tt"><h1>تقرير حصة النشاط</h1></div>
@@ -5327,7 +5346,10 @@ function actPdfHtml(a, imgs) {
     <tr><td class="k">${names.length > 1 ? "المعلمون المتابعون للنشاط" : "المعلم المتابع للنشاط"}</td><td colspan="3">أ. ${esc(names.join("، أ. "))}</td></tr></table>
     <h2>محتوى النشاط</h2><div class="cb">${body}</div>
     ${n ? `<h2>الصور</h2><div class="phs">${imgs.map(s => `<img src="${s}" style="width:calc(${w}% - 8px);height:${h}px">`).join("")}</div>` : ""}
-    ${pdfSigns(achSignList(a, byHead || names.length > 1 ? [] : [["توقيع المعلم", "أ. " + names[0]]], "توقيع "))}</div></div>`;
+    ${multi
+      // قانون: النشاط الذي فيه أكثر من معلم تُكتب أسماؤهم وتواقيعهم تحت بعض، ثم توقيع رئيس الشعبة والمدير
+      ? `<div class="sgw"><div class="tsg">${names.map(nm => `<div class="tr"><b>توقيع المعلم</b><span>أ. ${esc(nm)}</span><i>التوقيع: ....................</i></div>`).join("")}</div>${pdfSigns(achSignList(a, [], "توقيع "))}</div>`
+      : pdfSigns(achSignList(a, [["توقيع المعلم", "أ. " + names[0]]], "توقيع "))}</div></div>`;
 }
 
 function achPdfHtml(a, imgs) {

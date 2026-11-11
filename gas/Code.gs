@@ -71,7 +71,7 @@ function doGet() {
 
 // ======================= واجهة الموقع الخارجي (GitHub Pages) =======================
 // الصفحة المستضافة خارج جوجل ترسل الطلبات هنا، فلا يتأثر المعلم بتعدد حسابات جوجل في متصفحه.
-const API = { login, saveLastSec, saveEntry, headData, submitAchievement, updateMyAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
+const API = { login, saveLastSec, saveEntry, headData, submitAchievement, setAchievementTeachers, updateMyAchievement, myAchievements, deleteAchievement, allAchievements, saveReport,
   getPhoto, listMinutes, getMinute, minuteFile, saveMinute, remindMinute, deleteMinute, signMinute, mySignature, saveFileToDrive, demoAccounts, demoAction,
   saveVisit, listVisits, getVisit, signVisit, deleteVisit, subsList, saveAbsence, deleteAbsence, notifyAssigned, visitPlan, schoolTable, importSchool, saveSwap, decideSwap, swapTaken, swapHeadSig, listSwaps, deleteSwap,
   listStudents, saveStudent, addFollow, deleteFollow, setStudentStatus, setStudentRec, deleteStudent, wipeStudents, myRoster, importRoster,
@@ -347,6 +347,29 @@ function ensureAchCols_(sh) {
   if (sh.getMaxColumns() < 14) sh.insertColumnsAfter(sh.getMaxColumns(), 14 - sh.getMaxColumns());
   if (!sh.getRange(1, 13).getDisplayValue()) sh.getRange(1, 13).setValue("تاريخ النهاية");
   if (!sh.getRange(1, 14).getDisplayValue()) sh.getRange(1, 14).setValue("التواقيع");
+}
+
+/** لرئيس الشعبة: تحديد معلمي نشاط موجود (يظهر إنجازًا لكل واحد منهم ويصل الجدد إشعار) */
+function setAchievementTeachers(code, id, names) {
+  head_(code);
+  const all = TEACHERS.map(t => t[0]);
+  const list = (Array.isArray(names) ? names : []).map(String).filter((n, i, arr) => all.indexOf(n) !== -1 && arr.indexOf(n) === i).slice(0, 20);
+  if (!list.length) throw new Error("اختر معلمًا واحدًا على الأقل.");
+  let title = "", old = [];
+  withLock_(() => {
+    const sh = sh_(SHEET_ACH), row = findRow_(sh, 1, id);
+    if (row < 0) throw new Error("الإنجاز غير موجود.");
+    ensureAchCols_(sh);
+    const r = sh.getRange(row, 1, 1, 14).getDisplayValues()[0];
+    old = achNames_(r[1]); title = r[4];
+    r[1] = list.join("|");
+    writeRow_(sh, row, r);
+  });
+  const told = [], noEmail = [];
+  list.filter(n => old.indexOf(n) === -1 && !TEACHERS.find(t => t[0] === n && t[2])).forEach(n => {
+    (notifyTeacher_(n, `إنجاز جديد: ${title}`, "<p>أُضيف إليك نشاط في موقع الشعبة، وانضاف تلقائيًا إلى إنجازاتك.</p>") ? told : noEmail).push(n);
+  });
+  return { teachers: list, told, noEmail };
 }
 
 function submitAchievement(code, a) {
