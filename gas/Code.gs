@@ -356,12 +356,16 @@ function submitAchievement(code, a) {
   if (!title) throw new Error("اكتب عنوان النشاط.");
   if (desc.length < 10) throw new Error("اكتب وصفًا للنشاط ولو بسطرين.");
   // رئيس الشعبة يضيف الإنجاز عن معلم أو أكثر (يظهر عند كل واحد منهم)
+  // وأي معلم يضيف معه زملاءه في «حصة النشاط»، فيُحسب النشاط إنجازًا لكل واحد منهم ويصله إشعار
   let owners = [me.name];
-  if (me.isHead && Array.isArray(a.teachers) && a.teachers.length) {
-    const names = TEACHERS.map(t => t[0]);
-    owners = a.teachers.map(String).filter((n, i, arr) => names.indexOf(n) !== -1 && arr.indexOf(n) === i).slice(0, 20);
-    if (!owners.length) throw new Error("اختر المعلم.");
+  const allNames = TEACHERS.map(t => t[0]);
+  const picked = Array.isArray(a.teachers) ? a.teachers.map(String).filter((n, i, arr) => allNames.indexOf(n) !== -1 && arr.indexOf(n) === i) : [];
+  if (me.isHead && picked.length) {
+    owners = picked.slice(0, 20);
+  } else if (!me.isHead && !me.isDemo && String(a.type || "") === "حصة النشاط" && picked.length) {
+    owners = [me.name].concat(picked.filter(n => n !== me.name)).slice(0, 20);
   }
+  if (!owners.length) throw new Error("اختر المعلم.");
   const photos = (a.photos || []).slice(0, 4);
   const folder = folder_();
   const id = newId_();
@@ -376,7 +380,13 @@ function submitAchievement(code, a) {
     me.name === DEPUTY ? cleanSigns_(a.signs) : ""];
   ensureAchCols_(sh_(SHEET_ACH));
   withLock_(() => appendText_(sh_(SHEET_ACH), row));
-  if (me.isHead) return { id };
+  // إشعار لكل معلم أُضيف معه الإنجاز (غير صاحب الرفع، ورئيس الشعبة يصله تنبيه الرفع أدناه)
+  const told = [], noEmail = [];
+  owners.filter(n => n !== me.name && !TEACHERS.find(t => t[0] === n && t[2])).forEach(n => {
+    const ok = notifyTeacher_(n, `إنجاز جديد: ${title}`, `<p>أضاف <b>أ. ${esc_(me.name)}</b> نشاطًا باسمك في موقع الشعبة، وانضاف تلقائيًا إلى إنجازاتك.</p>`);
+    (ok ? told : noEmail).push(n);
+  });
+  if (me.isHead) return { id, told, noEmail };
   notify_(me, `إنجاز جديد: ${title} — أ. ${me.name}`, `
     <p>رفع <b>أ. ${esc_(me.name)}</b> إنجازًا جديدًا في موقع الشعبة، ويستطيع تنزيل تقريره بصياغته مباشرة. ويمكنك تعديل الصياغة من ركن الإنجازات متى شئت.</p>
     <table cellpadding="6" style="border-collapse:collapse;border:1px solid #e6e1db">
@@ -387,7 +397,7 @@ function submitAchievement(code, a) {
     </table>
     <p><b>وصف المعلم:</b><br>${esc_(desc).replace(/\n/g, "<br>")}</p>
     <p>عدد الصور: ${ids.length} (مرفقة بهذه الرسالة).</p>`, blobs);
-  return { id };
+  return { id, told, noEmail };
 }
 
 /** تعديل إنجاز كامل (البيانات، الصياغة، الصور، التواقيع) — لصاحب الصلاحية على إنجازاته هو فقط */
@@ -466,7 +476,7 @@ function saveReport(code, id, text) {
 function getPhoto(code, fileId) {
   const me = who_(code);
   const r = rows_(SHEET_ACH).slice(1).find(x => (x[7] || "").split(",").indexOf(fileId) !== -1);
-  if (!r || (!me.isHead && r[1] !== me.name)) throw new Error("لا تملك صلاحية عرض هذه الصورة.");
+  if (!r || (!me.isHead && achNames_(r[1]).indexOf(me.name) === -1)) throw new Error("لا تملك صلاحية عرض هذه الصورة.");
   const blob = DriveApp.getFileById(fileId).getBlob();
   return "data:image/jpeg;base64," + Utilities.base64Encode(blob.getBytes());
 }
