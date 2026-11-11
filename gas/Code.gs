@@ -948,13 +948,14 @@ const ORD_ = ["", "الأولى", "الثانية", "الثالثة", "الرا�
 const DAYS_ = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 function swapObj_(r) { return { id: r[0], at: r[1], teacher: r[2], subject: r[3], classes: r[4], date: r[5], period: Number(r[6]),
   other: r[7], otherDept: r[8], otherSubject: r[9], otherDate: r[10], otherPeriod: Number(r[11]), schoolName: r[12], demo: isDemo_(r[2]),
-  kind: r[13] === "extra" ? "extra" : "swap", status: SW_ST_.indexOf(r[14]) !== -1 ? r[14] : "legacy", decidedAt: r[15] || "", note: r[16] || "" }; }
+  kind: r[13] === "extra" ? "extra" : "swap", status: SW_ST_.indexOf(r[14]) !== -1 ? r[14] : "legacy", decidedAt: r[15] || "", note: r[16] || "", by: r[17] || "" }; }
 // حالة الطلب: pending بانتظار الاعتماد، approved معتمد، rejected مرفوض، (فارغ = تبديل قديم سابق للنظام الجديد ويُعدّ معتمدًا)
 const SW_ST_ = ["pending", "approved", "rejected"];
-const SW_HEAD_ = ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة", "النوع", "الحالة", "وقت القرار", "ملاحظة رئيس الشعبة"];
+const SW_HEAD_ = ["المعرف", "وقت الطلب", "المعلم", "مادته", "الفصل", "تاريخ حصته", "حصته", "المعلم الثاني", "شعبته", "مادته", "تاريخ حصة الثاني", "حصة الثاني", "اسم المعلم في جدول المدرسة", "النوع", "الحالة", "وقت القرار", "ملاحظة رئيس الشعبة", "قدّمه"];
 function swapSheet_() {
   const sh = sh_(SHEET_SWAP) || sheet_(SHEET_SWAP, SW_HEAD_, true);
-  if (!sh.getRange(1, 14).getDisplayValue()) sh.getRange(1, 14, 1, 4).setValues([SW_HEAD_.slice(13)]);
+  if (!sh.getRange(1, 14).getDisplayValue()) sh.getRange(1, 14, 1, 5).setValues([SW_HEAD_.slice(13)]);
+  else if (!sh.getRange(1, 18).getDisplayValue()) sh.getRange(1, 18).setValue(SW_HEAD_[17]);
   return sh;
 }
 function dayOf_(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? DAYS_[new Date(+m[1], +m[2] - 1, +m[3]).getDay()] : ""; }
@@ -971,15 +972,15 @@ function saveSwap(code, s, docB64) {
   const p1 = Number(s.period), p2 = Number(s.otherPeriod);
   if (!(p1 >= 1 && p1 <= 7 && p2 >= 1 && p2 <= 7)) throw new Error("رقم الحصة غير صحيح.");
   const clip = (v, n) => String(v || "").slice(0, n);
-  // رئيس الشعبة يسجّل التبديل عن أحد معلمي الشعبة
+  // رئيس الشعبة ونائبه (أ. حمد العون) يسجّلان التبديل عن أحد معلمي الشعبة؛ والاعتماد لرئيس الشعبة وحده
   let who = me.name;
-  if (me.isHead && s.teacher && s.teacher !== me.name) {
+  if ((me.isHead || me.name === DEPUTY) && s.teacher && s.teacher !== me.name) {
     if (!TEACHERS.some(t => t[0] === s.teacher)) throw new Error("اختر المعلم من القائمة.");
     who = s.teacher;
   }
   const approved = !!me.isHead;
   const row = [newId_(), nowText_(), who, clip(s.subject, 60), clip(s.classes, 60), s.date, p1, clip(s.other, 80), clip(s.otherDept, 80), clip(s.otherSubject, 60), s.otherDate, p2, clip(s.schoolName, 80),
-    extra ? "extra" : "swap", approved ? "approved" : "pending", approved ? nowText_() : "", ""];
+    extra ? "extra" : "swap", approved ? "approved" : "pending", approved ? nowText_() : "", "", who !== me.name ? me.name : ""];
   withLock_(() => {
     const sh = swapSheet_();
     // منع تكرار الطلب نفسه (ضغطتان أو جهازان)
@@ -1004,18 +1005,18 @@ function saveSwap(code, s, docB64) {
     }
     return o;
   }
-  notify_(me, extra ? `طلب حصة إضافية بانتظار اعتمادك: أ. ${me.name} من أ. ${o.other}` : `طلب تبديل حصة بانتظار اعتمادك: أ. ${me.name} مع أ. ${o.other}`, `
-    ${extra ? `<p>طلب <b>أ. ${esc_(me.name)}</b> أخذ <b>حصة إضافية</b> من <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${cl}، دون تبديلها:</p>
+  notify_(me, extra ? `طلب حصة إضافية بانتظار اعتمادك: أ. ${who} من أ. ${o.other}` : `طلب تبديل حصة بانتظار اعتمادك: أ. ${who} مع أ. ${o.other}`, `
+    ${extra ? `<p>طلب <b>أ. ${esc_(who)}</b> أخذ <b>حصة إضافية</b> من <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${cl}، دون تبديلها:</p>
     <table style="border-collapse:collapse" cellpadding="6" border="1">
       <tr style="background:#fbeee3"><th>المعلم</th><th>المادة</th><th>الحصة الإضافية</th><th>اليوم والتاريخ</th><th>صاحب الحصة</th></tr>
-      <tr><td>أ. ${esc_(me.name)}</td><td>${esc_(o.subject)}</td><td>${ORD_[p1]}</td><td>${dayOf_(o.date)} ${dmy_(o.date)}</td><td>أ. ${esc_(o.other)}</td></tr>
-    </table>` : `<p>طلب <b>أ. ${esc_(me.name)}</b> تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${cl}:</p>
+      <tr><td>أ. ${esc_(who)}</td><td>${esc_(o.subject)}</td><td>${ORD_[p1]}</td><td>${dayOf_(o.date)} ${dmy_(o.date)}</td><td>أ. ${esc_(o.other)}</td></tr>
+    </table>` : `<p>طلب <b>أ. ${esc_(who)}</b> تبديل حصة مع <b>أ. ${esc_(o.other)}</b> (${esc_(o.otherDept)}) في الفصل ${cl}:</p>
     <table style="border-collapse:collapse" cellpadding="6" border="1">
       <tr style="background:#fbeee3"><th>المعلم</th><th>المادة</th><th>من الحصة</th><th>إلى الحصة</th><th>اليوم والتاريخ</th></tr>
-      <tr><td>أ. ${esc_(me.name)}</td><td>${esc_(o.subject)}</td><td>${ORD_[p1]}</td><td>${ORD_[p2]}</td><td>${dayOf_(o.date)} ${dmy_(o.date)}${o.date !== o.otherDate ? " ← " + dayOf_(o.otherDate) + " " + dmy_(o.otherDate) : ""}</td></tr>
+      <tr><td>أ. ${esc_(who)}</td><td>${esc_(o.subject)}</td><td>${ORD_[p1]}</td><td>${ORD_[p2]}</td><td>${dayOf_(o.date)} ${dmy_(o.date)}${o.date !== o.otherDate ? " ← " + dayOf_(o.otherDate) + " " + dmy_(o.otherDate) : ""}</td></tr>
       <tr><td>أ. ${esc_(o.other)}</td><td>${esc_(o.otherSubject)}</td><td>${ORD_[p2]}</td><td>${ORD_[p1]}</td><td>${dayOf_(o.otherDate)} ${dmy_(o.otherDate)}${o.date !== o.otherDate ? " ← " + dayOf_(o.date) + " " + dmy_(o.date) : ""}</td></tr>
     </table>`}
-    <p><b>الطلب بانتظار اعتمادك.</b> اعتمده أو ارفضه من الموقع: بدّل حصتي ← سجل التبديلات. النموذج المرفق غير معتمد إلى أن تعتمد الطلب.</p>`, att);
+    ${who !== me.name ? `<p>قدّم الطلب أ. ${esc_(me.name)} نيابةً عن المعلم.</p>` : ""}<p><b>الطلب بانتظار اعتمادك.</b> اعتمده أو ارفضه من الموقع: بدّل حصتي ← سجل التبديلات. النموذج المرفق غير معتمد إلى أن تعتمد الطلب.</p>`, att);
   return o;
 }
 
@@ -1068,15 +1069,15 @@ function swapTaken(code) {
 function listSwaps(code) {
   const me = who_(code);
   const sh = sh_(SHEET_SWAP); if (!sh) return [];
-  return rows_(SHEET_SWAP).slice(1).filter(r => r[0] && (me.isHead || r[2] === me.name)).map(swapObj_).reverse();
+  return rows_(SHEET_SWAP).slice(1).filter(r => r[0] && (me.isHead || r[2] === me.name || r[17] === me.name)).map(swapObj_).reverse();
 }
 function deleteSwap(code, id) {
   const me = who_(code);
   return withLock_(() => {
     const sh = swapSheet_(), row = findRow_(sh, 1, String(id));
     if (row < 0) throw new Error("الطلب غير موجود.");
-    const owner = sh.getRange(row, 3).getDisplayValue();
-    if (!me.isHead && owner !== me.name) throw new Error("لا يمكن حذف هذا الطلب.");
+    const owner = sh.getRange(row, 3).getDisplayValue(), by = sh.getRange(row, 18).getDisplayValue();
+    if (!me.isHead && owner !== me.name && by !== me.name) throw new Error("لا يمكن حذف هذا الطلب.");
     if (!me.isHead && sh.getRange(row, 15).getDisplayValue() === "approved") throw new Error("هذا الطلب معتمد، ولا يحذفه إلا رئيس الشعبة.");
     sh.deleteRow(row);
     return true;

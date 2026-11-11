@@ -3444,7 +3444,8 @@ function slotTime(d, p) { const r = (daySchedule(d) || {})[p]; return r ? `${r[0
 let SCHOOL = null, swapPick = null, SW_TAKEN = [];
 const deptName = s => String(s || "").replace(/^قسم\s+/, "شعبة ");
 
-function swapMe() { return ME.isDemo || ME.isHead ? ($("sw-who").value || ME.name) : ME.name; }
+const canBehalf = () => !!ME && (ME.isHead || ME.name === DEPUTY); // التسجيل عن معلم آخر: رئيس الشعبة ونائبه (والاعتماد لرئيس الشعبة وحده)
+function swapMe() { return ME.isDemo || canBehalf() ? ($("sw-who").value || ME.name) : ME.name; }
 function weekStart(iso) {
   const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return null;
   const d = new Date(+m[1], +m[2] - 1, +m[3], 12); let wd = d.getDay();
@@ -3456,11 +3457,11 @@ function schoolOf(name) { return (SCHOOL || []).find(t => t.name === SCHOOL_NAME
 const isElective = s => /اختيار/.test(s[1] || "");
 
 async function initSwap() {
-  $("sw-who-wrap").hidden = !ME.isDemo && !ME.isHead;
-  if (ME.isHead) {
+  $("sw-who-wrap").hidden = !ME.isDemo && !canBehalf();
+  if (canBehalf()) {
     $("sw-who-label").textContent = "التبديل عن";
     if (!$("sw-who").options.length || $("sw-who").options[0].value !== ME.name)
-      $("sw-who").innerHTML = `<option value="${esc(ME.name)}">نفسي (رئيس الشعبة)</option>` + TEACHERS.filter(t => t[0] !== ME.name).map(t => `<option value="${esc(t[0])}">${esc(t[0])}</option>`).join("");
+      $("sw-who").innerHTML = `<option value="${esc(ME.name)}">${ME.isHead ? "نفسي (رئيس الشعبة)" : "نفسي"}</option>` + TEACHERS.filter(t => t[0] !== ME.name).map(t => `<option value="${esc(t[0])}">${esc(t[0])}</option>`).join("");
   } else if (ME.isDemo && (!$("sw-who").options.length || $("sw-who").options[0].value !== TEACHERS[0][0])) $("sw-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
   if (!$("sw-date").value) $("sw-date").value = todayISO();
   if (!SCHOOL) {
@@ -3536,7 +3537,7 @@ async function swapSubmit(info, mode, msg, payload, rerender) {
       SWAPS = null;
       try { SW_TAKEN = await run("swapTaken", CODE); } catch (e) {}
       if (headDirect) { if (rerender) rerender(); await deliver(blob, fname, msg); msg.insertAdjacentHTML("afterbegin", behalf ? `سُجّل واعتُمد عن أ. ${esc(behalf)}، ووصله إيميل بالنموذج إن كان مسجّلًا إيميله. ` : "سُجّل واعتُمد. "); }
-      else { if (rerender) rerender(); msg.textContent = "أُرسل طلبك إلى رئيس الشعبة وهو بانتظار اعتماده. ستصلك رسالة بالقرار، وتجد النموذج المعتمد في «تبديلاتي»."; }
+      else { if (rerender) rerender(); msg.textContent = behalf ? `أُرسل الطلب عن أ. ${behalf} إلى رئيس الشعبة وهو بانتظار اعتماده. يصل المعلم إيميل بالقرار، وتجد الطلب في «تبديلاتي».` : "أُرسل طلبك إلى رئيس الشعبة وهو بانتظار اعتماده. ستصلك رسالة بالقرار، وتجد النموذج المعتمد في «تبديلاتي»."; }
     }
   } catch (e) { msg.textContent = "لم يتم تسجيل الطلب: " + cleanErr(e); }
   msg.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -3546,18 +3547,18 @@ async function swapDoc(other, k2, w = 0, mode = "req") {
   const info = { me: { name: swapMe(), dept: deptName(me.dept), subject: me.slots[k][1], d: +k[0], p: +k[1], date: dayISO(start, +k[0]), classes: me.slots[k][0] },
     other: { name: other.name, dept: deptName(other.dept), subject: other.slots[k2][1], d: +k2[0], p: +k2[1], date: dayISO(start, +k2[0] + 7 * w), classes: other.slots[k2][0] } };
   const payload = { subject: info.me.subject, classes: info.me.classes, classLabel: cls_(info.me.classes), date: info.me.date, period: info.me.p, other: other.name, otherDept: deptName(other.dept),
-    otherSubject: info.other.subject, otherDate: info.other.date, otherPeriod: info.other.p, schoolName: me.name, teacher: ME.isHead && swapMe() !== ME.name ? swapMe() : undefined };
+    otherSubject: info.other.subject, otherDate: info.other.date, otherPeriod: info.other.p, schoolName: me.name, teacher: canBehalf() && swapMe() !== ME.name ? swapMe() : undefined };
   await swapSubmit(info, mode, $("sw-msg"), payload, renderSwapResults);
 }
 
 // ================= حصة إضافية =================
-const exMe = () => ME.isDemo || ME.isHead ? ($("sx-who").value || ME.name) : ME.name;
+const exMe = () => ME.isDemo || canBehalf() ? ($("sx-who").value || ME.name) : ME.name;
 async function initExtra() {
-  $("sx-who-wrap").hidden = !ME.isDemo && !ME.isHead;
-  if (ME.isHead) {
+  $("sx-who-wrap").hidden = !ME.isDemo && !canBehalf();
+  if (canBehalf()) {
     $("sx-who-label").textContent = "الحصة الإضافية عن";
     if (!$("sx-who").options.length || $("sx-who").options[0].value !== ME.name)
-      $("sx-who").innerHTML = `<option value="${esc(ME.name)}">نفسي (رئيس الشعبة)</option>` + TEACHERS.filter(t => t[0] !== ME.name).map(t => `<option value="${esc(t[0])}">${esc(t[0])}</option>`).join("");
+      $("sx-who").innerHTML = `<option value="${esc(ME.name)}">${ME.isHead ? "نفسي (رئيس الشعبة)" : "نفسي"}</option>` + TEACHERS.filter(t => t[0] !== ME.name).map(t => `<option value="${esc(t[0])}">${esc(t[0])}</option>`).join("");
   } else if (ME.isDemo && (!$("sx-who").options.length || $("sx-who").options[0].value !== TEACHERS[0][0])) $("sx-who").innerHTML = TEACHERS.map(t => `<option>${esc(t[0])}</option>`).join("");
   if (!$("sx-date").value) $("sx-date").value = todayISO();
   if (!SCHOOL) {
@@ -3608,7 +3609,7 @@ async function extraDoc(other, k2, w, mode) {
   const info = { kind: "extra", me: { name: exMe(), dept: deptName(me.dept), subject: mySlot ? mySlot[1] : "", d, p, date, classes: inter },
     other: { name: other.name, dept: deptName(other.dept), subject: s2[1], d, p, date, classes: inter } };
   const payload = { kind: "extra", subject: info.me.subject, classes: inter, classLabel: cls_(inter), date, period: p, other: other.name, otherDept: deptName(other.dept),
-    otherSubject: s2[1], schoolName: me.name, teacher: ME.isHead && exMe() !== ME.name ? exMe() : undefined };
+    otherSubject: s2[1], schoolName: me.name, teacher: canBehalf() && exMe() !== ME.name ? exMe() : undefined };
   await swapSubmit(info, mode, $("sx-msg"), payload, renderExtra);
 }
 function buildSwapDoc(D, x) {
@@ -3689,7 +3690,7 @@ async function loadSwaps(force) {
       : `<div class="o-main">حصة أ. ${esc(s.teacher.split(" ")[0])}: <b>${DAYS[isoDayIdx(s.date)]} ${fmtDate(s.date)} · الحصة ${ORD[s.period]}</b><small>يدخلها أ. ${esc(s.other)} (${esc(s.otherSubject)})</small>
       حصة أ. ${esc(s.other.split(" ")[0])}: <b>${DAYS[isoDayIdx(s.otherDate)]} ${fmtDate(s.otherDate)} · الحصة ${ORD[s.otherPeriod]}</b><small>يدخلها أ. ${esc(s.teacher)}</small></div>`;
     return `<div class="card sw-t" data-nid="${esc(s.id)}"><h3>${title} ${extra ? '<span class="pill none">حصة إضافية</span>' : ""} ${SW_STATUS[s.status] || ""}${s.demo ? ' <span class="pill none">تجريبي</span>' : ""}</h3>
-    <div class="sub">${esc(deptName(s.otherDept))} · الفصل ${esc(cls_(s.classes))} · طُلب ${fmtStamp(s.at)}${s.decidedAt ? ` · القرار ${fmtStamp(s.decidedAt)}` : ""}${s.note ? ` · ملاحظة رئيس الشعبة: ${esc(s.note)}` : ""}</div>
+    <div class="sub">${esc(deptName(s.otherDept))} · الفصل ${esc(cls_(s.classes))} · طُلب ${fmtStamp(s.at)}${s.by ? ` · قدّمه أ. ${esc(s.by)}` : ""}${s.decidedAt ? ` · القرار ${fmtStamp(s.decidedAt)}` : ""}${s.note ? ` · ملاحظة رئيس الشعبة: ${esc(s.note)}` : ""}</div>
     <div class="sw-opt">${body}
       <div class="row-actions"><button class="btn sm" type="button" data-doc="${i}">${s.status === "approved" ? "تنزيل النموذج المعتمد" : "تنزيل النموذج"}</button>${canDel ? `<button class="btn ghost sm" type="button" data-del="${i}">حذف</button>` : ""}</div>
       ${ME.isHead && s.status === "pending" ? `<div class="sw-decide"><input type="text" data-note="${i}" maxlength="200" placeholder="ملاحظة (اختياري)"><button class="btn sm" type="button" data-ok="${i}">اعتماد</button><button class="btn ghost sm" type="button" data-no="${i}">رفض</button></div>` : ""}</div></div>`;
