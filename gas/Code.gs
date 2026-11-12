@@ -288,25 +288,34 @@ function login(code) {
   return { lastSec, pledged: me.isHead || !!pledgeMap_()[me.name], name: me.name, classes: me.classes, isHead: me.isHead, isDemo: me.isDemo, canSubs: !me.isDemo && me.isHead, email: me.isDemo ? "" : (emailOf_(me.name) || (me.isHead ? HEAD_EMAIL : "")), entries: mine, all: me.isHead ? all : null };
 }
 
-function saveEntry(code, classId, subject, done, note, label) {
+function saveEntry(code, classId, subject, done, note, label, forTeacher) {
   const me = who_(code);
-  if (me.classes.indexOf(classId) === -1) throw new Error("هذا الفصل ليس من فصولك.");
+  // رئيس الشعبة يُدخل نيابةً عن معلم من الشعبة (يُسجَّل الإدخال باسم المعلم، ويُوسم في السجل أنه من رئيس الشعبة)
+  let owner = me, behalf = false;
+  forTeacher = String(forTeacher || "");
+  if (forTeacher && forTeacher !== me.name) {
+    if (!me.isHead) throw new Error("الإدخال نيابةً عن معلم لرئيس الشعبة فقط.");
+    const t = TEACHERS.find(x => x[0] === forTeacher);
+    if (!t) throw new Error("اختر المعلم من القائمة.");
+    owner = { name: t[0], classes: t[1], isDemo: false, isHead: false }; behalf = true;
+  }
+  if (owner.classes.indexOf(classId) === -1) throw new Error("هذا الفصل ليس من فصولك.");
   if (!MAX_DONE[subject]) throw new Error("المادة غير معروفة.");
   done = Math.floor(Number(done));
   if (!(done >= 0 && done <= MAX_DONE[subject])) throw new Error("قيمة غير صحيحة.");
   note = String(note || "").slice(0, 300);
   label = String(label || "").slice(0, 200);
-  const key = demoPrefix_(me) + classId + "__" + subject;
+  const key = demoPrefix_(owner) + classId + "__" + subject;
   return withLock_(() => {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sh = ss.getSheetByName(SHEET_DATA);
     const keys = sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), 1).getValues().map(r => r[0]);
     const now = new Date();
-    const row = [key, classId, subject === "ie" ? "التربية الإسلامية" : "القرآن الكريم", me.name, done, label, note, now];
+    const row = [key, classId, subject === "ie" ? "التربية الإسلامية" : "القرآن الكريم", owner.name, done, label, note, now];
     const idx = keys.indexOf(key);
     if (idx > 0) sh.getRange(idx + 1, 1, 1, row.length).setValues([row]);
     else sh.appendRow(row);
-    if (!me.isDemo) ss.getSheetByName(SHEET_LOG).appendRow([now, me.name, classId, row[2], done, note]);
+    if (!me.isDemo) ss.getSheetByName(SHEET_LOG).appendRow([now, owner.name, classId, row[2], done, note + (behalf ? " [أدخله رئيس الشعبة]" : "")]);
     return { updatedAt: now.toISOString() };
   });
 }

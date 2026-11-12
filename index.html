@@ -1648,7 +1648,7 @@ $("login-form").addEventListener("submit", e => { e.preventDefault(); doLogin($(
 $("logout").onclick = () => {
   try { PST.del("code"); } catch (e) {}
   try { sessionStorage.removeItem("lastsec"); localStorage.removeItem("lastsec"); PST.del("lastsec"); window.__sentSec = ""; } catch (e) {}
-  CODE = ""; ME = null; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
+  CODE = ""; ME = null; CUR_FOR = ""; MINE = {}; ALL = {}; ACH = null; ACH_ALL = null; MIN = null; CUR_MIN = null; achSub = "mine"; VIS = null; visTeacherFilter = ""; visSub = "new";
   for (const k in photoCache) delete photoCache[k];
   ["ach-detail", "min-detail", "min-form"].forEach(id => $(id).hidden = true); $("ach-all-list").hidden = false; $("ach-filter").hidden = false; $("min-listwrap").hidden = false;
   DASH = null; dashTab = "tasks"; $("logout").hidden = true; SUBS = null; VPLAN = null; subsSub = "new"; SCHOOL = null; swapPick = null; SWAPS = null; STU = null; stuSub = "new"; stuEditId = ""; ROSTER = null; $("sr-class").innerHTML = ""; LEAVES = null; DUTIES = null; lvSub = "new"; lvType = ""; GR = { sem: "1", cls: "", subj: "ie", data: null, open: "", edit: null, ovSem: "1", ov: null, teacher: "" }; $("gr-class").innerHTML = ""; $("gr-teacher").innerHTML = ""; CIRC = null; $("circ-detail").innerHTML = ""; $("view-email").hidden = true; $("view-device").hidden = true; $("view-pledge").hidden = true; $("view-pledge").innerHTML = ""; $("mail-line").hidden = true; $("st-detail").hidden = true;
@@ -1967,14 +1967,20 @@ function optionsHtml(key, selected) {
   }
   return html;
 }
+// رئيس الشعبة يُدخل ما قطع من المنهج نيابةً عن معلم: يختار المعلم فتظهر فصوله وبياناته
+let CUR_FOR = "";
+const curFor = () => ME && ME.isHead && CUR_FOR && CUR_FOR !== ME.name ? TEACHERS.find(t => t[0] === CUR_FOR) : null;
 function renderTeacher() {
-  const box = $("teacher-cards");
-  box.innerHTML = ALL_CLASSES.filter(c => ME.classes.indexOf(c.id) !== -1).map(c => `
+  const box = $("teacher-cards"), ft = curFor(), classes = ft ? ft[1] : ME.classes, data = ft ? ALL : MINE;
+  const picker = ME.isHead ? `<div class="card" style="grid-column:1/-1"><label class="f" for="cur-for">الإدخال عن</label>
+    <select id="cur-for"><option value="">نفسي (رئيس الشعبة)</option>${TEACHERS.filter(t => t[0] !== ME.name).map(t => `<option value="${esc(t[0])}"${t[0] === CUR_FOR ? " selected" : ""}>${esc(t[0])}</option>`).join("")}</select>
+    ${ft ? `<div class="sub">تُدخل الآن باسم أ. ${esc(ft[0])}، ويُوسم الإدخال في السجل بأنه من رئيس الشعبة.</div>` : ""}</div>` : "";
+  box.innerHTML = picker + ALL_CLASSES.filter(c => classes.indexOf(c.id) !== -1).map(c => `
     <article class="card">
       <h2>${c.label}</h2>
       <div class="sub">الصف ${GRADE_NAMES[c.grade]}${c.track ? (c.track === "s" ? " · علمي" : " · أدبي") : ""}</div>
       ${["ie", "qr"].map(sub => {
-        const key = planKey(sub, c.grade), id = docId(c.id, sub), p = MINE[id];
+        const key = planKey(sub, c.grade), id = docId(c.id, sub), p = data[id];
         const done = p ? p.done : null, st = status(key, done, WEEK);
         return `<div class="subj" data-id="${id}" data-key="${key}">
           <div class="subj-head"><b>${SUBJECTS[sub]}</b><span class="pill ${st.kind}">${st.text}</span></div>
@@ -1986,7 +1992,8 @@ function renderTeacher() {
         </div>`;
       }).join("")}
     </article>`).join("");
-  box.querySelectorAll("select").forEach(sel => sel.onchange = () => {
+  if ($("cur-for")) $("cur-for").onchange = e => { CUR_FOR = e.target.value; renderTeacher(); };
+  box.querySelectorAll(".subj select").forEach(sel => sel.onchange = () => {
     const wrap = sel.closest(".subj"), st = status(wrap.dataset.key, +sel.value, WEEK);
     const pill = wrap.querySelector(".pill"); pill.className = "pill " + st.kind; pill.textContent = st.text + " (قبل الحفظ)";
   });
@@ -1998,9 +2005,10 @@ async function saveCurr(btn) {
   const [classId, subject] = id.split("__");
   btn.disabled = true; msg.textContent = "جارٍ الحفظ…";
   try {
-    const r = await run("saveEntry", CODE, classId, subject, done, note, slotLabel(wrap.dataset.key, done));
-    MINE[id] = { done, note, updatedAt: r.updatedAt };
-    if (ME.isHead) ALL[id] = { ...MINE[id], teacher: ME.name };
+    const ft = curFor();
+    const r = await run("saveEntry", CODE, classId, subject, done, note, slotLabel(wrap.dataset.key, done), ft ? ft[0] : "");
+    if (ft) ALL[id] = { done, note, updatedAt: r.updatedAt, teacher: ft[0] };
+    else { MINE[id] = { done, note, updatedAt: r.updatedAt }; if (ME.isHead) ALL[id] = { ...MINE[id], teacher: ME.name }; }
     const st = status(wrap.dataset.key, done, WEEK), pill = wrap.querySelector(".pill");
     pill.className = "pill " + st.kind; pill.textContent = st.text;
     msg.textContent = "تم الحفظ";
